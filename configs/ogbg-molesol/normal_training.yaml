@@ -1,0 +1,10 @@
+fixed:
+  dataset: ogbg-molesol
+  log_path: './logs'
+
+  sample_configs:
+    sample_policy: null
+    sample_k: null
+    num_subgraphs: 0
+
+  imle_configs: null
