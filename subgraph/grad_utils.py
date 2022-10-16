@@ -13,7 +13,7 @@ class CenterNodeIdentityMapping(torch.autograd.Function):
         :return:
         """
         batch_nnodes, new_batch_nnodes = args
-        subgraphs_seed_nodes = torch.cat([torch.arange(n) for n in batch_nnodes], dim=0)
+        subgraphs_seed_nodes = torch.cat([torch.arange(n, device=batch_nnodes.device) for n in batch_nnodes], dim=0)
         subgraphs_seed_nodes[1:] += torch.cumsum(new_batch_nnodes, dim=0)[:-1]
         center_mask = torch.zeros_like(mask, dtype=mask.dtype, device=mask.device)
         center_mask[subgraphs_seed_nodes] = 1.
