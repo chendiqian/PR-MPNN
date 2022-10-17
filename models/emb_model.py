@@ -39,7 +39,10 @@ class UpStream(torch.nn.Module):
         emb1 = self.node_emb1(x)[idx[0]]
         emb2 = self.node_emb2(x)[idx[1]]
         emb_e = self.edge_emb(edge_attr)
-        emb_e = SparseTensor.from_edge_index(edge_index, emb_e, is_sorted=True).to_dense()
+        emb_e = SparseTensor.from_edge_index(edge_index,
+                                             emb_e,
+                                             sparse_sizes=(data.num_nodes, data.num_nodes),
+                                             is_sorted=True).to_dense()
 
         emb_e = emb_e[idx[0], idx[1]]
 
