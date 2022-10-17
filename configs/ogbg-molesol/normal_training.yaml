@@ -4,7 +4,7 @@ fixed:
 
   sample_configs:
     sample_policy: null
+    subgraph2node_aggr: null
     sample_k: null
-    num_subgraphs: 0
 
   imle_configs: null

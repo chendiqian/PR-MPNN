@@ -65,6 +65,8 @@ class OGBGNN(torch.nn.Module):
 
         if self.subgraph2node_aggr in ['center', 'add']:
             self.inner_pool = global_add_pool
+        elif self.subgraph2node_aggr is None:
+            pass
         else:
             raise NotImplementedError
 
@@ -76,13 +78,16 @@ class OGBGNN(torch.nn.Module):
     def forward(self, data):
         h_node = self.gnn_node(data)
 
-        if data.node_mask.dtype == torch.float:
-            h_node = h_node * data.node_mask[:, None]
+        if hasattr(data, 'node_mask') and hasattr(data, 'nodes2graph'):
+            if data.node_mask.dtype == torch.float:
+                h_node = h_node * data.node_mask[:, None]
+            else:
+                h_node = h_node[data.node_mask]
+            h_node = self.inner_pool(h_node, data.subgraphs2nodes)
+            h_graph = self.pool(h_node, data.nodes2graph)
         else:
-            h_node = h_node[data.node_mask]
-        h_node = self.inner_pool(h_node, data.subgraphs2nodes)
+            h_graph = self.pool(h_node, data.batch)
 
-        h_graph = global_mean_pool(h_node, data.nodes2graph)
         return self.graph_pred_linear(h_graph)
 
     def reset_parameters(self):

@@ -37,6 +37,8 @@ def naming(args) -> str:
         name += 'IMLE_'
         name += f'policy_{args.sample_configs.sample_policy}_'
         name += f'samplek_{args.sample_configs.sample_k}_'
+    elif args.sample_configs.sample_policy is None:
+        name += 'normal'
     else:
         raise NotImplementedError
     return name
