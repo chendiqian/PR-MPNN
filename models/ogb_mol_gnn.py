@@ -76,7 +76,7 @@ class OGBGNN(torch.nn.Module):
     def forward(self, data):
         h_node = self.gnn_node(data)
 
-        if isinstance(data.node_mask, torch.FloatTensor):
+        if data.node_mask.dtype == torch.float:
             h_node = h_node * data.node_mask[:, None]
         else:
             h_node = h_node[data.node_mask]
