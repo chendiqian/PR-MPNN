@@ -116,14 +116,6 @@ def scale_grad(model: torch.nn.Module, scalar: Union[int, float]) -> torch.nn.Mo
     return model
 
 
-def pair_wise_idx(n_subg: int, device: TorchDevice) -> Tuple[Tensor, Tensor]:
-    senders = torch.arange(n_subg, device=device).repeat(n_subg - 1)
-    receivers = torch.arange(n_subg, device=device)[None].repeat(n_subg - 1, 1)
-    receivers = (receivers + torch.arange(n_subg - 1, device=device)[:, None] + 1) % n_subg
-    receivers = receivers.reshape(-1)
-    return senders, receivers
-
-
 class IsBetter:
     """
     A comparator for different metrics, to unify >= and <=
