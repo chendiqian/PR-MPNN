@@ -86,7 +86,6 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
 def get_ogb_data(args: Union[Namespace, ConfigDict]):
     pre_transform = Compose([GraphCoalesce(), AugmentwithNNodes()])
-    pre_transform = Compose([GraphCoalesce(), pre_transform])
 
     dataset = PygGraphPropPredDataset(name=args.dataset,
                                       root=args.data_path,
