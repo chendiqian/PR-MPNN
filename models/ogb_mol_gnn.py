@@ -78,15 +78,14 @@ class OGBGNN(torch.nn.Module):
     def forward(self, data):
         h_node = self.gnn_node(data)
 
-        if hasattr(data, 'node_mask') and hasattr(data, 'nodes2graph'):
+        if hasattr(data, 'node_mask'):
             if data.node_mask.dtype == torch.float:
                 h_node = h_node * data.node_mask[:, None]
             else:
                 h_node = h_node[data.node_mask]
             h_node = self.inner_pool(h_node, data.subgraphs2nodes)
-            h_graph = self.pool(h_node, data.nodes2graph)
-        else:
-            h_graph = self.pool(h_node, data.batch)
+
+        h_graph = self.pool(h_node, data.batch)
 
         return self.graph_pred_linear(h_graph)
 

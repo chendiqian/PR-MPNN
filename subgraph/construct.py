@@ -38,8 +38,9 @@ def construct_imle_local_structure_subgraphs(graphs: List[Data],
     elif subgraph2node_aggr == 'center':
         new_batch.node_mask = CenterNodeIdentityMapping.apply(node_mask, nnodes_wo_duplicate, new_batch.nnodes)
 
-    new_batch.nodes2graph = batch_wo_duplicate
     new_batch.subgraphs2nodes = new_batch.batch
+    del new_batch.batch
+    new_batch.batch = batch_wo_duplicate
     new_batch.y = y_wo_duplicate
 
     return new_batch
