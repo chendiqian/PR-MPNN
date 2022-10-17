@@ -8,9 +8,9 @@ common:
   patience: 100
   reg: 0.
   num_convlayers: 5
-  batch_size: 4
+  batch_size: 64
   min_epochs: 100
   max_epochs: 300
   data_path: './datasets'
-  debug: True
+  debug: False
   num_runs: 3
