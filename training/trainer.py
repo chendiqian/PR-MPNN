@@ -13,7 +13,7 @@ from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
 from subgraph.construct import construct_imle_local_structure_subgraphs
-from training.imle_scheme import *
+from training.imle_scheme import IMLEScheme
 
 Optimizer = Union[torch.optim.Adam,
                   torch.optim.SGD]
