@@ -6,7 +6,6 @@ from torch_geometric.utils import subgraph
 from subgraph.grad_utils import Nodemask2Edgemask, CenterNodeIdentityMapping, nodemask2edgemask, centralize
 
 
-# Todo: check if NGNN has delete nodes option
 def construct_random_local_structure_subgraphs(graphs: List[Data],
                                                node_mask: torch.FloatTensor,
                                                nnodes_wo_duplicate: torch.LongTensor,
@@ -14,6 +13,8 @@ def construct_random_local_structure_subgraphs(graphs: List[Data],
                                                y_wo_duplicate: torch.Tensor,
                                                subgraph2node_aggr: str, ):
     """
+    NGNN also delete nodes for their subgraphs
+    see https://github.com/muhanzhang/NestedGNN/blob/a5adccf62d397ad7f83bc73be34eba3765df73fa/utils.py#L34
 
     :param graphs:
     :param node_mask:
