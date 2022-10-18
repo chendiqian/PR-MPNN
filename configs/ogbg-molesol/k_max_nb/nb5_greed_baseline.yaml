@@ -1,0 +1,10 @@
+fixed:
+  dataset: ogbg-molesol
+  log_path: './logs'
+
+  sample_configs:
+    sample_policy: greedy_neighbors
+    subgraph2node_aggr: center
+    sample_k: 5
+
+  imle_configs: null
