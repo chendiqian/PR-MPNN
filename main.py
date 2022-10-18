@@ -33,14 +33,17 @@ def get_logger(folder_path: str) -> logging.Logger:
 def naming(args) -> str:
     name = f'{args.dataset}_{args.model}_'
 
+    if args.sample_configs.sample_policy is None:
+        name += 'normal'
+        return name
+
     if args.imle_configs is not None:
         name += 'IMLE_'
-        name += f'policy_{args.sample_configs.sample_policy}_'
-        name += f'samplek_{args.sample_configs.sample_k}_'
-    elif args.sample_configs.sample_policy is None:
-        name += 'normal'
     else:
-        raise NotImplementedError
+        name += 'OnTheFly_'
+
+    name += f'policy_{args.sample_configs.sample_policy}_'
+    name += f'samplek_{args.sample_configs.sample_k}_'
     return name
 
 
