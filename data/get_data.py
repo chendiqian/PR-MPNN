@@ -8,9 +8,27 @@ from torch_geometric.loader import DataLoader
 from ogb.graphproppred import PygGraphPropPredDataset
 
 from data.data_utils import AttributedDataLoader
-from data.data_preprocess import GraphCoalesce, AugmentwithNNodes
+from data.data_preprocess import GraphToUndirected, GraphCoalesce, AugmentwithNNodes
+from subgraph.random_subgraph_policy import policy2transform
 
 DATASET = (PygGraphPropPredDataset,)
+
+
+def get_transform(args: Union[Namespace, ConfigDict]):
+    # I-MLE training does not require transform, instead the masks are given by upstream + I-MLE
+    if args.imle_configs is not None:
+        return None
+    # normal training
+    elif args.sample_configs.sample_policy is None:
+        return None
+    # train with sampling on the fly
+    else:
+        return policy2transform(args.sample_configs.sample_policy,
+                                args.sample_configs.sample_k)
+
+
+def get_pretransform(args: Union[Namespace, ConfigDict]):
+    return Compose([GraphToUndirected, GraphCoalesce, AugmentwithNNodes])
 
 
 def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[AttributedDataLoader],
@@ -85,11 +103,12 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
 
 def get_ogb_data(args: Union[Namespace, ConfigDict]):
-    pre_transform = Compose([GraphCoalesce(), AugmentwithNNodes()])
+    pre_transform = get_transform(args)
+    transform = get_transform(args)
 
     dataset = PygGraphPropPredDataset(name=args.dataset,
                                       root=args.data_path,
-                                      transform=None,
+                                      transform=transform,
                                       pre_transform=pre_transform)
     split_idx = dataset.get_idx_split()
 
