@@ -1,7 +1,7 @@
 import os
 import pickle
 from collections import defaultdict
-from typing import Union, Optional, Any, Tuple
+from typing import Union, Optional, Any
 from ml_collections import ConfigDict
 
 import torch.linalg
@@ -12,7 +12,7 @@ from data.metrics import eval_rocauc, eval_acc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from subgraph.construct import construct_imle_local_structure_subgraphs
+from subgraph.construct import construct_imle_local_structure_subgraphs, construct_random_local_structure_subgraphs
 from training.imle_scheme import IMLEScheme
 
 Optimizer = Union[torch.optim.Adam,
@@ -61,24 +61,42 @@ class Trainer:
             self.imle_scheduler = IMLEScheme(sample_policy,
                                              None,
                                              None,
-                                             sample_k,)
+                                             sample_k, )
 
-    def clear_stats(self):
-        self.curves = defaultdict(list)
-        self.best_val_loss = 1e5
-        self.best_val_metric = None
-        self.patience = 0
+        # from original data batch to duplicated data batches
+        # [g1, g2, ..., gn] -> [g1_1, g1_1, g1_3, ...]
+        if sample_policy is None:
+            self.construct_duplicate_data = lambda x, _: x
+        elif imle_configs is not None:
+            self.construct_duplicate_data = self.emb_model_forward
+        else:
+            self.construct_duplicate_data = self.data_duplication
 
-    def emb_model_forward(self, data: Union[Data, Batch], emb_model: Emb_model, train: bool) \
-            -> Tuple[Union[Data, Batch], Optional[torch.FloatType]]:
+    def data_duplication(self, data: Union[Data, Batch], *args):
+        """
+        For random sampling, graphs already have node_mask, but not other attributes
+
+        :param data:
+        :return:
+        """
+        graphs = Batch.to_data_list(data)
+        new_batch = construct_random_local_structure_subgraphs(graphs,
+                                                               data.node_mask,
+                                                               data.nnodes,
+                                                               data.batch,
+                                                               data.y,
+                                                               self.subgraph2node_aggr)
+        return new_batch
+
+    def emb_model_forward(self, data: Union[Data, Batch], emb_model: Emb_model):
         """
         Common forward propagation for train and val, only called when embedding model is trained.
 
         :param data:
         :param emb_model:
-        :param train:
         :return:
         """
+        train = emb_model.training
         logits = emb_model(data)
 
         split_idx = tuple((data.nnodes ** 2).cpu().tolist())
@@ -105,7 +123,8 @@ class Trainer:
                                                              data.nnodes,
                                                              data.batch,
                                                              data.y,
-                                                             self.subgraph2node_aggr)
+                                                             self.subgraph2node_aggr,
+                                                             grad=train)
 
         return new_batch
 
@@ -132,9 +151,7 @@ class Trainer:
         for batch_id, data in enumerate(dataloader.loader):
             data = data.to(self.device)
             optimizer.zero_grad()
-
-            if emb_model is not None:
-                data = self.emb_model_forward(data, emb_model, train=True)
+            data = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
             is_labeled = data.y == data.y
@@ -197,9 +214,7 @@ class Trainer:
 
         for data in dataloader.loader:
             data = data.to(self.device)
-
-            if emb_model is not None:
-                data = self.emb_model_forward(data, emb_model, train=False)
+            data = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
             if dataloader.std is not None:
@@ -259,3 +274,9 @@ class Trainer:
 
     def save_curve(self, path):
         pickle.dump(self.curves, open(os.path.join(path, 'curves.pkl'), "wb"))
+
+    def clear_stats(self):
+        self.curves = defaultdict(list)
+        self.best_val_loss = 1e5
+        self.best_val_metric = None
+        self.patience = 0
