@@ -26,7 +26,7 @@ def numba_greedy_grow_tree(num_neighbors: int, weights: np.ndarray, edge_index: 
     return mask
 
 
-def greedy_grow_tree(graph: Data, num_neighbors: int, weights: torch.Tensor) -> torch.Tensor:
+def greedy_grow_tree(graph: Data, num_neighbors: int, weights: torch.Tensor, target_dtype=torch.float) -> torch.Tensor:
     if num_neighbors >= graph.num_nodes:
         return torch.ones_like(weights, device=weights.device, dtype=torch.float)
 
@@ -34,4 +34,4 @@ def greedy_grow_tree(graph: Data, num_neighbors: int, weights: torch.Tensor) -> 
                                      weights.cpu().detach().numpy(),
                                      graph.edge_index.cpu().numpy(),
                                      graph.num_nodes, )
-    return torch.from_numpy(np_mask).to(torch.float).to(weights.device)
+    return torch.from_numpy(np_mask).to(target_dtype).to(weights.device)
