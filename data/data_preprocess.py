@@ -1,6 +1,6 @@
 import torch
 from torch_geometric.data import Data
-from torch_geometric.utils import to_undirected, coalesce
+from torch_geometric.utils import to_undirected, coalesce, is_undirected
 
 
 class GraphToUndirected:
@@ -10,6 +10,9 @@ class GraphToUndirected:
     """
 
     def __call__(self, graph: Data):
+        if is_undirected(graph.edge_index, graph.edge_attr, graph.num_nodes):
+            return graph
+
         if graph.edge_attr is not None:
             edge_index, edge_attr = to_undirected(graph.edge_index, graph.edge_attr, graph.num_nodes)
         else:
