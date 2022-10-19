@@ -54,3 +54,19 @@ def eval_acc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor
         acc_list.append(float(np.sum(correct)) / len(correct))
 
     return sum(acc_list) / len(acc_list)
+
+
+def eval_rmse(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor, np.ndarray]) -> float:
+    if isinstance(y_true, torch.Tensor):
+        y_true = y_true.detach().cpu().numpy()
+    if isinstance(y_pred, torch.Tensor):
+        y_pred = y_pred.detach().cpu().numpy()
+
+    rmse_list = []
+
+    for i in range(y_true.shape[1]):
+        # ignore nan values
+        is_labeled = y_true[:, i] == y_true[:, i]
+        rmse_list.append(np.sqrt(((y_true[is_labeled, i] - y_pred[is_labeled, i]) ** 2).mean()))
+
+    return sum(rmse_list) / len(rmse_list)

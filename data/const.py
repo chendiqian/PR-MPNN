@@ -22,7 +22,7 @@ MAX_NUM_NODE_DICT = {
 TASK_TYPE_DICT = {
     'zinc': 'regression',
     'alchemy': 'regression',
-    'ogbg-molesol': 'regression',
+    'ogbg-molesol': 'rmse',
     'ogbg-molbace': 'rocauc',
     'ogbg-molhiv': 'rocauc',
     'ogbg-moltox21': 'rocauc',

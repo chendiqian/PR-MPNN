@@ -8,7 +8,7 @@ import torch.linalg
 from torch_geometric.data import Batch, Data
 
 from data.data_utils import scale_grad, AttributedDataLoader, IsBetter
-from data.metrics import eval_rocauc, eval_acc
+from data.metrics import eval_rocauc, eval_acc, eval_rmse
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
@@ -183,6 +183,8 @@ class Trainer:
             labels = torch.cat(labels, dim=0)
             if self.task_type == 'rocauc':
                 train_metric = eval_rocauc(labels, preds)
+            elif self.task_type == 'rmse':
+                train_metric = eval_rmse(labels, preds)
             elif self.task_type == 'acc':
                 if preds.shape[1] == 1:
                     preds = (preds > 0.).to(torch.int)
@@ -238,8 +240,10 @@ class Trainer:
         val_loss = self.criterion(preds[is_labeled], labels[is_labeled]).item()
         if self.task_type == 'rocauc':
             val_metric = eval_rocauc(labels, preds)
-        elif self.task_type == 'regression':
+        elif self.task_type == 'regression':  # not specified regression loss type
             val_metric = val_loss
+        elif self.task_type == 'rmse':
+            val_metric = eval_rmse(labels, preds)
         elif self.task_type == 'acc':
             if preds.shape[1] == 1:
                 preds = (preds > 0.).to(torch.int)
