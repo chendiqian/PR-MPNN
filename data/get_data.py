@@ -103,7 +103,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
 
 def get_ogb_data(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_transform(args)
+    pre_transform = get_pretransform(args)
     transform = get_transform(args)
 
     dataset = PygGraphPropPredDataset(name=args.dataset,
