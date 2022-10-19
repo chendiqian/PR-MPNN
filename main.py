@@ -44,6 +44,8 @@ def naming(args) -> str:
 
     name += f'policy_{args.sample_configs.sample_policy}_'
     name += f'samplek_{args.sample_configs.sample_k}_'
+    name += f'outlayer_{args.num_convlayers}_'
+    name += f'innlayer_{args.sample_configs.inner_layer}_'
     return name
 
 
