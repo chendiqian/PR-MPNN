@@ -128,7 +128,7 @@ class IsBetter:
         if val2 is None:
             return True
 
-        if self.task_type in ['regression']:
+        if self.task_type in ['regression', 'rmse']:
             return val1 <= val2
         elif self.task_type in ['rocauc', 'acc']:
             return val1 >= val2
