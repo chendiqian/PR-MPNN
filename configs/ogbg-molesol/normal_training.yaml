@@ -6,5 +6,7 @@ fixed:
     sample_policy: null
     subgraph2node_aggr: null
     sample_k: null
+    # for inner model
+    inner_layer: 3
 
   imle_configs: null
