@@ -132,6 +132,7 @@ class Trainer:
               dataloader: AttributedDataLoader,
               emb_model: Emb_model,
               model: Train_model,
+              inner_model: Train_model,
               optimizer_embd: Optional[Optimizer],
               optimizer: Optimizer):
 
@@ -140,6 +141,7 @@ class Trainer:
             optimizer_embd.zero_grad()
 
         model.train()
+        inner_model.train()
         train_losses = torch.tensor(0., device=self.device)
         if self.task_type != 'regression':
             preds = []
@@ -151,9 +153,11 @@ class Trainer:
         for batch_id, data in enumerate(dataloader.loader):
             data = data.to(self.device)
             optimizer.zero_grad()
-            data = self.construct_duplicate_data(data, emb_model)
+            new_data = self.construct_duplicate_data(data, emb_model)
 
-            pred = model(data)
+            intermediate_node_emb = inner_model(new_data)
+            pred = model(data, intermediate_node_emb)
+
             is_labeled = data.y == data.y
             loss = self.criterion(pred[is_labeled], data.y[is_labeled].to(torch.float))
             train_losses += loss.detach() * data.num_graphs
@@ -202,6 +206,7 @@ class Trainer:
                   dataloader: AttributedDataLoader,
                   emb_model: Emb_model,
                   model: Train_model,
+                  inner_model: Train_model,
                   scheduler_embd: Optional[Scheduler] = None,
                   scheduler: Optional[Scheduler] = None,
                   test: bool = False):
@@ -209,14 +214,17 @@ class Trainer:
             emb_model.eval()
 
         model.eval()
+        inner_model.eval()
         preds = []
         labels = []
 
         for data in dataloader.loader:
             data = data.to(self.device)
-            data = self.construct_duplicate_data(data, emb_model)
+            new_data = self.construct_duplicate_data(data, emb_model)
 
-            pred = model(data)
+            intermediate_node_emb = inner_model(new_data)
+            pred = model(data, intermediate_node_emb)
+
             if dataloader.std is not None:
                 preds.append(pred * dataloader.std)
                 labels.append(data.y.to(torch.float) * dataloader.std)
