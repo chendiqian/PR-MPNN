@@ -8,6 +8,7 @@ fixed:
     sample_k: 5
     # for inner model
     inner_layer: 3
+    out_dim: 64
 
   imle_configs:
     emb_hid_size: 64

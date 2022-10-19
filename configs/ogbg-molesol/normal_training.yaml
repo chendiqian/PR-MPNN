@@ -8,5 +8,6 @@ fixed:
     sample_k: null
     # for inner model
     inner_layer: 3
+    out_dim: 64
 
   imle_configs: null
