@@ -1,4 +1,4 @@
-from .ogb_mol_gnn import OGBGNN
+from .ogb_mol_gnn import OGBGNN, OGBGNN_inner
 from .emb_model import UpStream
 from data.const import DATASET_FEATURE_STAT_DICT
 
@@ -10,8 +10,14 @@ def get_model(args, *_args):
                        num_layer=args.num_convlayers,
                        emb_dim=args.hid_size,
                        drop_ratio=args.dropout,
-                       subgraph2node_aggr=args.sample_configs.subgraph2node_aggr,
                        virtual_node=False)
+
+        inner_model = OGBGNN_inner(gnn_type='gin',
+                                   num_layer=args.sample_configs.inner_layer,
+                                   emb_dim=args.hid_size,
+                                   drop_ratio=args.dropout,
+                                   subgraph2node_aggr=args.sample_configs.subgraph2node_aggr,
+                                   virtual_node=False)
     else:
         raise NotImplementedError
 
@@ -21,4 +27,4 @@ def get_model(args, *_args):
     else:
         emb_model = None
 
-    return model, emb_model
+    return model, emb_model, inner_model

@@ -8,6 +8,19 @@ full_atom_feature_dims = get_atom_feature_dims()
 full_bond_feature_dims = get_bond_feature_dims()
 
 
+class AtomEncoderPlaceholder(torch.nn.Module):
+
+    def __init__(self, *args, **kwargs):
+        super(AtomEncoderPlaceholder, self).__init__()
+        pass
+
+    def forward(self, x):
+        return x
+
+    def reset_parameters(self):
+        pass
+
+
 class AtomEncoder(torch.nn.Module):
 
     def __init__(self, emb_dim):
