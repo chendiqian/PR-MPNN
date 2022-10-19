@@ -7,12 +7,14 @@ def get_model(args, *_args):
     if args.model.lower() == 'ogb_gin':
         model = OGBGNN(gnn_type='gin',
                        num_tasks=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                       out_dim=args.sample_configs.out_dim,
                        num_layer=args.num_convlayers,
                        emb_dim=args.hid_size,
                        drop_ratio=args.dropout,
                        virtual_node=False)
 
-        inner_model = OGBGNN_inner(gnn_type='gin',
+        inner_model = OGBGNN_inner(out_dim=args.sample_configs.out_dim,
+                                   gnn_type='gin',
                                    num_layer=args.sample_configs.inner_layer,
                                    emb_dim=args.hid_size,
                                    drop_ratio=args.dropout,

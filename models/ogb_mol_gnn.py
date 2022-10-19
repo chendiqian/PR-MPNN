@@ -10,6 +10,7 @@ class OGBGNN(torch.nn.Module):
 
     def __init__(self,
                  num_tasks,
+                 out_dim=64,
                  num_layer=5,
                  emb_dim=300,
                  gnn_type='gin',
@@ -29,7 +30,7 @@ class OGBGNN(torch.nn.Module):
         self.graph_pooling = graph_pooling
 
         self.atom_encoder = AtomEncoder(emb_dim)
-        self.merge_layer = torch.nn.Linear(2 * emb_dim, emb_dim)
+        self.merge_layer = torch.nn.Linear(out_dim + emb_dim, emb_dim)
 
         # GNN to generate node embeddings
         if num_layer > 0:
@@ -85,6 +86,7 @@ class OGBGNN(torch.nn.Module):
 class OGBGNN_inner(torch.nn.Module):
 
     def __init__(self,
+                 out_dim,
                  num_layer=5,
                  emb_dim=300,
                  gnn_type='gin',
@@ -116,6 +118,8 @@ class OGBGNN_inner(torch.nn.Module):
         else:
             raise NotImplementedError
 
+        self.last_layer = torch.nn.Linear(emb_dim, out_dim)
+
     def forward(self, data):
         h_node = self.gnn_node(data)
 
@@ -127,7 +131,8 @@ class OGBGNN_inner(torch.nn.Module):
                 h_node = h_node[data.node_mask]
             h_node = self.inner_pool(h_node, data.subgraphs2nodes)
 
-        return h_node
+        return self.last_layer(h_node)
 
     def reset_parameters(self):
         self.gnn_node.reset_parameters()
+        self.last_layer.reset_parameters()
