@@ -28,7 +28,7 @@ def get_transform(args: Union[Namespace, ConfigDict]):
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict]):
-    return Compose([GraphToUndirected, GraphCoalesce, AugmentwithNNodes])
+    return Compose([GraphToUndirected(), GraphCoalesce(), AugmentwithNNodes()])
 
 
 def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[AttributedDataLoader],
