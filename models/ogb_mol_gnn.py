@@ -10,7 +10,7 @@ class OGBGNN(torch.nn.Module):
 
     def __init__(self,
                  num_tasks,
-                 out_dim=64,
+                 extra_dim=None,
                  num_layer=5,
                  emb_dim=300,
                  gnn_type='gin',
@@ -19,9 +19,25 @@ class OGBGNN(torch.nn.Module):
                  drop_ratio=0.5,
                  JK="last",
                  graph_pooling="mean"):
+        """
+
+        :param num_tasks:
+        :param extra_dim: a list of 2, indicating the embedding dims of x in the original graph and and
+        embeddings of nested subgraphs
+        :param num_layer:
+        :param emb_dim:
+        :param gnn_type:
+        :param virtual_node:
+        :param residual:
+        :param drop_ratio:
+        :param JK:
+        :param graph_pooling:
+        """
 
         super(OGBGNN, self).__init__()
 
+        if extra_dim is None:
+            extra_dim = [300, 300]
         self.num_layer = num_layer
         self.drop_ratio = drop_ratio
         self.JK = JK
@@ -29,8 +45,12 @@ class OGBGNN(torch.nn.Module):
         self.num_tasks = num_tasks
         self.graph_pooling = graph_pooling
 
-        self.atom_encoder = AtomEncoder(emb_dim)
-        self.merge_layer = torch.nn.Linear(out_dim + emb_dim, emb_dim)
+        # map data.x to dim0
+        self.atom_encoder = AtomEncoder(extra_dim[0])
+        # map the extra feature to dim1
+        self.extra_emb_layer = torch.nn.Linear(emb_dim, extra_dim[1])
+        # merge 2 features
+        self.merge_layer = torch.nn.Linear(sum(extra_dim), emb_dim)
 
         # GNN to generate node embeddings
         if num_layer > 0:
@@ -67,9 +87,12 @@ class OGBGNN(torch.nn.Module):
 
     def forward(self, data, intermediate_node_emb):
         x = self.atom_encoder(data.x)
-        x = torch.cat([x, intermediate_node_emb], dim=1)
-        data.x = torch.relu(self.merge_layer(x))
-
+        extra = self.extra_emb_layer(intermediate_node_emb)
+        data.x = torch.relu(
+            self.merge_layer(
+                torch.cat([x, extra], dim=1)
+            )
+        )
         h_node = self.gnn_node(data)
         h_graph = self.pool(h_node, data.batch)
         return self.graph_pred_linear(h_graph)
@@ -80,13 +103,13 @@ class OGBGNN(torch.nn.Module):
             self.pool.reset_parameters()
         self.graph_pred_linear.reset_parameters()
         self.atom_encoder.reset_parameters()
+        self.extra_emb_layer.reset_parameters()
         self.merge_layer.reset_parameters()
 
 
 class OGBGNN_inner(torch.nn.Module):
 
     def __init__(self,
-                 out_dim,
                  num_layer=5,
                  emb_dim=300,
                  gnn_type='gin',
@@ -113,12 +136,12 @@ class OGBGNN_inner(torch.nn.Module):
 
         if self.graph_pooling in ['center', 'add']:
             self.inner_pool = global_add_pool
+        elif self.graph_pooling == 'mean':
+            self.inner_pool = global_mean_pool
         elif self.graph_pooling is None:
             self.inner_pool = None
         else:
             raise NotImplementedError
-
-        self.last_layer = torch.nn.Linear(emb_dim, out_dim)
 
     def forward(self, data):
         h_node = self.gnn_node(data)
@@ -131,8 +154,7 @@ class OGBGNN_inner(torch.nn.Module):
                 h_node = h_node[data.node_mask]
             h_node = self.inner_pool(h_node, data.subgraphs2nodes)
 
-        return self.last_layer(h_node)
+        return h_node
 
     def reset_parameters(self):
         self.gnn_node.reset_parameters()
-        self.last_layer.reset_parameters()
