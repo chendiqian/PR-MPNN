@@ -8,8 +8,7 @@ from torch_geometric.loader import DataLoader
 from ogb.graphproppred import PygGraphPropPredDataset
 
 from data.data_utils import AttributedDataLoader
-from data.data_preprocess import GraphToUndirected, GraphCoalesce, AugmentwithNNodes
-from subgraph.random_subgraph_policy import policy2transform
+from data.data_preprocess import GraphToUndirected, GraphCoalesce, AugmentwithNNodes, policy2transform
 
 DATASET = (PygGraphPropPredDataset,)
 
@@ -22,13 +21,18 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     elif args.sample_configs.sample_policy is None:
         return None
     # train with sampling on the fly
-    else:
+    elif args.sample_configs.sample_policy in ['greedy_neighbors']:
         return policy2transform(args.sample_configs.sample_policy,
                                 args.sample_configs.sample_k)
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict]):
-    return Compose([GraphToUndirected(), GraphCoalesce(), AugmentwithNNodes()])
+    pretransform = [GraphToUndirected(), GraphCoalesce(), AugmentwithNNodes()]
+    extra_path = None
+    if args.sample_configs.sample_policy in ['khop']:
+        pretransform.append(policy2transform(args.sample_configs.sample_policy, args.sample_configs.sample_k))
+        extra_path = args.sample_configs.sample_policy + '_' + str(args.sample_configs.sample_k)
+    return Compose(pretransform), extra_path
 
 
 def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[AttributedDataLoader],
@@ -103,11 +107,16 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
 
 def get_ogb_data(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args)
+    pre_transform, extra_path = get_pretransform(args)
     transform = get_transform(args)
 
+    # if there are specific pretransforms, create individual folders for the dataset
+    datapath = args.data_path
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
+
     dataset = PygGraphPropPredDataset(name=args.dataset,
-                                      root=args.data_path,
+                                      root=datapath,
                                       transform=transform,
                                       pre_transform=pre_transform)
     split_idx = dataset.get_idx_split()
