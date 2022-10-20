@@ -40,7 +40,7 @@ def naming(args) -> str:
         return name
 
     if args.imle_configs is not None:
-        name += 'IMLE_'
+        name += f'IMLE_beta{args.imle_configs.beta}_'
     else:
         name += 'OnTheFly_'
 
