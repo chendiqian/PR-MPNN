@@ -4,11 +4,11 @@ fixed:
 
   sample_configs:
     sample_policy: greedy_neighbors
-    subgraph2node_aggr: center
+    subgraph2node_aggr: mean
     sample_k: 5
     # for inner model
     inner_layer: 3
-    extra_dim: []
+    extra_dim: [0, 300]  # data.x || subgraph_emb
 
   imle_configs:
     emb_hid_size: 64
