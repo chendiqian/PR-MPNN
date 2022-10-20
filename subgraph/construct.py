@@ -80,7 +80,6 @@ def construct_imle_local_structure_subgraphs(graphs: List[Data],
         subgraphs += [g] * g.nnodes
 
     new_batch = Batch.from_data_list(subgraphs)
-    assert subgraph2node_aggr in ['add', 'center']
 
     n2e_func = Nodemask2Edgemask.apply if grad else nodemask2edgemask
     new_batch.edge_weights = n2e_func(node_mask,
@@ -88,11 +87,13 @@ def construct_imle_local_structure_subgraphs(graphs: List[Data],
                                       torch.tensor(new_batch.num_nodes,
                                                    device=node_mask.device))
 
-    if subgraph2node_aggr == 'add':
+    if subgraph2node_aggr in ['add', 'mean']:
         new_batch.node_mask = node_mask
     elif subgraph2node_aggr == 'center':
         center_func = CenterNodeIdentityMapping.apply if grad else centralize
         new_batch.node_mask = center_func(node_mask, nnodes_wo_duplicate, new_batch.nnodes)
+    else:
+        raise ValueError
 
     new_batch.subgraphs2nodes = new_batch.batch
     del new_batch.batch
