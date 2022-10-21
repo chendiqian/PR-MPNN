@@ -47,11 +47,11 @@ class OGBGNN(torch.nn.Module):
         self.graph_pooling = graph_pooling
 
         # map data.x to dim0
-        self.atom_encoder = AtomEncoder(extra_dim[0])
+        self.atom_encoder = AtomEncoder(extra_dim[0]) if extra_dim[0] > 0 else None
         # map the extra feature to dim1
-        self.extra_emb_layer = torch.nn.Linear(emb_dim, extra_dim[1])
+        self.extra_emb_layer = torch.nn.Linear(emb_dim, extra_dim[1]) if extra_dim[1] > 0 else None
         # merge 2 features
-        self.merge_layer = torch.nn.Linear(sum(extra_dim), emb_dim)
+        self.merge_layer = torch.nn.Linear(sum(extra_dim), emb_dim) if min(extra_dim) > 0 else None
 
         # GNN to generate node embeddings
         if num_layer > 0:
@@ -87,13 +87,22 @@ class OGBGNN(torch.nn.Module):
             self.graph_pred_linear = torch.nn.Linear(self.emb_dim, self.num_tasks)
 
     def forward(self, data, intermediate_node_emb):
-        x = self.atom_encoder(data.x)
-        extra = self.extra_emb_layer(intermediate_node_emb)
-        data.x = torch.relu(
-            self.merge_layer(
-                torch.cat([x, extra], dim=1)
+        if self.atom_encoder is not None and self.extra_emb_layer is not None:
+            x = self.atom_encoder(data.x)
+            extra = self.extra_emb_layer(intermediate_node_emb)
+            input_data = torch.relu(
+                self.merge_layer(
+                    torch.cat([x, extra], dim=1)
+                )
             )
-        )
+        elif self.atom_encoder is not None and self.extra_emb_layer is None:
+            input_data = self.atom_encoder(data.x)
+        elif self.atom_encoder is None and self.extra_emb_layer is not None:
+            input_data = self.extra_emb_layer(intermediate_node_emb)
+        else:
+            raise ValueError
+
+        data.x = input_data
         h_node = self.gnn_node(data)
         h_graph = self.pool(h_node, data.batch)
         return self.graph_pred_linear(h_graph)
@@ -103,9 +112,12 @@ class OGBGNN(torch.nn.Module):
         if isinstance(self.pool, (GlobalAttention, Set2Set)):
             self.pool.reset_parameters()
         self.graph_pred_linear.reset_parameters()
-        self.atom_encoder.reset_parameters()
-        self.extra_emb_layer.reset_parameters()
-        self.merge_layer.reset_parameters()
+        if self.atom_encoder is not None:
+            self.atom_encoder.reset_parameters()
+        if self.extra_emb_layer is not None:
+            self.extra_emb_layer.reset_parameters()
+        if self.merge_layer is not None:
+            self.merge_layer.reset_parameters()
 
 
 class OGBGNN_inner(torch.nn.Module):
