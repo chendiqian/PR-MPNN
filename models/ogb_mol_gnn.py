@@ -152,7 +152,7 @@ class OGBGNN_inner(torch.nn.Module):
         elif self.graph_pooling == 'mean':
             self.inner_pool = \
                 lambda x, subgraphs2nodes, node_mask: global_add_pool(x, subgraphs2nodes) / \
-                                                      scatter(node_mask.detach(),
+                                                      scatter(node_mask.to(torch.float).detach(),
                                                               subgraphs2nodes, dim=0, reduce="sum")[:, None]
         elif self.graph_pooling is None:
             self.inner_pool = None
