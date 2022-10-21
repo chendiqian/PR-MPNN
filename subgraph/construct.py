@@ -38,7 +38,7 @@ def construct_random_local_structure_subgraphs(graphs: List[Data],
     new_data = Data(x=new_batch.x[node_mask],
                     edge_index=new_edge_index,
                     edge_attr=new_edge_attr,
-                    edge_weights=None,
+                    edge_weight=None,
                     y=y_wo_duplicate,)
     new_data.subgraphs2nodes = new_batch.batch[node_mask]
     new_data.batch = batch_wo_duplicate
@@ -82,7 +82,7 @@ def construct_imle_local_structure_subgraphs(graphs: List[Data],
     new_batch = Batch.from_data_list(subgraphs)
 
     n2e_func = Nodemask2Edgemask.apply if grad else nodemask2edgemask
-    new_batch.edge_weights = n2e_func(node_mask,
+    new_batch.edge_weight = n2e_func(node_mask,
                                       new_batch.edge_index,
                                       torch.tensor(new_batch.num_nodes,
                                                    device=node_mask.device))
