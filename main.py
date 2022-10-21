@@ -46,6 +46,7 @@ def naming(args) -> str:
 
     name += f'policy_{args.sample_configs.sample_policy}_'
     name += f'samplek_{args.sample_configs.sample_k}_'
+    name += f'sub2nAggr_{args.sample_configs.subgraph2node_aggr}_'
     return name
 
 
