@@ -2,6 +2,7 @@
 # https://github.com/snap-stanford/ogb/blob/master/examples/graphproppred/mol/gnn.py
 import torch
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool, GlobalAttention, Set2Set
+from torch_scatter import scatter
 from .encoder import AtomEncoder
 from .ogb_mol_conv import GNN_node, GNN_node_Placeholder
 
@@ -135,9 +136,12 @@ class OGBGNN_inner(torch.nn.Module):
                                      gnn_type=gnn_type)
 
         if self.graph_pooling in ['center', 'add']:
-            self.inner_pool = global_add_pool
+            self.inner_pool = lambda x, subgraphs2nodes, *args: global_add_pool(x, subgraphs2nodes)
         elif self.graph_pooling == 'mean':
-            self.inner_pool = global_mean_pool
+            self.inner_pool = \
+                lambda x, subgraphs2nodes, node_mask: global_add_pool(x, subgraphs2nodes) / \
+                                                      scatter(node_mask.detach(),
+                                                              subgraphs2nodes, dim=0, reduce="sum")[:, None]
         elif self.graph_pooling is None:
             self.inner_pool = None
         else:
@@ -152,7 +156,7 @@ class OGBGNN_inner(torch.nn.Module):
                 h_node = h_node * data.node_mask[:, None]
             else:
                 h_node = h_node[data.node_mask]
-            h_node = self.inner_pool(h_node, data.subgraphs2nodes)
+            h_node = self.inner_pool(h_node, data.subgraphs2nodes, data.node_mask)
 
         return h_node
 
