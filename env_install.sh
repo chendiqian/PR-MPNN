@@ -1,7 +1,8 @@
 #!/bin/bash
 
 echo y | conda create -n diffstruct python=3.8
-conda activate diffstruct
+#conda activate diffstruct
+source ${CONDA_PREFIX}/bin/activate diffstruct
 
 pip install ml-collections
 pip install numba
