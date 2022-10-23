@@ -109,7 +109,7 @@ class OGBGNN(torch.nn.Module):
 
     def reset_parameters(self):
         self.gnn_node.reset_parameters()
-        if isinstance(self.pool, (GlobalAttention, Set2Set)):
+        if self.graph_pooling in ['set2set', 'attention']:
             self.pool.reset_parameters()
         self.graph_pred_linear.reset_parameters()
         if self.atom_encoder is not None:
