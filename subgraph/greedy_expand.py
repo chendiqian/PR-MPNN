@@ -15,7 +15,7 @@ def numba_greedy_grow_tree(num_neighbors: int, weights: np.ndarray, edge_index: 
         search_list = [(-weights[seed_node, seed_node], seed_node)]
         closelist = set()
 
-        while mask[seed_node, :].sum() < num_neighbors:
+        while mask[seed_node, :].sum() < num_neighbors and len(search_list):
             _, cur_node = heappop(search_list)
             mask[seed_node, cur_node] = True
             closelist.add(cur_node)
