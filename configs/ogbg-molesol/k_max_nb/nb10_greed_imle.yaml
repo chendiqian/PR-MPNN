@@ -1,13 +1,20 @@
 fixed:
-  dataset: ogbg-molbace
+  dataset: ogbg-molesol
   log_path: './logs'
 
   sample_configs:
     sample_policy: greedy_neighbors
     subgraph2node_aggr: center
-    sample_k: 5
+    sample_k: 10
     # for inner model
     inner_layer: 5
     extra_dim: [0, 300]  # data.x || subgraph_emb
 
-  imle_configs: null
+  imle_configs:
+    emb_hid_size: 64
+    emb_num_layer: 3
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    micro_batch_embd: 1
+    noise_scale: 1.
+    beta: 10.

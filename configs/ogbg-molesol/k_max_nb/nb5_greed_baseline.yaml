@@ -7,7 +7,7 @@ fixed:
     subgraph2node_aggr: center
     sample_k: 5
     # for inner model
-    inner_layer: 3
+    inner_layer: 5
     extra_dim: [0, 300]  # data.x || subgraph_emb
 
   imle_configs: null
