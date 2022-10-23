@@ -4,7 +4,7 @@ fixed:
 
   sample_configs:
     sample_policy: greedy_neighbors
-    subgraph2node_aggr: mean
+    subgraph2node_aggr: center
     sample_k: 5
     # for inner model
     inner_layer: 3

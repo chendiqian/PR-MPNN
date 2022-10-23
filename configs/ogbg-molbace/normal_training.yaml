@@ -1,0 +1,13 @@
+fixed:
+  dataset: ogbg-molbace
+  log_path: './logs'
+
+  sample_configs:
+    sample_policy: null
+    subgraph2node_aggr: null
+    sample_k: null
+    # for inner model
+    inner_layer: 5
+    extra_dim: [0, 300]  # data.x || subgraph_emb
+
+  imle_configs: null

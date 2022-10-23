@@ -1,5 +1,5 @@
 fixed:
-  dataset: ogbg-molesol
+  dataset: ogbg-molbace
   log_path: './logs'
 
   sample_configs:
@@ -10,11 +10,4 @@ fixed:
     inner_layer: 3
     extra_dim: [0, 300]  # data.x || subgraph_emb
 
-  imle_configs:
-    emb_hid_size: 64
-    emb_num_layer: 3
-    embd_lr: 1.e-3
-    reg_embd: 0.
-    micro_batch_embd: 1
-    noise_scale: 1.
-    beta: 10.
+  imle_configs: null

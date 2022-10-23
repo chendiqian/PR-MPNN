@@ -1,5 +1,5 @@
 fixed:
-  dataset: ogbg-molesol
+  dataset: ogbg-molbace
   log_path: './logs'
 
   sample_configs:
