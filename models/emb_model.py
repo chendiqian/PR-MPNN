@@ -30,7 +30,7 @@ class UpStream(torch.nn.Module):
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
-        ptr = data.ptr.cpu().numpy()
+        ptr = data.ptr.cpu().numpy() if hasattr(data, 'ptr') else np.zeros(1, dtype=np.int32)
         nnodes = data.nnodes.cpu().numpy()
         idx = np.concatenate([np.triu_indices(n, -n) + ptr[i] for i, n in enumerate(nnodes)], axis=-1)
         x = self.atom_encoder(data.x)
