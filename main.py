@@ -41,6 +41,8 @@ def naming(args) -> str:
 
     if args.imle_configs is not None:
         name += f'IMLE_beta{args.imle_configs.beta}_'
+        name += f'H{args.imle_configs.emb_hid_size}'
+        name += f'L{args.imle_configs.emb_num_layer}_'
     else:
         name += 'OnTheFly_'
 
@@ -51,7 +53,7 @@ def naming(args) -> str:
 
 
 def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> Tuple[SummaryWriter, str]:
-    run_folder = os.path.join(folder_name, f'run{num_run}_fold{num_fold}_{str(datetime.now())}')
+    run_folder = os.path.join(folder_name, f'run{num_run}_fold{num_fold}_{"".join(str(datetime.now()).split(":"))}')
     os.mkdir(run_folder)
     writer = SummaryWriter(run_folder)
     return writer, run_folder
