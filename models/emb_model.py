@@ -7,11 +7,12 @@ import numpy as np
 
 
 class UpStream(torch.nn.Module):
-    def __init__(self, hid_size, num_layer):
+    def __init__(self, hid_size, num_layer, dropout=0.5, use_bn=False):
         super(UpStream, self).__init__()
         self.num_layer = num_layer
         self.atom_encoder = AtomEncoder(emb_dim=hid_size)
         self.bond_encoder = BondEncoder(emb_dim=hid_size)
+        self.dropout = dropout
 
         self.node_emb1 = torch.nn.Linear(hid_size, hid_size)
         self.node_emb2 = torch.nn.Linear(hid_size, hid_size)
@@ -24,8 +25,8 @@ class UpStream(torch.nn.Module):
                 self.lins.append(torch.nn.Linear(hid_size * 3, hid_size))
             else:
                 self.lins.append(torch.nn.Linear(hid_size, hid_size))
-
-            self.bns.append(torch.nn.BatchNorm1d(hid_size))
+            if use_bn:
+                self.bns.append(torch.nn.BatchNorm1d(hid_size))
         self.lins.append(torch.nn.Linear(hid_size, 1))
 
     def forward(self, data: Union[Data, Batch]):
@@ -51,8 +52,11 @@ class UpStream(torch.nn.Module):
         for i in range(self.num_layer):
             emb = self.lins[i](emb)
             if i != self.num_layer - 1:
-                emb = self.bns[i](emb)
+                if self.bns:
+                    emb = self.bns[i](emb)
                 emb = torch.relu(emb)
+                if self.dropout > 0:
+                    emb = torch.nn.functional.dropout(emb, p=self.dropout, training=self.training)
 
         return emb.squeeze()
 

@@ -28,7 +28,8 @@ def get_model(args, *_args):
 
     if args.imle_configs is not None:
         emb_model = UpStream(hid_size=args.imle_configs.emb_hid_size,
-                             num_layer=args.imle_configs.emb_num_layer)
+                             num_layer=args.imle_configs.emb_num_layer,
+                             dropout=args.imle_configs.dropout)
     else:
         emb_model = None
 
