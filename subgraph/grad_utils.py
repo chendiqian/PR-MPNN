@@ -33,7 +33,7 @@ def centralize(mask: torch.Tensor, batch_nnodes: torch.Tensor, new_batch_nnodes:
     subgraphs_seed_nodes = torch.cat([torch.arange(n, device=batch_nnodes.device) for n in batch_nnodes], dim=0)
     subgraphs_seed_nodes[1:] += torch.cumsum(new_batch_nnodes, dim=0)[:-1]
     center_mask = torch.zeros_like(mask, dtype=mask.dtype, device=mask.device)
-    center_mask[subgraphs_seed_nodes] = 1.
+    center_mask[subgraphs_seed_nodes, :] = 1.
     return center_mask
 
 
@@ -57,7 +57,7 @@ class Nodemask2Edgemask(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         _, edge_index_col, n_nodes = ctx.saved_tensors
-        final_grad = scatter(grad_output, edge_index_col, dim=-1, reduce='mean', dim_size=n_nodes)
+        final_grad = scatter(grad_output, edge_index_col, dim=0, reduce='mean', dim_size=n_nodes)
         return final_grad, None, None
 
 
@@ -70,5 +70,4 @@ def nodemask2edgemask(mask: torch.Tensor, edge_index: torch.Tensor, placeholder=
     :param placeholder:
     :return:
     """
-    single = mask.ndim == 1
-    return mask[edge_index[0]] * mask[edge_index[1]] if single else mask[:, edge_index[0]] * mask[:, edge_index[1]]
+    return mask[edge_index[0], :] * mask[edge_index[1], :]

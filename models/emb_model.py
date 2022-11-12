@@ -7,7 +7,7 @@ import numpy as np
 
 
 class UpStream(torch.nn.Module):
-    def __init__(self, hid_size, num_layer, dropout=0.5, use_bn=False):
+    def __init__(self, hid_size, num_layer, dropout=0.5, ensemble=1, use_bn=False):
         super(UpStream, self).__init__()
         self.num_layer = num_layer
         self.atom_encoder = AtomEncoder(emb_dim=hid_size)
@@ -27,7 +27,7 @@ class UpStream(torch.nn.Module):
                 self.lins.append(torch.nn.Linear(hid_size, hid_size))
             if use_bn:
                 self.bns.append(torch.nn.BatchNorm1d(hid_size))
-        self.lins.append(torch.nn.Linear(hid_size, 1))
+        self.lins.append(torch.nn.Linear(hid_size, ensemble))
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
@@ -58,7 +58,7 @@ class UpStream(torch.nn.Module):
                 if self.dropout > 0:
                     emb = torch.nn.functional.dropout(emb, p=self.dropout, training=self.training)
 
-        return emb.squeeze()
+        return emb
 
     def reset_parameters(self):
         self.atom_encoder.reset_parameters()

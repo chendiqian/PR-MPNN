@@ -4,11 +4,12 @@ from subgraph.greedy_expand import greedy_grow_tree
 
 
 class IMLEScheme:
-    def __init__(self, imle_sample_policy, ptr, graphs, sample_k):
+    def __init__(self, imle_sample_policy, ptr, graphs, sample_k, ensemble=1):
         self.imle_sample_policy = imle_sample_policy
         self.sample_k = sample_k
         self._ptr = ptr
         self._graphs = graphs
+        self.ensemble = ensemble
 
     @property
     def ptr(self):
@@ -42,17 +43,18 @@ class IMLEScheme:
 
         sample_instance_idx = []
         if self.imle_sample_policy == 'KMaxNeighbors':
-            for i, logit in enumerate(local_logits):
-                logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes)
-                mask = get_or_optim_subgraphs(self.graphs[i].edge_index, logit, self.sample_k)
-                mask.requires_grad = False
-                sample_instance_idx.append(mask.reshape(-1))
+            raise NotImplementedError
+            # for i, logit in enumerate(local_logits):
+            #     logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes)
+            #     mask = get_or_optim_subgraphs(self.graphs[i].edge_index, logit, self.sample_k)
+            #     mask.requires_grad = False
+            #     sample_instance_idx.append(mask.reshape(-1))
         elif self.imle_sample_policy == 'greedy_neighbors':
             for i, logit in enumerate(local_logits):
-                logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes)
+                logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes, self.ensemble)
                 mask = greedy_grow_tree(self.graphs[i], self.sample_k, logit)
                 mask.requires_grad = False
-                sample_instance_idx.append(mask.reshape(-1))
+                sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
         else:
             raise NotImplementedError
 

@@ -76,26 +76,30 @@ def construct_imle_local_structure_subgraphs(graphs: List[Data],
     :return:
     """
     subgraphs = []
+    channels = node_mask.shape[-1]
     for i, g in enumerate(graphs):
         subgraphs += [g] * g.nnodes
+    subgraphs = subgraphs * channels
 
     new_batch = Batch.from_data_list(subgraphs)
 
     n2e_func = Nodemask2Edgemask.apply if grad else nodemask2edgemask
     new_batch.edge_weight = n2e_func(node_mask,
-                                      new_batch.edge_index,
-                                      torch.tensor(new_batch.num_nodes,
-                                                   device=node_mask.device))
+                                     new_batch.edge_index[:, :new_batch.edge_index.shape[1] // channels],
+                                     torch.tensor(new_batch.num_nodes // channels, device=node_mask.device)).T.reshape(-1)
 
     if subgraph2node_aggr in ['add', 'mean']:
-        new_batch.node_mask = node_mask
+        new_batch.node_mask = node_mask.T.reshape(-1)
     elif subgraph2node_aggr == 'center':
         center_func = CenterNodeIdentityMapping.apply if grad else centralize
-        new_batch.node_mask = center_func(node_mask, nnodes_wo_duplicate, new_batch.nnodes)
+        new_batch.node_mask = center_func(node_mask,
+                                          nnodes_wo_duplicate,
+                                          new_batch.nnodes[:new_batch.nnodes.shape[0] // channels]).T.reshape(-1)
     else:
         raise ValueError
 
-    new_batch.subgraphs2nodes = new_batch.batch
+    # aggregate channels together with subgraph2nodes
+    new_batch.subgraphs2nodes = new_batch.batch[:new_batch.batch.shape[0] // channels].repeat(channels)
     del new_batch.batch
     new_batch.batch = batch_wo_duplicate
     new_batch.y = y_wo_duplicate

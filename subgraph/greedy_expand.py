@@ -26,12 +26,33 @@ def numba_greedy_grow_tree(num_neighbors: int, weights: np.ndarray, edge_index: 
     return mask
 
 
+@numba.njit(cache=True)
+def batch_numba_greedy_grow_tree(num_neighbors: int, weights: np.ndarray, edge_index: np.ndarray, num_nodes: int, ):
+    neighbor_dict = edgeindex2neighbordict(edge_index, num_nodes)
+    mask = np.zeros(weights.shape, dtype=np.bool_)
+
+    for c in range(weights.shape[-1]):
+        for seed_node in range(num_nodes):
+            search_list = [(-weights[seed_node, seed_node, c], seed_node)]
+            closelist = set()
+
+            while mask[seed_node, :, c].sum() < num_neighbors and len(search_list):
+                _, cur_node = heappop(search_list)
+                mask[seed_node, cur_node, c] = True
+                closelist.add(cur_node)
+                for n in neighbor_dict[cur_node]:
+                    if n not in closelist:
+                        heappush(search_list, (-weights[seed_node, n, c], n))
+
+    return mask
+
+
 def greedy_grow_tree(graph: Data, num_neighbors: int, weights: torch.Tensor, target_dtype=torch.float) -> torch.Tensor:
     if num_neighbors >= graph.num_nodes:
         return torch.ones_like(weights, device=weights.device, dtype=target_dtype)
 
-    np_mask = numba_greedy_grow_tree(num_neighbors,
-                                     weights.cpu().detach().numpy(),
-                                     graph.edge_index.cpu().numpy(),
-                                     graph.num_nodes, )
+    np_mask = batch_numba_greedy_grow_tree(num_neighbors,
+                                           weights.cpu().detach().numpy(),
+                                           graph.edge_index.cpu().numpy(),
+                                           graph.num_nodes, )
     return torch.from_numpy(np_mask).to(target_dtype).to(weights.device)

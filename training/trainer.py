@@ -61,7 +61,8 @@ class Trainer:
             self.imle_scheduler = IMLEScheme(sample_policy,
                                              None,
                                              None,
-                                             sample_k, )
+                                             sample_k,
+                                             ensemble=imle_configs.ensemble if hasattr(imle_configs, 'ensemble') else 1)
 
         # from original data batch to duplicated data batches
         # [g1, g2, ..., gn] -> [g1_1, g1_1, g1_3, ...]
