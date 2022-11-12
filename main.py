@@ -92,11 +92,7 @@ def run(fixed):
     task_type = TASK_TYPE_DICT[args.dataset.lower()]
     criterion = CRITERION_DICT[args.dataset.lower()]
 
-    model, emb_model, inner_model = get_model(args)
-    model = model.to(device)
-    inner_model = inner_model.to(device)
-    if emb_model is not None:
-        emb_model.to(device)
+    model, emb_model, inner_model = get_model(args, device)
 
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=task_type,
