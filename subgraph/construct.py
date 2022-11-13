@@ -24,23 +24,26 @@ def construct_random_local_structure_subgraphs(graphs: List[Data],
     :param subgraph2node_aggr:
     :return:
     """
+    channels = node_mask.shape[-1]
+    flat_node_mask = node_mask.T.reshape(-1)
     subgraphs = []
     for i, g in enumerate(graphs):
         subgraphs += [g] * g.nnodes
+    subgraphs = subgraphs * channels
 
     new_batch = Batch.from_data_list(subgraphs)
-    new_edge_index, new_edge_attr = subgraph(node_mask,
+    new_edge_index, new_edge_attr = subgraph(flat_node_mask,
                                              new_batch.edge_index,
                                              new_batch.edge_attr,
                                              relabel_nodes=True,
                                              num_nodes=new_batch.num_nodes)
 
-    new_data = Data(x=new_batch.x[node_mask],
+    new_data = Data(x=new_batch.x[flat_node_mask],
                     edge_index=new_edge_index,
                     edge_attr=new_edge_attr,
                     edge_weight=None,
                     y=y_wo_duplicate,)
-    new_data.subgraphs2nodes = new_batch.batch[node_mask]
+    new_data.subgraphs2nodes = new_batch.batch[flat_node_mask]
     new_data.batch = batch_wo_duplicate
     new_data.num_graphs = len(subgraphs)
 
@@ -48,8 +51,8 @@ def construct_random_local_structure_subgraphs(graphs: List[Data],
         new_data.node_mask = torch.ones(node_mask.sum(), dtype=torch.bool, device=node_mask.device)
     elif subgraph2node_aggr == 'center':
         nnodes = torch.repeat_interleave(nnodes_wo_duplicate, nnodes_wo_duplicate, dim=0)
-        new_data.node_mask = centralize(node_mask, nnodes_wo_duplicate, nnodes)
-        new_data.node_mask = new_data.node_mask[node_mask]
+        new_data.node_mask = centralize(node_mask, nnodes_wo_duplicate, nnodes).T.reshape(-1)
+        new_data.node_mask = new_data.node_mask[flat_node_mask]
         new_data.subgraphs2nodes = new_data.subgraphs2nodes[new_data.node_mask]
     else:
         raise ValueError

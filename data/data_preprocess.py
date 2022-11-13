@@ -67,16 +67,17 @@ class AugmentWithRandomKNeighbors(GraphModification):
     Sample best k neighbors randomly, return the induced subgraph
     Serves as transform because of its randomness
     """
-    def __init__(self, sample_k: int):
+    def __init__(self, sample_k: int, ensemble: int):
         super(AugmentWithRandomKNeighbors, self).__init__()
         self.num_neighnors = sample_k
+        self.ensemble = ensemble
 
     def __call__(self, graph: Data):
         mask = greedy_grow_tree(graph,
                                 self.num_neighnors,
-                                torch.rand(graph.num_nodes, graph.num_nodes, device=graph.x.device),
+                                torch.rand(graph.num_nodes, graph.num_nodes, self.ensemble, device=graph.x.device),
                                 target_dtype=torch.bool)
-        graph.node_mask = mask.reshape(-1)
+        graph.node_mask = mask.reshape(graph.num_nodes ** 2, self.ensemble)
         return graph
 
 
@@ -94,15 +95,16 @@ class AugmentWithKhopMasks(GraphModification):
         return graph
 
 
-def policy2transform(policy: str, sample_k: int) -> GraphModification:
+def policy2transform(policy: str, sample_k: int, ensemble: int) -> GraphModification:
     """
     transform for datasets
 
     :param policy:
     :param sample_k:
+    :param ensemble:
     :return:
     """
     if policy == 'greedy_neighbors':
-        return AugmentWithRandomKNeighbors(sample_k)
+        return AugmentWithRandomKNeighbors(sample_k, ensemble)
     elif policy == 'khop':
         return AugmentWithKhopMasks(sample_k)

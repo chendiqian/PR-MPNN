@@ -23,7 +23,8 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     # train with sampling on the fly
     elif args.sample_configs.sample_policy in ['greedy_neighbors']:
         return policy2transform(args.sample_configs.sample_policy,
-                                args.sample_configs.sample_k)
+                                args.sample_configs.sample_k,
+                                args.sample_configs.ensemble)
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict]):

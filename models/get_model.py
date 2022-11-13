@@ -27,7 +27,7 @@ def get_model(args, device, *_args):
         raise NotImplementedError
 
     if args.imle_configs is not None:
-        ensemble = 1 if not hasattr(args.imle_configs, 'ensemble') else args.imle_configs.ensemble
+        ensemble = 1 if not hasattr(args.sample_configs, 'ensemble') else args.sample_configs.ensemble
 
         emb_model = UpStream(hid_size=args.imle_configs.emb_hid_size,
                              num_layer=args.imle_configs.emb_num_layer,

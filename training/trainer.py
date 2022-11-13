@@ -1,7 +1,7 @@
 import os
 import pickle
 from collections import defaultdict
-from typing import Union, Optional, Any
+from typing import Union, Optional, Any, Tuple
 from ml_collections import ConfigDict
 
 import torch.linalg
@@ -32,11 +32,7 @@ class Trainer:
                  criterion: Loss,
                  device: Union[str, torch.device],
                  imle_configs: ConfigDict,
-
-                 sample_policy: str = None,
-                 subgraph2node_aggr: str = 'add',
-                 sample_k: int = 3,
-                 **kwargs):
+                 sample_configs: ConfigDict):
         super(Trainer, self).__init__()
 
         self.dataset = dataset
@@ -52,21 +48,22 @@ class Trainer:
 
         self.curves = defaultdict(list)
 
-        self.subgraph2node_aggr = subgraph2node_aggr
+        self.subgraph2node_aggr = sample_configs.subgraph2node_aggr
         if imle_configs is not None:  # need to cache some configs, otherwise everything's in the dataloader already
             self.micro_batch_embd = imle_configs.micro_batch_embd
             self.temp = 1.
             self.target_distribution = TargetDistribution(alpha=1.0, beta=imle_configs.beta)
             self.noise_distribution = GumbelDistribution(0., imle_configs.noise_scale, self.device)
-            self.imle_scheduler = IMLEScheme(sample_policy,
+            self.imle_scheduler = IMLEScheme(sample_configs.sample_policy,
                                              None,
                                              None,
-                                             sample_k,
-                                             ensemble=imle_configs.ensemble if hasattr(imle_configs, 'ensemble') else 1)
+                                             sample_configs.sample_k,
+                                             ensemble=sample_configs.ensemble
+                                             if hasattr(sample_configs, 'ensemble') else 1)
 
         # from original data batch to duplicated data batches
         # [g1, g2, ..., gn] -> [g1_1, g1_1, g1_3, ...]
-        if sample_policy is None:
+        if sample_configs.sample_policy is None:
             self.construct_duplicate_data = lambda x, _: x
         elif imle_configs is not None:
             self.construct_duplicate_data = self.emb_model_forward
@@ -128,6 +125,21 @@ class Trainer:
                                                              grad=train)
 
         return new_batch
+
+    # def get_aux_loss(self, logits: torch.Tensor, split_idx: Tuple):
+    #     """
+    #     A KL divergence version
+    #     """
+    #     targets = torch.ones(logits.shape[0], device=logits.device, dtype=torch.float32)
+    #     logits = torch.split(logits, split_idx, dim=0)
+    #     targets = torch.split(targets, split_idx, dim=0)
+    #     kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
+    #     loss = 0.
+    #     for logit, target in zip(logits, targets):
+    #         log_softmax_logits = torch.nn.LogSoftmax(dim=0)(logit.sum(1))
+    #         target = target / logit.shape[0]
+    #         loss += kl_loss(log_softmax_logits, target)
+    #     return loss * self.aux_loss_weight
 
     def train(self,
               dataloader: AttributedDataLoader,
