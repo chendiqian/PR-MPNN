@@ -4,7 +4,8 @@ import torch
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool, GlobalAttention, Set2Set
 from torch_scatter import scatter
 from .encoder import AtomEncoder
-from .ogb_mol_conv import GNN_node, GNN_node_Placeholder
+from .ogb_mol_conv import GNN_node
+from .my_convs import GNN_Placeholder
 
 
 class OGBGNN(torch.nn.Module):
@@ -61,7 +62,7 @@ class OGBGNN(torch.nn.Module):
                 self.gnn_node = GNN_node(num_layer, emb_dim, JK=JK, drop_ratio=drop_ratio, residual=residual,
                                          gnn_type=gnn_type, atom_embed=False)
         else:
-            self.gnn_node = GNN_node_Placeholder()
+            self.gnn_node = GNN_Placeholder()
 
         # Pooling function to generate whole-graph embeddings
         if self.graph_pooling == "sum":

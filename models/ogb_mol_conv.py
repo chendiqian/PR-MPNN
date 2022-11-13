@@ -85,15 +85,3 @@ class GNN_node(torch.nn.Module):
             c.reset_parameters()
         for b in self.batch_norms:
             b.reset_parameters()
-
-
-class GNN_node_Placeholder(torch.nn.Module):
-    def __init__(self, *args, **kwargs):
-        super(GNN_node_Placeholder, self).__init__()
-        pass
-
-    def forward(self, data):
-        return data.x
-
-    def reset_parameters(self):
-        pass

@@ -5,17 +5,20 @@ from models.encoder import BondEncoder
 
 
 class GINConv(MessagePassing):
-    def __init__(self, emb_dim):
+    def __init__(self, emb_dim=64, mlp=None):
         """
             emb_dim (int): node embedding dimensionality
         """
 
         super(GINConv, self).__init__(aggr="add")
 
-        self.mlp = torch.nn.Sequential(torch.nn.Linear(emb_dim, 2 * emb_dim),
-                                       torch.nn.BatchNorm1d(2 * emb_dim),
-                                       torch.nn.ReLU(),
-                                       torch.nn.Linear(2 * emb_dim, emb_dim))
+        if mlp is not None:
+            self.mlp = mlp
+        else:
+            self.mlp = torch.nn.Sequential(torch.nn.Linear(emb_dim, 2 * emb_dim),
+                                           torch.nn.BatchNorm1d(2 * emb_dim),
+                                           torch.nn.ReLU(),
+                                           torch.nn.Linear(2 * emb_dim, emb_dim))
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
 
         self.bond_encoder = BondEncoder(emb_dim=emb_dim)
@@ -45,3 +48,15 @@ class GINConv(MessagePassing):
                 l.reset_parameters()
         self.eps = torch.nn.Parameter(torch.Tensor([0.]).to(self.eps.device))
         self.bond_encoder.reset_parameters()
+
+
+class GNN_Placeholder(torch.nn.Module):
+    def __init__(self, *args, **kwargs):
+        super(GNN_Placeholder, self).__init__()
+        pass
+
+    def forward(self, data):
+        return data.x
+
+    def reset_parameters(self):
+        pass
