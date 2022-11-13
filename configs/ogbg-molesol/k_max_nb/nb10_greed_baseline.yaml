@@ -6,6 +6,7 @@ fixed:
     sample_policy: greedy_neighbors
     subgraph2node_aggr: center
     sample_k: 10
+    ensemble: 1
     # for inner model
     inner_layer: 5
     extra_dim: [0, 300]  # data.x || subgraph_emb
