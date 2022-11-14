@@ -8,8 +8,10 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.datasets import ZINC
 from ogb.graphproppred import PygGraphPropPredDataset
 
-from data.data_utils import AttributedDataLoader
-from data.data_preprocess import GraphExpandDim, GraphToUndirected, GraphCoalesce, AugmentwithNNodes, policy2transform
+from .data_utils import AttributedDataLoader
+from .data_preprocess import GraphExpandDim, GraphToUndirected, GraphCoalesce, AugmentwithNNodes, policy2transform, \
+    GraphAttrToOneHot
+from .const import DATASET_FEATURE_STAT_DICT
 
 DATASET = (PygGraphPropPredDataset, ZINC)
 
@@ -30,8 +32,10 @@ def get_transform(args: Union[Namespace, ConfigDict]):
                                 args.sample_configs.ensemble)
 
 
-def get_pretransform(args: Union[Namespace, ConfigDict]):
-    pretransform = [GraphToUndirected(), GraphCoalesce(), AugmentwithNNodes(), GraphExpandDim()]
+def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: List):
+    pretransform = [GraphToUndirected(), GraphCoalesce(), AugmentwithNNodes()]
+    for p in extra_pretransforms:
+        pretransform.append(p)
     extra_path = None
     if args.sample_configs.sample_policy in ['khop']:
         pretransform.append(policy2transform(args.sample_configs.sample_policy, args.sample_configs.sample_k, 1))
@@ -113,7 +117,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
 
 def get_ogb_data(args: Union[Namespace, ConfigDict]):
-    pre_transform, extra_path = get_pretransform(args)
+    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[])
     transform = get_transform(args)
 
     # if there are specific pretransforms, create individual folders for the dataset
@@ -139,11 +143,10 @@ def get_ogb_data(args: Union[Namespace, ConfigDict]):
 
 
 def get_zinc(args: Union[Namespace, ConfigDict]):
-    """
-    :param args
-    :return:
-    """
-    pre_transform, extra_path = get_pretransform(args)
+    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[
+        GraphExpandDim(),
+        GraphAttrToOneHot(DATASET_FEATURE_STAT_DICT['zinc']['node'],
+                          DATASET_FEATURE_STAT_DICT['zinc']['edge'])])
     transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, 'ZINC')

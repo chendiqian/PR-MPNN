@@ -18,6 +18,22 @@ class GraphModification:
         return None
 
 
+class GraphAttrToOneHot(GraphModification):
+    def __init__(self, num_node_classes, num_edge_classes):
+        super(GraphAttrToOneHot, self).__init__()
+        self.num_node_classes = num_node_classes
+        self.num_edge_classes = num_edge_classes
+
+    def __call__(self, graph: Data):
+        assert graph.x.dtype == torch.long
+        assert graph.edge_attr.dtype == torch.long
+
+        graph.x = torch.nn.functional.one_hot(graph.x.squeeze(), self.num_node_classes).to(torch.float)
+        graph.edge_attr = torch.nn.functional.one_hot(graph.edge_attr.squeeze(), self.num_edge_classes).to(torch.float)
+
+        return graph
+
+
 class GraphExpandDim(GraphModification):
     def __call__(self, graph: Data):
         if graph.y.ndim == 1:
