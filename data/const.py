@@ -3,6 +3,7 @@ from torch import nn
 
 DATASET_FEATURE_STAT_DICT = {
     'zinc': {'node': 21, 'edge': 4, 'num_class': 1},  # regression
+    'zinc_full': {'node': 28, 'edge': 3, 'num_class': 1},
     'mutag': {'node': 7, 'edge': 4, 'num_class': 1},  # bin classification
     'alchemy': {'node': 6, 'edge': 4, 'num_class': 12},  # regression, but 12 labels
     'ogbg-molesol': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
@@ -16,11 +17,13 @@ DATASET_FEATURE_STAT_DICT = {
 
 MAX_NUM_NODE_DICT = {
     'zinc': 37,
+    'zinc_full': 38,
     'ogbg-molesol': 55,
 }
 
 TASK_TYPE_DICT = {
     'zinc': 'regression',
+    'zinc_full': 'regression',
     'alchemy': 'regression',
     'ogbg-molesol': 'rmse',
     'ogbg-molbace': 'rocauc',
@@ -33,6 +36,7 @@ TASK_TYPE_DICT = {
 
 CRITERION_DICT = {
     'zinc': nn.L1Loss(),
+    'zinc_full': nn.L1Loss(),
     'alchemy': nn.L1Loss(),
     'ogbg-molesol': nn.MSELoss(),
     'ogbg-molbace': nn.BCEWithLogitsLoss(),
