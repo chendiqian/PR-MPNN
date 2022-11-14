@@ -5,7 +5,7 @@ from ml_collections import ConfigDict
 
 from torch_geometric.transforms import Compose
 from torch_geometric.loader import DataLoader
-from torch_geometric.datasets import ZINC
+from torch_geometric.datasets import ZINC, TUDataset
 from ogb.graphproppred import PygGraphPropPredDataset
 
 from .data_utils import AttributedDataLoader
@@ -13,9 +13,9 @@ from .data_preprocess import GraphExpandDim, GraphToUndirected, GraphCoalesce, A
     GraphAttrToOneHot
 from .const import DATASET_FEATURE_STAT_DICT
 
-DATASET = (PygGraphPropPredDataset, ZINC)
+DATASET = (PygGraphPropPredDataset, ZINC, TUDataset)
 
-NAME_DICT = {'zinc': "ZINC_full", }
+NAME_DICT = {'zinc_full': "ZINC_full", }
 
 
 def get_transform(args: Union[Namespace, ConfigDict]):
@@ -59,6 +59,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_ogb_data(args)
     elif args.dataset.lower() == 'zinc':
         train_set, val_set, test_set, mean, std = get_zinc(args)
+    elif args.dataset.lower() == 'zinc_full':
+        train_set, val_set, test_set, mean, std = get_TUdata(args)
     else:
         raise ValueError
 
@@ -175,5 +177,50 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
         train_set = train_set[:16]
         val_set = val_set[:16]
         test_set = test_set[:16]
+
+    return train_set, val_set, test_set, None, None
+
+
+def get_TUdata(args: Union[Namespace, ConfigDict]):
+    """
+    :param args
+    :return:
+    """
+    infile = open(f"./datasets/indices/{args.dataset.lower()}/test.index.txt", "r")
+    line = next(iter(infile))
+    test_indices = line.split(",")
+    if args.debug:
+        test_indices = test_indices[:16]
+    test_indices = [int(i) for i in test_indices]
+
+    infile = open(f"./datasets/indices/{args.dataset.lower()}/val.index.txt", "r")
+    line = next(iter(infile))
+    val_indices = line.split(",")
+    if args.debug:
+        val_indices = val_indices[:16]
+    val_indices = [int(i) for i in val_indices]
+
+    infile = open(f"./datasets/indices/{args.dataset.lower()}/train.index.txt", "r")
+    line = next(iter(infile))
+    train_indices = line.split(",")
+    if args.debug:
+        train_indices = train_indices[:16]
+    train_indices = [int(i) for i in train_indices]
+
+    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[GraphExpandDim()])
+    transform = get_transform(args)
+
+    data_path = args.data_path
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    dataset = TUDataset(data_path,
+                        name=NAME_DICT[args.dataset.lower()],
+                        transform=transform,
+                        pre_transform=pre_transform)
+
+    train_set = dataset[:220011][train_indices]
+    val_set = dataset[225011:][val_indices]
+    test_set = dataset[220011:225011][test_indices]
 
     return train_set, val_set, test_set, None, None
