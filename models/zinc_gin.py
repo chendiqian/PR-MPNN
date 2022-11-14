@@ -3,12 +3,12 @@ from torch.nn import Linear, Sequential, ReLU, BatchNorm1d as BN
 from torch_geometric.nn import global_mean_pool, global_add_pool
 from torch_scatter import scatter
 
-from .encoder import AtomEncoder
 from .my_convs import GINConv, GNN_Placeholder
+from .nn_utils import residual, reset_sequential_parameters
 
 
 class BaseGIN(torch.nn.Module):
-    def __init__(self, in_features, num_layers, hidden):
+    def __init__(self, in_features, edge_features, num_layers, hidden):
         super(BaseGIN, self).__init__()
 
         assert num_layers > 0
@@ -18,9 +18,13 @@ class BaseGIN(torch.nn.Module):
                 Linear(in_features, hidden),
                 ReLU(),
                 Linear(hidden, hidden),
-                ReLU(),
                 BN(hidden),
-            ), )
+                ReLU(),
+            ),
+            bond_encoder=Sequential(Linear(edge_features, in_features),
+                                    ReLU(),
+                                    Linear(in_features, in_features))
+        )
 
         self.convs = torch.nn.ModuleList()
         for i in range(num_layers - 1):
@@ -31,46 +35,51 @@ class BaseGIN(torch.nn.Module):
                         Linear(hidden, hidden),
                         ReLU(),
                         Linear(hidden, hidden),
-                        ReLU(),
                         BN(hidden),
-                    ), )
+                        ReLU(),
+                    ),
+                    bond_encoder=Sequential(Linear(edge_features, hidden),
+                                            ReLU(),
+                                            Linear(hidden, hidden))
+                )
             )
 
-        self.lin1 = torch.nn.Linear(num_layers * hidden, hidden)
+        self.mlp = torch.nn.Sequential(Linear(hidden, hidden),
+                                       ReLU(),
+                                       Linear(hidden, hidden), )
 
     def reset_parameters(self):
         self.conv1.reset_parameters()
         for conv in self.convs:
             conv.reset_parameters()
-        self.lin1.reset_parameters()
+        reset_sequential_parameters(self.mlp)
 
     def forward(self, data):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
         edge_weight = data.edge_weight
 
         x = self.conv1(x, edge_index, edge_attr, edge_weight)
-        xs = [x]
         for conv in self.convs:
-            x = conv(x, edge_index, edge_attr, edge_weight)
-            xs += [x]
-        x = torch.cat(xs, dim=1)
-        x = self.lin1(x)
+            x_new = conv(x, edge_index, edge_attr, edge_weight)
+            x = residual(x, x_new)
+
+        x = self.mlp(x)
         return x
 
 
 class ZINC_GIN_Outer(torch.nn.Module):
-    def __init__(self, num_layers, hidden, num_classes, extra_dim, graph_pooling='mean'):
+    def __init__(self, in_features, edge_features, num_layers, hidden, num_classes, extra_dim, graph_pooling='mean'):
         super(ZINC_GIN_Outer, self).__init__()
 
         # map data.x to dim0
-        self.atom_encoder = AtomEncoder(extra_dim[0]) if extra_dim[0] > 0 else None
+        self.atom_encoder = Linear(in_features, extra_dim[0]) if extra_dim[0] > 0 else None
         # map the extra feature to dim1
-        self.extra_emb_layer = torch.nn.Linear(hidden, extra_dim[1]) if extra_dim[1] > 0 else None
+        self.extra_emb_layer = Linear(hidden, extra_dim[1]) if extra_dim[1] > 0 else None
         # merge 2 features
-        self.merge_layer = torch.nn.Linear(sum(extra_dim), hidden) if min(extra_dim) > 0 else None
+        self.merge_layer = Linear(sum(extra_dim), hidden) if min(extra_dim) > 0 else None
 
         if num_layers > 0:
-            self.gnn = BaseGIN(hidden, num_layers, hidden)
+            self.gnn = BaseGIN(hidden, edge_features, num_layers, hidden)
         else:
             self.gnn = GNN_Placeholder()
 
@@ -81,7 +90,7 @@ class ZINC_GIN_Outer(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        self.graph_pred_linear = torch.nn.Linear(hidden, num_classes)
+        self.graph_pred_linear = Linear(hidden, num_classes)
 
     def reset_parameters(self):
         if self.atom_encoder is not None:
@@ -116,10 +125,9 @@ class ZINC_GIN_Outer(torch.nn.Module):
 
 
 class ZINC_GIN_Inner(torch.nn.Module):
-    def __init__(self, num_layers, hidden, subgraph2node_aggr='add'):
+    def __init__(self, in_features, edge_features, num_layers, hidden, subgraph2node_aggr='add'):
         super(ZINC_GIN_Inner, self).__init__()
-        self.atom_encoder = AtomEncoder(hidden)
-        self.gnn = BaseGIN(hidden, num_layers, hidden)
+        self.gnn = BaseGIN(in_features, edge_features, num_layers, hidden)
 
         self.graph_pooling = subgraph2node_aggr
 
@@ -137,10 +145,8 @@ class ZINC_GIN_Inner(torch.nn.Module):
 
     def reset_parameters(self):
         self.gnn.reset_parameters()
-        self.atom_encoder.reset_parameters()
 
     def forward(self, data):
-        data.x = self.atom_encoder(data.x)
         h_node = self.gnn(data)
 
         if self.inner_pool is not None:

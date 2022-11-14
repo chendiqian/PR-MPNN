@@ -25,14 +25,18 @@ def get_model(args, device, *_args):
             subgraph2node_aggr=args.sample_configs.subgraph2node_aggr,
         ).to(device)
     elif args.model.lower() == 'zinc_gin':
-        model = ZINC_GIN_Outer(num_layers=args.num_convlayers,
+        model = ZINC_GIN_Outer(in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
+                               edge_features=DATASET_FEATURE_STAT_DICT['zinc']['edge'],
+                               num_layers=args.num_convlayers,
                                hidden=args.hid_size,
                                num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                               extra_dim=args.sample_configs.extra_dim,).to(device)
+                               extra_dim=args.sample_configs.extra_dim, ).to(device)
 
-        inner_model = ZINC_GIN_Inner(num_layers=args.sample_configs.inner_layer,
+        inner_model = ZINC_GIN_Inner(in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
+                                     edge_features=DATASET_FEATURE_STAT_DICT['zinc']['edge'],
+                                     num_layers=args.sample_configs.inner_layer,
                                      hidden=args.hid_size,
-                                     subgraph2node_aggr=args.sample_configs.subgraph2node_aggr,).to(device)
+                                     subgraph2node_aggr=args.sample_configs.subgraph2node_aggr, ).to(device)
     else:
         raise NotImplementedError
 
