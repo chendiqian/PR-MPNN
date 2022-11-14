@@ -1,14 +1,16 @@
+from typing import Optional
+
 import torch
 from torch_geometric.nn import MessagePassing
 
-from models.encoder import BondEncoder
+from .encoder import BondEncoder
+from .nn_utils import reset_sequential_parameters
 
 
 class GINConv(MessagePassing):
-    def __init__(self, emb_dim=64, mlp=None):
-        """
-            emb_dim (int): node embedding dimensionality
-        """
+    def __init__(self, emb_dim: int = 64,
+                 mlp: Optional[torch.nn.Sequential] = None,
+                 bond_encoder: Optional[torch.nn.Sequential] = None):
 
         super(GINConv, self).__init__(aggr="add")
 
@@ -21,7 +23,10 @@ class GINConv(MessagePassing):
                                            torch.nn.Linear(2 * emb_dim, emb_dim))
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
 
-        self.bond_encoder = BondEncoder(emb_dim=emb_dim)
+        if bond_encoder is None:
+            self.bond_encoder = BondEncoder(emb_dim=emb_dim)
+        else:
+            self.bond_encoder = bond_encoder
 
     def forward(self, x, edge_index, edge_attr, edge_weight):
         if edge_weight is not None and edge_weight.ndim < 2:
@@ -42,12 +47,12 @@ class GINConv(MessagePassing):
         return aggr_out
 
     def reset_parameters(self):
-        lst = torch.nn.ModuleList(self.mlp)
-        for l in lst:
-            if not isinstance(l, torch.nn.ReLU):
-                l.reset_parameters()
+        reset_sequential_parameters(self.mlp)
         self.eps = torch.nn.Parameter(torch.Tensor([0.]).to(self.eps.device))
-        self.bond_encoder.reset_parameters()
+        if isinstance(self.bond_encoder, BondEncoder):
+            self.bond_encoder.reset_parameters()
+        else:
+            reset_sequential_parameters(self.bond_encoder)
 
 
 class GNN_Placeholder(torch.nn.Module):
