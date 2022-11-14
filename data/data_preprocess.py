@@ -18,6 +18,15 @@ class GraphModification:
         return None
 
 
+class GraphExpandDim(GraphModification):
+    def __call__(self, graph: Data):
+        if graph.y.ndim == 1:
+            graph.y = graph.y[None]
+        if graph.edge_attr is not None and graph.edge_attr.ndim == 1:
+            graph.edge_attr = graph.edge_attr[:, None]
+        return graph
+
+
 class GraphToUndirected(GraphModification):
     """
     Wrapper of to_undirected:
@@ -95,7 +104,7 @@ class AugmentWithKhopMasks(GraphModification):
         return graph
 
 
-def policy2transform(policy: str, sample_k: int, ensemble: int) -> GraphModification:
+def policy2transform(policy: str, sample_k: int, ensemble: int = 1) -> GraphModification:
     """
     transform for datasets
 

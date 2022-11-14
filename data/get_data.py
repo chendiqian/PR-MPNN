@@ -5,12 +5,15 @@ from ml_collections import ConfigDict
 
 from torch_geometric.transforms import Compose
 from torch_geometric.loader import DataLoader
+from torch_geometric.datasets import ZINC
 from ogb.graphproppred import PygGraphPropPredDataset
 
 from data.data_utils import AttributedDataLoader
-from data.data_preprocess import GraphToUndirected, GraphCoalesce, AugmentwithNNodes, policy2transform
+from data.data_preprocess import GraphExpandDim, GraphToUndirected, GraphCoalesce, AugmentwithNNodes, policy2transform
 
-DATASET = (PygGraphPropPredDataset,)
+DATASET = (PygGraphPropPredDataset, ZINC)
+
+NAME_DICT = {'zinc': "ZINC_full", }
 
 
 def get_transform(args: Union[Namespace, ConfigDict]):
@@ -28,10 +31,10 @@ def get_transform(args: Union[Namespace, ConfigDict]):
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict]):
-    pretransform = [GraphToUndirected(), GraphCoalesce(), AugmentwithNNodes()]
+    pretransform = [GraphToUndirected(), GraphCoalesce(), AugmentwithNNodes(), GraphExpandDim()]
     extra_path = None
     if args.sample_configs.sample_policy in ['khop']:
-        pretransform.append(policy2transform(args.sample_configs.sample_policy, args.sample_configs.sample_k))
+        pretransform.append(policy2transform(args.sample_configs.sample_policy, args.sample_configs.sample_k, 1))
         extra_path = args.sample_configs.sample_policy + '_' + str(args.sample_configs.sample_k)
     return Compose(pretransform), extra_path
 
@@ -50,6 +53,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
     if 'ogb' in args.dataset.lower():
         train_set, val_set, test_set, mean, std = get_ogb_data(args)
+    elif args.dataset.lower() == 'zinc':
+        train_set, val_set, test_set, mean, std = get_zinc(args)
     else:
         raise ValueError
 
@@ -131,3 +136,41 @@ def get_ogb_data(args: Union[Namespace, ConfigDict]):
     test_set = dataset[test_idx]
 
     return train_set, val_set, test_set, None, None,
+
+
+def get_zinc(args: Union[Namespace, ConfigDict]):
+    """
+    :param args
+    :return:
+    """
+    pre_transform, extra_path = get_pretransform(args)
+    transform = get_transform(args)
+
+    data_path = os.path.join(args.data_path, 'ZINC')
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    train_set = ZINC(data_path,
+                     split='train',
+                     subset=True,
+                     transform=transform,
+                     pre_transform=pre_transform)
+
+    val_set = ZINC(data_path,
+                   split='val',
+                   subset=True,
+                   transform=transform,
+                   pre_transform=pre_transform)
+
+    test_set = ZINC(data_path,
+                    split='test',
+                    subset=True,
+                    transform=transform,
+                    pre_transform=pre_transform)
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
+
+    return train_set, val_set, test_set, None, None

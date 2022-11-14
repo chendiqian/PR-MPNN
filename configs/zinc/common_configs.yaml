@@ -1,0 +1,15 @@
+common:
+  model: zinc_gin
+  dataset: zinc
+  hid_size: 256
+  lr: 1.e-3
+  lr_steps: [ 400, 600 ]
+  patience: 100
+  reg: 0.
+  num_convlayers: 0
+  batch_size: 128
+  min_epochs: 700
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: True
+  num_runs: 3
