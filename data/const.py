@@ -2,7 +2,7 @@ from torch import nn
 
 
 DATASET_FEATURE_STAT_DICT = {
-    'zinc': {'node': 28, 'edge': 3, 'num_class': 1},  # regression
+    'zinc': {'node': 21, 'edge': 4, 'num_class': 1},  # regression
     'mutag': {'node': 7, 'edge': 4, 'num_class': 1},  # bin classification
     'alchemy': {'node': 6, 'edge': 4, 'num_class': 12},  # regression, but 12 labels
     'ogbg-molesol': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
@@ -15,7 +15,7 @@ DATASET_FEATURE_STAT_DICT = {
 }
 
 MAX_NUM_NODE_DICT = {
-    'zinc': 38,
+    'zinc': 37,
     'ogbg-molesol': 55,
 }
 
