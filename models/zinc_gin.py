@@ -44,15 +44,10 @@ class BaseGIN(torch.nn.Module):
                 )
             )
 
-        self.mlp = torch.nn.Sequential(Linear(hidden, hidden),
-                                       ReLU(),
-                                       Linear(hidden, hidden), )
-
     def reset_parameters(self):
         self.conv1.reset_parameters()
         for conv in self.convs:
             conv.reset_parameters()
-        reset_sequential_parameters(self.mlp)
 
     def forward(self, data):
         x, edge_index, edge_attr = data.x, data.edge_index, data.edge_attr
@@ -63,7 +58,6 @@ class BaseGIN(torch.nn.Module):
             x_new = conv(x, edge_index, edge_attr, edge_weight)
             x = residual(x, x_new)
 
-        x = self.mlp(x)
         return x
 
 
@@ -90,7 +84,11 @@ class ZINC_GIN_Outer(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        self.graph_pred_linear = Linear(hidden, num_classes)
+        self.mlp = torch.nn.Sequential(Linear(hidden, hidden),
+                                       ReLU(),
+                                       Linear(hidden, hidden),
+                                       ReLU(),
+                                       Linear(hidden, num_classes))
 
     def reset_parameters(self):
         if self.atom_encoder is not None:
@@ -100,7 +98,7 @@ class ZINC_GIN_Outer(torch.nn.Module):
         if self.merge_layer is not None:
             self.merge_layer.reset_parameters()
         self.gnn.reset_parameters()
-        self.graph_pred_linear.reset_parameters()
+        reset_sequential_parameters(self.mlp)
 
     def forward(self, data, intermediate_node_emb):
         if self.atom_encoder is not None and self.extra_emb_layer is not None:
@@ -121,7 +119,8 @@ class ZINC_GIN_Outer(torch.nn.Module):
         data.x = input_data
         h_node = self.gnn(data)
         h_graph = self.pool(h_node, data.batch)
-        return self.graph_pred_linear(h_graph)
+        h_graph = self.mlp(h_graph)
+        return h_graph
 
 
 class ZINC_GIN_Inner(torch.nn.Module):
