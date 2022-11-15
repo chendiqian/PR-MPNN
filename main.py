@@ -40,7 +40,7 @@ def naming(args) -> str:
         return name
 
     if args.imle_configs is not None:
-        name += f'IMLE_beta{args.imle_configs.beta}_'
+        name += f'IMLE_'
         name += f'H{args.imle_configs.emb_hid_size}'
         name += f'L{args.imle_configs.emb_num_layer}'
         name += f'DP{args.imle_configs.dropout}'
