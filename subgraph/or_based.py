@@ -48,24 +48,25 @@ def get_basic_problem(n_nodes, edge_index_lst, nodes_per_node):
 
 
 def get_or_optim_subgraphs(edge_index: torch.Tensor, value_tensor: torch.Tensor, nodes_per_node: int) -> torch.Tensor:
-    n_nodes, _ = value_tensor.shape
+    n_nodes, _, channels = value_tensor.shape
 
     if nodes_per_node >= n_nodes:
         return torch.ones_like(value_tensor, dtype=torch.float32, device=value_tensor.device)
 
-    value_list = value_tensor.cpu().tolist()
+    value_list = torch.permute(value_tensor, (2, 0, 1)).cpu().tolist()
     directed_mask = edge_index[0] < edge_index[1]
     edge_index_lst = edge_index.t()[directed_mask].cpu().tolist()
 
-    solver, x, e = get_basic_problem(value_tensor.shape[-1], edge_index_lst, nodes_per_node)
-    solution = torch.empty(n_nodes, n_nodes, dtype=torch.float32, device=edge_index.device)
-    for i in range(n_nodes):
-        solver = get_personalized_problem(i, value_list[i], solver, x)
-        status = solver.Solve()
+    solver, x, e = get_basic_problem(n_nodes, edge_index_lst, nodes_per_node)
+    solution = torch.empty(n_nodes, n_nodes, channels, dtype=torch.float32, device=edge_index.device)
+    for c in range(channels):
+        for i in range(n_nodes):
+            solver = get_personalized_problem(i, value_list[c][i], solver, x)
+            status = solver.Solve()
 
-        if status not in [pywraplp.Solver.OPTIMAL, pywraplp.Solver.FEASIBLE]:
-            raise ValueError("No solution")
-        for j in range(n_nodes):
-            solution[i, j] = x[j].solution_value()
+            if status not in [pywraplp.Solver.OPTIMAL, pywraplp.Solver.FEASIBLE]:
+                raise ValueError("No solution")
+            for j in range(n_nodes):
+                solution[i, j, c] = x[j].solution_value()
 
     return solution

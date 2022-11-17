@@ -43,12 +43,11 @@ class IMLEScheme:
 
         sample_instance_idx = []
         if self.imle_sample_policy == 'KMaxNeighbors':
-            raise NotImplementedError
-            # for i, logit in enumerate(local_logits):
-            #     logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes)
-            #     mask = get_or_optim_subgraphs(self.graphs[i].edge_index, logit, self.sample_k)
-            #     mask.requires_grad = False
-            #     sample_instance_idx.append(mask.reshape(-1))
+            for i, logit in enumerate(local_logits):
+                logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes, self.ensemble)
+                mask = get_or_optim_subgraphs(self.graphs[i].edge_index, logit, self.sample_k)
+                mask.requires_grad = False
+                sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
         elif self.imle_sample_policy == 'greedy_neighbors':
             for i, logit in enumerate(local_logits):
                 logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes, self.ensemble)
