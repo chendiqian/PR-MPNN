@@ -1,7 +1,8 @@
-from .ogb_mol_gnn import OGBGNN, OGBGNN_inner
-from .emb_model import UpStream
-from .zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
 from data.const import DATASET_FEATURE_STAT_DICT
+from .emb_model import UpStream
+from .ogb_mol_gnn import OGBGNN, OGBGNN_inner
+from .transformer import Transformer
+from .zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
 
 
 def get_model(args, device, *_args):
@@ -43,10 +44,19 @@ def get_model(args, device, *_args):
     if args.imle_configs is not None:
         ensemble = 1 if not hasattr(args.sample_configs, 'ensemble') else args.sample_configs.ensemble
 
-        emb_model = UpStream(hid_size=args.imle_configs.emb_hid_size,
-                             num_layer=args.imle_configs.emb_num_layer,
-                             dropout=args.imle_configs.dropout,
-                             ensemble=ensemble).to(device)
+        if not hasattr(args.imle_configs, 'model') or args.imle_configs.model == 'simple':
+            emb_model = UpStream(hid_size=args.imle_configs.emb_hid_size,
+                                 num_layer=args.imle_configs.emb_num_layer,
+                                 dropout=args.imle_configs.dropout,
+                                 ensemble=ensemble).to(device)
+        elif args.imle_configs.model == 'trans':
+            emb_model = Transformer(num_layers=args.imle_configs.emb_num_layer,
+                                    kq_dim=args.imle_configs.kq_dim,
+                                    v_dim=args.imle_configs.emb_hid_size,
+                                    edge_mlp_hid=args.imle_configs.edge_mlp_hid,
+                                    ensemble=ensemble).to(device)
+        else:
+            raise NotImplementedError
     else:
         emb_model = None
 
