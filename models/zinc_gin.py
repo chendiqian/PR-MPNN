@@ -4,7 +4,7 @@ from torch_geometric.nn import global_mean_pool, global_add_pool
 from torch_scatter import scatter
 
 from .my_convs import GINConv, GNN_Placeholder
-from .nn_utils import residual, reset_sequential_parameters
+from .nn_utils import residual, MLP
 
 
 class BaseGIN(torch.nn.Module):
@@ -21,9 +21,7 @@ class BaseGIN(torch.nn.Module):
                 BN(hidden),
                 ReLU(),
             ),
-            bond_encoder=Sequential(Linear(edge_features, in_features),
-                                    ReLU(),
-                                    Linear(in_features, in_features))
+            bond_encoder=MLP([edge_features, in_features, in_features], dropout=0., norm=False),
         )
 
         self.convs = torch.nn.ModuleList()
@@ -38,11 +36,8 @@ class BaseGIN(torch.nn.Module):
                         BN(hidden),
                         ReLU(),
                     ),
-                    bond_encoder=Sequential(Linear(edge_features, hidden),
-                                            ReLU(),
-                                            Linear(hidden, hidden))
+                    bond_encoder=MLP([edge_features, hidden, hidden], norm=False, dropout=0.),)
                 )
-            )
 
     def reset_parameters(self):
         self.conv1.reset_parameters()
@@ -84,11 +79,7 @@ class ZINC_GIN_Outer(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        self.mlp = torch.nn.Sequential(Linear(hidden, hidden),
-                                       ReLU(),
-                                       Linear(hidden, hidden),
-                                       ReLU(),
-                                       Linear(hidden, num_classes))
+        self.mlp = MLP([hidden, hidden, hidden, num_classes], norm=False, dropout=0.)
 
     def reset_parameters(self):
         if self.atom_encoder is not None:
@@ -98,7 +89,7 @@ class ZINC_GIN_Outer(torch.nn.Module):
         if self.merge_layer is not None:
             self.merge_layer.reset_parameters()
         self.gnn.reset_parameters()
-        reset_sequential_parameters(self.mlp)
+        self.mlp.reset_parameters()
 
     def forward(self, data, intermediate_node_emb):
         if self.atom_encoder is not None and self.extra_emb_layer is not None:
