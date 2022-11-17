@@ -45,8 +45,15 @@ class GINConv(MessagePassing):
         return aggr_out
 
     def reset_parameters(self):
-        self.mlp.reset_parameters()
         self.eps = torch.nn.Parameter(torch.Tensor([0.]).to(self.eps.device))
+
+        if isinstance(self.mlp, (MLP, torch.nn.Linear)):
+            self.mlp.reset_parameters()
+        elif isinstance(self.mlp, torch.nn.Sequential):
+            reset_sequential_parameters(self.mlp)
+        else:
+            raise TypeError
+
         if isinstance(self.bond_encoder, (BondEncoder, MLP, torch.nn.Linear)):
             self.bond_encoder.reset_parameters()
         elif isinstance(self.bond_encoder, torch.nn.Sequential):
