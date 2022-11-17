@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 
 
@@ -33,3 +35,26 @@ class OneHot(torch.nn.Module):
 
     def reset_parameters(self):
         pass
+
+
+class MLP(torch.nn.Module):
+    def __init__(self, hidden_dims: List, norm: bool, dropout: float = 0.5):
+        super(MLP, self).__init__()
+
+        num_layers = len(hidden_dims) - 1
+        modules = []
+        for i in range(num_layers):
+            modules.append(torch.nn.Linear(hidden_dims[i], hidden_dims[i + 1]))
+            if norm and i < num_layers - 1:
+                modules.append(torch.nn.BatchNorm1d(hidden_dims[i + 1]))
+            if i < num_layers - 1:
+                modules.append(torch.nn.ReLU())
+                modules.append(torch.nn.Dropout(p=dropout))
+
+        self.mlp = torch.nn.Sequential(*modules)
+
+    def forward(self, x):
+        return self.mlp(x)
+
+    def reset_parameters(self):
+        reset_sequential_parameters(self.mlp)

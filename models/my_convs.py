@@ -4,7 +4,7 @@ import torch
 from torch_geometric.nn import MessagePassing
 
 from .encoder import BondEncoder
-from .nn_utils import reset_sequential_parameters
+from .nn_utils import reset_sequential_parameters, MLP
 
 
 class GINConv(MessagePassing):
@@ -17,10 +17,8 @@ class GINConv(MessagePassing):
         if mlp is not None:
             self.mlp = mlp
         else:
-            self.mlp = torch.nn.Sequential(torch.nn.Linear(emb_dim, 2 * emb_dim),
-                                           torch.nn.BatchNorm1d(2 * emb_dim),
-                                           torch.nn.ReLU(),
-                                           torch.nn.Linear(2 * emb_dim, emb_dim))
+            self.mlp = MLP([emb_dim, emb_dim, emb_dim], norm=True, dropout=0.)
+
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
 
         if bond_encoder is None:
@@ -47,7 +45,7 @@ class GINConv(MessagePassing):
         return aggr_out
 
     def reset_parameters(self):
-        reset_sequential_parameters(self.mlp)
+        self.mlp.reset_parameters()
         self.eps = torch.nn.Parameter(torch.Tensor([0.]).to(self.eps.device))
         if isinstance(self.bond_encoder, BondEncoder):
             self.bond_encoder.reset_parameters()
