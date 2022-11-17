@@ -25,6 +25,7 @@ class TransformerLayer(torch.nn.Module):
         k = self.w_k(x)
         q = self.w_q(x)
         attention_scores = k @ q.T / k.shape[1] ** 0.5 + self.edge_embed(edge_attr).squeeze()
+        attention_scores = torch.softmax(attention_scores, dim=1)
         v = attention_scores @ self.w_v(x)
         v = residual(x, v)
         v_new = self.lins(v)
