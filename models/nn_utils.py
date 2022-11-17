@@ -11,7 +11,7 @@ def residual(y_old: torch.Tensor, y_new: torch.Tensor) -> torch.Tensor:
 def reset_sequential_parameters(seq: torch.nn.Sequential) -> None:
     lst = torch.nn.ModuleList(seq)
     for l in lst:
-        if not isinstance(l, torch.nn.ReLU):
+        if not isinstance(l, (torch.nn.ReLU, torch.nn.Dropout)):
             l.reset_parameters()
     # return torch.nn.Sequential(**lst)
 
