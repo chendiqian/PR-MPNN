@@ -10,11 +10,22 @@ from .nn_utils import MLP
 
 
 class UpStream(torch.nn.Module):
-    def __init__(self, hid_size, num_layer, dropout=0.5, ensemble=1, use_bn=False):
+    def __init__(self, in_features,
+                 edge_features,
+                 hid_size,
+                 num_layer,
+                 dropout=0.5,
+                 ensemble=1,
+                 use_bn=False,
+                 use_ogb_encoder=True):
         super(UpStream, self).__init__()
         self.num_layer = num_layer
-        self.atom_encoder = AtomEncoder(emb_dim=hid_size)
-        self.bond_encoder = BondEncoder(emb_dim=hid_size)
+        if use_ogb_encoder:
+            self.atom_encoder = AtomEncoder(emb_dim=hid_size)
+            self.bond_encoder = BondEncoder(emb_dim=hid_size)
+        else:
+            self.atom_encoder = torch.nn.Linear(in_features, hid_size)
+            self.bond_encoder = torch.nn.Linear(edge_features, hid_size)
         self.dropout = dropout
 
         self.node_emb = torch.nn.Linear(hid_size, hid_size)

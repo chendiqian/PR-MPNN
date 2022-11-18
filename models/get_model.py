@@ -45,10 +45,15 @@ def get_model(args, device, *_args):
         ensemble = 1 if not hasattr(args.sample_configs, 'ensemble') else args.sample_configs.ensemble
 
         if not hasattr(args.imle_configs, 'model') or args.imle_configs.model == 'simple':
-            emb_model = UpStream(hid_size=args.imle_configs.emb_hid_size,
-                                 num_layer=args.imle_configs.emb_num_layer,
-                                 dropout=args.imle_configs.dropout,
-                                 ensemble=ensemble).to(device)
+            emb_model = UpStream(
+                in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                edge_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
+                hid_size=args.imle_configs.emb_hid_size,
+                num_layer=args.imle_configs.emb_num_layer,
+                dropout=args.imle_configs.dropout,
+                ensemble=ensemble,
+                use_ogb_encoder=args.dataset.lower().startswith('ogb')
+            ).to(device)
         elif args.imle_configs.model == 'trans':
             emb_model = Transformer(num_layers=args.imle_configs.emb_num_layer,
                                     kq_dim=args.imle_configs.kq_dim,
