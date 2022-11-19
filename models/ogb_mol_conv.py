@@ -3,7 +3,7 @@
 import torch
 import torch.nn.functional as F
 from .encoder import AtomEncoder, AtomEncoderPlaceholder
-from .my_convs import GINConv
+from .my_convs import GINEConv
 
 
 # GNN to generate node embedding
@@ -40,7 +40,7 @@ class GNN_node(torch.nn.Module):
 
         for layer in range(num_layer):
             if gnn_type == 'gin':
-                self.convs.append(GINConv(emb_dim))
+                self.convs.append(GINEConv(emb_dim))
             else:
                 raise ValueError('Undefined GNN type called {}'.format(gnn_type))
 

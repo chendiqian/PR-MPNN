@@ -3,7 +3,7 @@ from torch.nn import Linear, Sequential, ReLU, BatchNorm1d as BN
 from torch_geometric.nn import global_mean_pool, global_add_pool
 from torch_scatter import scatter
 
-from .my_convs import GINConv, GNN_Placeholder
+from .my_convs import GINEConv, GNN_Placeholder
 from .nn_utils import residual, MLP
 
 
@@ -12,7 +12,7 @@ class BaseGIN(torch.nn.Module):
         super(BaseGIN, self).__init__()
 
         assert num_layers > 0
-        self.conv1 = GINConv(
+        self.conv1 = GINEConv(
             hidden,
             Sequential(
                 Linear(in_features, hidden),
@@ -27,7 +27,7 @@ class BaseGIN(torch.nn.Module):
         self.convs = torch.nn.ModuleList()
         for i in range(num_layers - 1):
             self.convs.append(
-                GINConv(
+                GINEConv(
                     hidden,
                     Sequential(
                         Linear(hidden, hidden),
