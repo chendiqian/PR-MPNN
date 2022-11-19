@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 
@@ -13,6 +14,8 @@ DATASET_FEATURE_STAT_DICT = {
     'qm9': {'node': 11, 'edge': 5, 'num_class': 12},  # regression, 12 labels
     'exp': {'node': 1, 'edge': 0, 'num_class': 1},  # bin classification
     'protein': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
+
+    'cora': {'node': 1433, 'edge': 0, 'num_class': 7}
 }
 
 MAX_NUM_NODE_DICT = {
@@ -32,6 +35,8 @@ TASK_TYPE_DICT = {
     'qm9': 'regression',
     'exp': 'acc',
     'protein': 'acc',
+
+    'cora': 'acc',
 }
 
 CRITERION_DICT = {
@@ -45,4 +50,6 @@ CRITERION_DICT = {
     'qm9': nn.L1Loss(),
     'exp': nn.BCEWithLogitsLoss(),
     'protein': nn.BCEWithLogitsLoss(),
+
+    'cora': lambda pred, y: nn.CrossEntropyLoss()(pred, y.to(torch.long).squeeze()),
 }
