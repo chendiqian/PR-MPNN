@@ -93,7 +93,7 @@ def run(fixed):
     task_type = TASK_TYPE_DICT[args.dataset.lower()]
     criterion = CRITERION_DICT[args.dataset.lower()]
 
-    model, emb_model, inner_model = get_model(args, device)
+    model, emb_model = get_model(args, device)
 
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=task_type,
@@ -121,8 +121,7 @@ def run(fixed):
                 optimizer_embd = None
                 scheduler_embd = None
             model.reset_parameters()
-            inner_model.reset_parameters()
-            optimizer = torch.optim.Adam(list(model.parameters()) + list(inner_model.parameters()),
+            optimizer = torch.optim.Adam(model.parameters(),
                                          lr=args.lr, weight_decay=args.reg)
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                              args.lr_steps,
@@ -136,13 +135,11 @@ def run(fixed):
                 train_loss, train_metric = trainer.train(train_loader,
                                                          emb_model,
                                                          model,
-                                                         inner_model,
                                                          optimizer_embd,
                                                          optimizer)
                 val_loss, val_metric, early_stop = trainer.inference(val_loader,
                                                                      emb_model,
                                                                      model,
-                                                                     inner_model,
                                                                      scheduler_embd,
                                                                      scheduler,
                                                                      test=False)
@@ -167,7 +164,6 @@ def run(fixed):
                 if trainer.patience == 0:
                     best_epoch = epoch
                     torch.save(model.state_dict(), f'{run_folder}/model_best.pt')
-                    torch.save(inner_model.state_dict(), f'{run_folder}/inner_model_best.pt')
                     if emb_model is not None:
                         torch.save(emb_model.state_dict(), f'{run_folder}/embd_model_best.pt')
 
@@ -175,13 +171,12 @@ def run(fixed):
             writer.close()
 
             model.load_state_dict(torch.load(f'{run_folder}/model_best.pt'))
-            inner_model.load_state_dict(torch.load(f'{run_folder}/inner_model_best.pt'))
             logger.info(f'loaded best model at epoch {best_epoch}')
             if emb_model is not None:
                 emb_model.load_state_dict(torch.load(f'{run_folder}/embd_model_best.pt'))
 
             start_time = epoch_timer.synctimer()
-            test_loss, test_metric, _ = trainer.inference(test_loader, emb_model, model, inner_model, test=True)
+            test_loss, test_metric, _ = trainer.inference(test_loader, emb_model, model, test=True)
             end_time = epoch_timer.synctimer()
             logger.info(f'Best val loss: {trainer.best_val_loss}')
             logger.info(f'Best val metric: {trainer.best_val_metric}')

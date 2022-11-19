@@ -145,7 +145,6 @@ class Trainer:
               dataloader: AttributedDataLoader,
               emb_model: Emb_model,
               model: Train_model,
-              inner_model: Train_model,
               optimizer_embd: Optional[Optimizer],
               optimizer: Optimizer):
 
@@ -154,7 +153,6 @@ class Trainer:
             optimizer_embd.zero_grad()
 
         model.train()
-        inner_model.train()
         train_losses = torch.tensor(0., device=self.device)
         if self.task_type != 'regression':
             preds = []
@@ -168,8 +166,7 @@ class Trainer:
             optimizer.zero_grad()
             new_data = self.construct_duplicate_data(data, emb_model)
 
-            intermediate_node_emb = inner_model(new_data)
-            pred = model(data, intermediate_node_emb)
+            pred = model(new_data, data)
 
             is_labeled = data.y == data.y
             loss = self.criterion(pred[is_labeled], data.y[is_labeled].to(torch.float))
@@ -221,7 +218,6 @@ class Trainer:
                   dataloader: AttributedDataLoader,
                   emb_model: Emb_model,
                   model: Train_model,
-                  inner_model: Train_model,
                   scheduler_embd: Optional[Scheduler] = None,
                   scheduler: Optional[Scheduler] = None,
                   test: bool = False):
@@ -229,7 +225,6 @@ class Trainer:
             emb_model.eval()
 
         model.eval()
-        inner_model.eval()
         preds = []
         labels = []
 
@@ -237,8 +232,7 @@ class Trainer:
             data = data.to(self.device)
             new_data = self.construct_duplicate_data(data, emb_model)
 
-            intermediate_node_emb = inner_model(new_data)
-            pred = model(data, intermediate_node_emb)
+            pred = model(new_data, data)
 
             if dataloader.std is not None:
                 preds.append(pred * dataloader.std)
