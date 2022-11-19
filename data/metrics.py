@@ -8,15 +8,24 @@ import torch
 from sklearn.metrics import roc_auc_score
 
 
+def pre_proc(y1, y2):
+    if len(y1.shape) == 1:
+        y1 = y1[:, None]
+    if len(y2.shape) == 1:
+        y2 = y2[:, None]
+    if isinstance(y1, torch.Tensor):
+        y1 = y1.detach().cpu().numpy()
+    if isinstance(y2, torch.Tensor):
+        y2 = y2.detach().cpu().numpy()
+    return y1, y2
+
+
 def eval_rocauc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor, np.ndarray]) -> float:
     """
         compute ROC-AUC averaged across tasks
     """
 
-    if isinstance(y_true, torch.Tensor):
-        y_true = y_true.detach().cpu().numpy()
-    if isinstance(y_pred, torch.Tensor):
-        y_pred = y_pred.detach().cpu().numpy()
+    y_true, y_pred = pre_proc(y_true, y_pred)
 
     rocauc_list = []
 
@@ -41,10 +50,8 @@ def eval_acc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor
     :param y_pred:
     :return:
     """
-    if isinstance(y_true, torch.Tensor):
-        y_true = y_true.detach().cpu().numpy()
-    if isinstance(y_pred, torch.Tensor):
-        y_pred = y_pred.detach().cpu().numpy()
+
+    y_true, y_pred = pre_proc(y_true, y_pred)
 
     acc_list = []
 
@@ -57,10 +64,7 @@ def eval_acc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor
 
 
 def eval_rmse(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor, np.ndarray]) -> float:
-    if isinstance(y_true, torch.Tensor):
-        y_true = y_true.detach().cpu().numpy()
-    if isinstance(y_pred, torch.Tensor):
-        y_pred = y_pred.detach().cpu().numpy()
+    y_true, y_pred = pre_proc(y_true, y_pred)
 
     rmse_list = []
 
