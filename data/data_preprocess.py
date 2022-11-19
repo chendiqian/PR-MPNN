@@ -58,26 +58,16 @@ class GraphToUndirected(GraphModification):
         else:
             edge_index = to_undirected(graph.edge_index, graph.edge_attr, graph.num_nodes)
             edge_attr = None
-        return Data(x=graph.x,
-                    edge_index=edge_index,
-                    edge_attr=edge_attr,
-                    y=graph.y,
-                    num_nodes=graph.num_nodes)
-
-
-class GraphCoalesce(GraphModification):
-
-    def __call__(self, graph: Data):
-        if graph.edge_attr is None:
-            edge_index = coalesce(graph.edge_index, None, num_nodes=graph.num_nodes)
-            edge_attr = None
-        else:
-            edge_index, edge_attr = coalesce(graph.edge_index, graph.edge_attr, graph.num_nodes)
-        return Data(x=graph.x,
-                    edge_index=edge_index,
-                    edge_attr=edge_attr,
-                    y=graph.y,
-                    num_nodes=graph.num_nodes)
+        new_data = Data(x=graph.x,
+                        edge_index=edge_index,
+                        edge_attr=edge_attr,
+                        y=graph.y,
+                        num_nodes=graph.num_nodes)
+        for k, v in graph:
+            if k not in ['x', 'edge_index', 'edge_attr', 'pos', 'num_nodes', 'batch',
+                         'z', 'rd', 'node_type']:
+                new_data[k] = v
+        return new_data
 
 
 class AugmentwithNNodes(GraphModification):
@@ -92,6 +82,7 @@ class AugmentWithRandomKNeighbors(GraphModification):
     Sample best k neighbors randomly, return the induced subgraph
     Serves as transform because of its randomness
     """
+
     def __init__(self, sample_k: int, ensemble: int):
         super(AugmentWithRandomKNeighbors, self).__init__()
         self.num_neighnors = sample_k
@@ -110,6 +101,7 @@ class AugmentWithKhopMasks(GraphModification):
     """
     Should be used as pretransform, because it is deterministic
     """
+
     def __init__(self, k: int):
         super(AugmentWithKhopMasks, self).__init__()
         self.khop = k
