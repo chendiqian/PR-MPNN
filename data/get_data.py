@@ -9,13 +9,15 @@ from torch_geometric.datasets import ZINC, TUDataset
 from ogb.graphproppred import PygGraphPropPredDataset
 
 from .data_utils import AttributedDataLoader
-from .data_preprocess import GraphExpandDim, GraphToUndirected, GraphCoalesce, AugmentwithNNodes, policy2transform, \
+from .data_preprocess import GraphExpandDim, GraphToUndirected, AugmentwithNNodes, policy2transform, \
     GraphAttrToOneHot
 from .const import DATASET_FEATURE_STAT_DICT
+from .custom_dataset import PlanetoidKhopInductive
 
-DATASET = (PygGraphPropPredDataset, ZINC, TUDataset)
+DATASET = (PygGraphPropPredDataset, ZINC, TUDataset, PlanetoidKhopInductive)
 
-NAME_DICT = {'zinc_full': "ZINC_full", }
+NAME_DICT = {'zinc_full': "ZINC_full",
+             'cora': 'Cora'}
 
 
 def get_transform(args: Union[Namespace, ConfigDict]):
@@ -30,10 +32,12 @@ def get_transform(args: Union[Namespace, ConfigDict]):
         return policy2transform(args.sample_configs.sample_policy,
                                 args.sample_configs.sample_k,
                                 args.sample_configs.ensemble)
+    else:
+        raise NotImplementedError
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: List):
-    pretransform = [GraphToUndirected(), GraphCoalesce(), AugmentwithNNodes()]
+    pretransform = [GraphToUndirected(), AugmentwithNNodes()]
     for p in extra_pretransforms:
         pretransform.append(p)
     extra_path = None
@@ -61,6 +65,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_zinc(args)
     elif args.dataset.lower() == 'zinc_full':
         train_set, val_set, test_set, mean, std = get_TUdata(args)
+    elif args.dataset.lower() == 'cora':
+        train_set, val_set, test_set, mean, std = get_planetoid(args)
     else:
         raise ValueError
 
@@ -224,3 +230,42 @@ def get_TUdata(args: Union[Namespace, ConfigDict]):
     test_set = dataset[220011:225011][test_indices]
 
     return train_set, val_set, test_set, None, None
+
+
+def get_planetoid(args: Union[Namespace, ConfigDict]):
+    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[])
+    transform = get_transform(args)
+
+    # if there are specific pretransforms, create individual folders for the dataset
+    datapath = args.data_path
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
+
+    train = PlanetoidKhopInductive(root=datapath,
+                                   name=NAME_DICT[args.dataset.lower()],
+                                   khop=args.khop,
+                                   training_split='train',
+                                   split='public',
+                                   transform=transform,
+                                   pre_transform=pre_transform)
+    val = PlanetoidKhopInductive(root=datapath,
+                                 name=NAME_DICT[args.dataset.lower()],
+                                 khop=args.khop,
+                                 training_split='val',
+                                 split='public',
+                                 transform=transform,
+                                 pre_transform=pre_transform)
+    test = PlanetoidKhopInductive(root=datapath,
+                                  name=NAME_DICT[args.dataset.lower()],
+                                  khop=args.khop,
+                                  training_split='test',
+                                  split='public',
+                                  transform=transform,
+                                  pre_transform=pre_transform)
+
+    if args.debug:
+        train = train[:16]
+        val = val[:16]
+        test = test[:16]
+
+    return train, val, test, None, None

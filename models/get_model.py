@@ -4,6 +4,7 @@ from .ogb_mol_gnn import OGBGNN, OGBGNN_inner
 from .transformer import Transformer
 from .zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
 from .bind_model import BindModel
+from .cora_gcn import CoraGCN
 
 
 def get_model(args, device, *_args):
@@ -25,22 +26,28 @@ def get_model(args, device, *_args):
             drop_ratio=args.dropout,
             subgraph2node_aggr=args.sample_configs.subgraph2node_aggr,
         )
+        model = BindModel(inner_model, outer_model).to(device)
     elif args.model.lower() == 'zinc_gin':
         outer_model = ZINC_GIN_Outer(in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
-                               edge_features=DATASET_FEATURE_STAT_DICT['zinc']['edge'],
-                               num_layers=args.num_convlayers,
-                               hidden=args.hid_size,
-                               num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                               extra_dim=args.sample_configs.extra_dim, )
+                                     edge_features=DATASET_FEATURE_STAT_DICT['zinc']['edge'],
+                                     num_layers=args.num_convlayers,
+                                     hidden=args.hid_size,
+                                     num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                                     extra_dim=args.sample_configs.extra_dim, )
         inner_model = ZINC_GIN_Inner(in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
                                      edge_features=DATASET_FEATURE_STAT_DICT['zinc']['edge'],
                                      num_layers=args.sample_configs.inner_layer,
                                      hidden=args.hid_size,
                                      subgraph2node_aggr=args.sample_configs.subgraph2node_aggr, )
+        model = BindModel(inner_model, outer_model).to(device)
+    elif args.model.lower() == 'cora_gcn':
+        model = CoraGCN(num_convlayers=args.num_convlayers,
+                        in_features=DATASET_FEATURE_STAT_DICT['cora']['node'],
+                        hid=args.hid_size,
+                        num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                        dropout=args.dropout).to(device)
     else:
         raise NotImplementedError
-
-    model = BindModel(inner_model, outer_model).to(device)
 
     if args.imle_configs is not None:
         ensemble = 1 if not hasattr(args.sample_configs, 'ensemble') else args.sample_configs.ensemble

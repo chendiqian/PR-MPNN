@@ -33,7 +33,8 @@ def get_logger(folder_path: str) -> logging.Logger:
 def naming(args) -> str:
     name = f'{args.dataset}_{args.model}_'
     name += f'outlayer_{args.num_convlayers}_'
-    name += f'innlayer_{args.sample_configs.inner_layer}_'
+    if hasattr(args.sample_configs, 'inner_layer'):
+        name += f'innlayer_{args.sample_configs.inner_layer}_'
 
     if args.sample_configs.sample_policy is None:
         name += 'normal'
