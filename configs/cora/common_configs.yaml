@@ -1,6 +1,6 @@
 # see https://github.com/tkipf/pygcn/blob/master/pygcn/train.py
 common:
-  model: planetoid_gcn
+  model: planetoid_gin
   dataset: cora
   dropout: 0.5
   khop: 2
