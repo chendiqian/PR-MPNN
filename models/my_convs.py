@@ -2,7 +2,6 @@ from typing import Optional, Union
 
 import torch
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import add_remaining_self_loops
 from torch_geometric.utils import degree
 
 from .my_encoder import BondEncoder
@@ -11,11 +10,8 @@ from .nn_utils import reset_sequential_parameters, MLP
 
 class GCNConv(MessagePassing):
 
-    def __init__(self, in_channels: int, out_channels: int, add_self_loops: bool = True):
-
+    def __init__(self, in_channels: int, out_channels: int):
         super(GCNConv, self).__init__(aggr='add')
-
-        self.add_self_loops = add_self_loops
         self.lin = torch.nn.Linear(in_channels, out_channels)
 
     def reset_parameters(self):
@@ -25,8 +21,6 @@ class GCNConv(MessagePassing):
         """"""
         if edge_weight is not None and edge_weight.ndim == 1:
             edge_weight = edge_weight[:, None]
-        if self.add_self_loops:
-            edge_index, _ = add_remaining_self_loops(edge_index, None, 1., x.shape[0])
 
         row, col = edge_index
         deg = degree(row, x.shape[0], dtype=torch.float)
