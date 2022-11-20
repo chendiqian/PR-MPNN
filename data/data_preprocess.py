@@ -1,7 +1,7 @@
 from typing import Optional
 import torch
 from torch_geometric.data import Data
-from torch_geometric.utils import to_undirected, coalesce, is_undirected
+from torch_geometric.utils import to_undirected, is_undirected, add_remaining_self_loops
 from subgraph.greedy_expand import greedy_grow_tree
 from subgraph.khop_subgraph import parallel_khop_neighbor
 
@@ -16,6 +16,15 @@ class GraphModification:
 
     def __call__(self, *args, **kwargs) -> Optional[Data]:
         return None
+
+
+class GraphAddRemainSelfLoop(GraphModification):
+    def __call__(self, graph: Data):
+        edge_index, edge_attr = add_remaining_self_loops(graph.edge_index, graph.edge_attr, num_nodes=graph.num_nodes)
+        graph.edge_index = edge_index
+        if graph.edge_attr is not None:
+            graph.edge_attr = edge_attr
+        return graph
 
 
 class GraphAttrToOneHot(GraphModification):

@@ -9,8 +9,12 @@ from torch_geometric.datasets import ZINC, TUDataset
 from ogb.graphproppred import PygGraphPropPredDataset
 
 from .data_utils import AttributedDataLoader
-from .data_preprocess import GraphExpandDim, GraphToUndirected, AugmentwithNNodes, policy2transform, \
-    GraphAttrToOneHot
+from .data_preprocess import (GraphExpandDim,
+                              GraphToUndirected,
+                              AugmentwithNNodes,
+                              policy2transform,
+                              GraphAttrToOneHot,
+                              GraphAddRemainSelfLoop)
 from .const import DATASET_FEATURE_STAT_DICT
 from .custom_dataset import PlanetoidKhopInductive
 
@@ -233,7 +237,7 @@ def get_TUdata(args: Union[Namespace, ConfigDict]):
 
 
 def get_planetoid(args: Union[Namespace, ConfigDict]):
-    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[])
+    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[GraphAddRemainSelfLoop()])
     transform = get_transform(args)
 
     # if there are specific pretransforms, create individual folders for the dataset
