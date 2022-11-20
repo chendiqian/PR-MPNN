@@ -51,5 +51,5 @@ CRITERION_DICT = {
     'exp': nn.BCEWithLogitsLoss(),
     'protein': nn.BCEWithLogitsLoss(),
 
-    'cora': lambda pred, y: nn.CrossEntropyLoss()(pred, y.to(torch.long).squeeze()),
+    'cora': lambda pred, y: nn.CrossEntropyLoss()(pred, y.to(torch.long)),
 }
