@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from models.my_convs import GCNConv
 
 
-class CoraGCN(torch.nn.Module):
+class PlanetoidGCN(torch.nn.Module):
     def __init__(self, num_convlayers, in_features, hid, num_classes, dropout, aggr=None):
-        super(CoraGCN, self).__init__()
+        super(PlanetoidGCN, self).__init__()
 
         self.gc = torch.nn.ModuleList([GCNConv(in_features, hid)])
         for l in range(num_convlayers - 2):
