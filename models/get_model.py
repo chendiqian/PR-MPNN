@@ -1,8 +1,9 @@
 from data.const import DATASET_FEATURE_STAT_DICT
-from models.downstream_models.cora_gcn import CoraGCN
+from models.downstream_models.planetoid_gcn import PlanetoidGCN
 from models.downstream_models.ogb_mol_gnn import OGBGNN, OGBGNN_inner
 from models.downstream_models.zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
-from models.upstream_models.linear_embed import UpStream
+from models.upstream_models.gcn_embed import GCN_Embed
+from models.upstream_models.linear_embed import LinearEmbed
 from models.upstream_models.transformer import Transformer
 from .bind_model import BindModel
 
@@ -40,12 +41,12 @@ def get_model(args, device, *_args):
                                      hidden=args.hid_size,
                                      subgraph2node_aggr=args.sample_configs.subgraph2node_aggr, )
         model = BindModel(inner_model, outer_model).to(device)
-    elif args.model.lower() == 'cora_gcn':
-        model = CoraGCN(num_convlayers=args.num_convlayers,
-                        in_features=DATASET_FEATURE_STAT_DICT['cora']['node'],
-                        hid=args.hid_size,
-                        num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                        dropout=args.dropout).to(device)
+    elif args.model.lower() == 'planetoid_gcn':
+        model = PlanetoidGCN(num_convlayers=args.num_convlayers,
+                             in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
+                             hid=args.hid_size,
+                             num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                             dropout=args.dropout).to(device)
     else:
         raise NotImplementedError
 
@@ -53,7 +54,7 @@ def get_model(args, device, *_args):
         ensemble = 1 if not hasattr(args.sample_configs, 'ensemble') else args.sample_configs.ensemble
 
         if not hasattr(args.imle_configs, 'model') or args.imle_configs.model == 'simple':
-            emb_model = UpStream(
+            emb_model = LinearEmbed(
                 in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                 edge_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
                 hid_size=args.imle_configs.emb_hid_size,
@@ -68,6 +69,12 @@ def get_model(args, device, *_args):
                                     v_dim=args.imle_configs.emb_hid_size,
                                     edge_mlp_hid=args.imle_configs.edge_mlp_hid,
                                     ensemble=ensemble).to(device)
+        elif args.imle_configs.model == 'planetoid_gcn':
+            emb_model = GCN_Embed(num_convlayers=args.imle_configs.emb_num_layer,
+                                  in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                                  hid=args.imle_configs.emb_hid_size,
+                                  num_classes=args.sample_configs.ensemble,
+                                  dropout=args.imle_configs.dropout).to(device)
         else:
             raise NotImplementedError
     else:
