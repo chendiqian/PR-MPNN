@@ -1,12 +1,13 @@
-from typing import List
+from typing import List, Union
 
 import torch
 from torch_geometric.data import Data, Batch
+from torch_geometric.data.data import BaseData
 from torch_geometric.utils import subgraph
 from subgraph.grad_utils import Nodemask2Edgemask, CenterNodeIdentityMapping, nodemask2edgemask, centralize
 
 
-def construct_random_local_structure_subgraphs(graphs: List[Data],
+def construct_random_local_structure_subgraphs(graphs: List[Union[Data, BaseData]],
                                                node_mask: torch.FloatTensor,
                                                nnodes_wo_duplicate: torch.LongTensor,
                                                batch_wo_duplicate: torch.LongTensor,
@@ -60,7 +61,7 @@ def construct_random_local_structure_subgraphs(graphs: List[Data],
     return new_data
 
 
-def construct_imle_local_structure_subgraphs(graphs: List[Data],
+def construct_imle_local_structure_subgraphs(graphs: List[Union[Data, BaseData]],
                                              node_mask: torch.FloatTensor,
                                              nnodes_wo_duplicate: torch.LongTensor,
                                              batch_wo_duplicate: torch.LongTensor,
@@ -89,7 +90,8 @@ def construct_imle_local_structure_subgraphs(graphs: List[Data],
     n2e_func = Nodemask2Edgemask.apply if grad else nodemask2edgemask
     new_batch.edge_weight = n2e_func(node_mask,
                                      new_batch.edge_index[:, :new_batch.edge_index.shape[1] // channels],
-                                     torch.tensor(new_batch.num_nodes // channels, device=node_mask.device)).T.reshape(-1)
+                                     torch.tensor(new_batch.num_nodes // channels,
+                                                  device=node_mask.device)).T.reshape(-1)
 
     if subgraph2node_aggr in ['add', 'mean']:
         new_batch.node_mask = node_mask.T.reshape(-1)
@@ -106,5 +108,27 @@ def construct_imle_local_structure_subgraphs(graphs: List[Data],
     del new_batch.batch
     new_batch.batch = batch_wo_duplicate
     new_batch.y = y_wo_duplicate
+
+    return new_batch
+
+
+def construct_imle_subgraphs(graphs: List[Union[Data, BaseData]],
+                             node_mask: torch.FloatTensor,
+                             nnodes_wo_duplicate: torch.LongTensor,
+                             batch_wo_duplicate: torch.LongTensor,
+                             y_wo_duplicate: torch.Tensor,
+                             subgraph2node_aggr: str,
+                             grad: bool):
+    channels = node_mask.shape[-1]
+    new_graphs = graphs * channels
+
+    new_batch = Batch.from_data_list(new_graphs)
+
+    n2e_func = Nodemask2Edgemask.apply if grad else nodemask2edgemask
+    new_batch.edge_weight = n2e_func(node_mask,
+                                     new_batch.edge_index[:, :new_batch.edge_index.shape[1] // channels],
+                                     torch.tensor(new_batch.num_nodes // channels,
+                                                  device=node_mask.device)).T.reshape(-1)
+    new_batch.node_mask = node_mask.T.reshape(-1)
 
     return new_batch
