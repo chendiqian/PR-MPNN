@@ -1,7 +1,7 @@
 import os
 import pickle
 from collections import defaultdict
-from typing import Union, Optional, Any, Tuple
+from typing import Union, Optional, Any
 from ml_collections import ConfigDict
 
 import torch.linalg
@@ -12,7 +12,9 @@ from data.metrics import eval_rocauc, eval_acc, eval_rmse
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from subgraph.construct import construct_imle_local_structure_subgraphs, construct_random_local_structure_subgraphs
+from subgraph.construct import (construct_imle_local_structure_subgraphs,
+                                construct_random_local_structure_subgraphs,
+                                construct_imle_subgraphs)
 from training.imle_scheme import IMLEScheme
 
 Optimizer = Union[torch.optim.Adam,
@@ -21,7 +23,10 @@ Scheduler = Union[torch.optim.lr_scheduler.ReduceLROnPlateau,
                   torch.optim.lr_scheduler.MultiStepLR]
 Emb_model = Any
 Train_model = Any
-Loss = Union[torch.nn.modules.loss.MSELoss, torch.nn.modules.loss.L1Loss]
+Loss = torch.nn.modules.loss
+
+POLICY_LOCAL_STRUCTURE = ['KMaxNeighbors', 'greedy_neighbors']
+POLICY_SUBGRAPH = ['topk']
 
 
 class Trainer:
@@ -49,26 +54,38 @@ class Trainer:
         self.curves = defaultdict(list)
 
         self.subgraph2node_aggr = sample_configs.subgraph2node_aggr
-        if imle_configs is not None:  # need to cache some configs, otherwise everything's in the dataloader already
+        self.sample_policy = sample_configs.sample_policy
+        if imle_configs is not None:
             self.micro_batch_embd = imle_configs.micro_batch_embd
-            self.temp = 1.
-            self.target_distribution = TargetDistribution(alpha=1.0, beta=imle_configs.beta)
-            self.noise_distribution = GumbelDistribution(0., imle_configs.noise_scale, self.device)
             self.imle_scheduler = IMLEScheme(sample_configs.sample_policy,
+                                             None,
                                              None,
                                              None,
                                              sample_configs.sample_k,
                                              ensemble=sample_configs.ensemble
                                              if hasattr(sample_configs, 'ensemble') else 1)
 
-        # from original data batch to duplicated data batches
-        # [g1, g2, ..., gn] -> [g1_1, g1_1, g1_3, ...]
+            @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
+                  noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
+                  input_noise_temperature=1.,
+                  target_noise_temperature=1.,
+                  nb_samples=1)
+            def imle_sample_scheme(logits: torch.Tensor):
+                return self.imle_scheduler.torch_sample_scheme(logits)
+            self.imle_sample_scheme = imle_sample_scheme
+
         if sample_configs.sample_policy is None:
             self.construct_duplicate_data = lambda x, _: x
         elif imle_configs is not None:
-            self.construct_duplicate_data = self.emb_model_forward
+            if self.sample_policy in POLICY_LOCAL_STRUCTURE:
+                self.construct_duplicate_data = self.emb_model_local_structure
+            elif self.sample_policy in POLICY_SUBGRAPH:
+                self.construct_duplicate_data = self.emb_model_subgraph
         else:
-            self.construct_duplicate_data = self.data_duplication
+            if self.sample_policy in POLICY_LOCAL_STRUCTURE:
+                self.construct_duplicate_data = self.data_duplication
+            elif self.sample_policy in POLICY_SUBGRAPH:
+                raise NotImplementedError
 
     def data_duplication(self, data: Union[Data, Batch], *args):
         """
@@ -86,14 +103,7 @@ class Trainer:
                                                                self.subgraph2node_aggr)
         return new_batch
 
-    def emb_model_forward(self, data: Union[Data, Batch], emb_model: Emb_model):
-        """
-        Common forward propagation for train and val, only called when embedding model is trained.
-
-        :param data:
-        :param emb_model:
-        :return:
-        """
+    def emb_model_local_structure(self, data: Union[Data, Batch], emb_model: Emb_model):
         train = emb_model.training
         logits = emb_model(data)
 
@@ -104,15 +114,7 @@ class Trainer:
         self.imle_scheduler.ptr = split_idx
 
         if train:
-            @imle(target_distribution=self.target_distribution,
-                  noise_distribution=self.noise_distribution,
-                  input_noise_temperature=self.temp,
-                  target_noise_temperature=self.temp,
-                  nb_samples=1)
-            def imle_sample_scheme(logits: torch.Tensor):
-                return self.imle_scheduler.torch_sample_scheme(logits)
-
-            node_mask, _ = imle_sample_scheme(logits)
+            node_mask, _ = self.imle_sample_scheme(logits)
         else:
             node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
 
@@ -123,6 +125,32 @@ class Trainer:
                                                              data.y,
                                                              self.subgraph2node_aggr,
                                                              grad=train)
+
+        return new_batch
+
+    def emb_model_subgraph(self, data: Union[Data, Batch], emb_model: Emb_model):
+        train = emb_model.training
+        logits = emb_model(data)
+
+        split_idx = tuple(data.nnodes.cpu().tolist())
+        graphs = Batch.to_data_list(data)
+
+        self.imle_scheduler.graphs = graphs
+        self.imle_scheduler.ptr = split_idx
+        self.imle_scheduler.seed_node_mask = data.target_mask
+
+        if train:
+            node_mask, _ = self.imle_sample_scheme(logits)
+        else:
+            node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
+
+        new_batch = construct_imle_subgraphs(graphs,
+                                             node_mask,
+                                             data.nnodes,
+                                             data.batch,
+                                             data.y,
+                                             self.subgraph2node_aggr,
+                                             grad=train)
 
         return new_batch
 
