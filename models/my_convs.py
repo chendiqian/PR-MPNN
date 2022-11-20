@@ -57,7 +57,7 @@ class GINConv(MessagePassing):
         return out
 
     def message(self, x_j, edge_weight):
-        m = torch.relu(x_j)
+        m = x_j
         return m * edge_weight if edge_weight is not None else m
 
     def update(self, aggr_out):
