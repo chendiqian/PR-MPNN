@@ -9,7 +9,7 @@ from models.my_encoder import AtomEncoder, BondEncoder
 from models.nn_utils import MLP
 
 
-class UpStream(torch.nn.Module):
+class LinearEmbed(torch.nn.Module):
     def __init__(self, in_features,
                  edge_features,
                  hid_size,
@@ -18,7 +18,7 @@ class UpStream(torch.nn.Module):
                  ensemble=1,
                  use_bn=False,
                  use_ogb_encoder=True):
-        super(UpStream, self).__init__()
+        super(LinearEmbed, self).__init__()
         self.num_layer = num_layer
         if use_ogb_encoder:
             self.atom_encoder = AtomEncoder(emb_dim=hid_size)
