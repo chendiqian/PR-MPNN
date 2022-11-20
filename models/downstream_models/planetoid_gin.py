@@ -27,7 +27,8 @@ class PlanetoidGIN(torch.nn.Module):
                 x = F.relu(x)
                 x = F.dropout(x, self.dropout, training=self.training)
 
-        return global_add_pool(x, data.batch)
+        # return global_add_pool(x, data.batch)
+        return x[data.target_mask]
 
     def reset_parameters(self):
         for g in self.gc:
