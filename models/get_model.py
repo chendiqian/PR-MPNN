@@ -1,5 +1,6 @@
 from data.const import DATASET_FEATURE_STAT_DICT
 from models.downstream_models.planetoid_gcn import PlanetoidGCN
+from models.downstream_models.planetoid_gin import PlanetoidGIN
 from models.downstream_models.ogb_mol_gnn import OGBGNN, OGBGNN_inner
 from models.downstream_models.zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
 from models.upstream_models.gcn_embed import GCN_Embed
@@ -43,6 +44,12 @@ def get_model(args, device, *_args):
         model = BindModel(inner_model, outer_model).to(device)
     elif args.model.lower() == 'planetoid_gcn':
         model = PlanetoidGCN(num_convlayers=args.num_convlayers,
+                             in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
+                             hid=args.hid_size,
+                             num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                             dropout=args.dropout).to(device)
+    elif args.model.lower() == 'planetoid_gin':
+        model = PlanetoidGIN(num_convlayers=args.num_convlayers,
                              in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
                              hid=args.hid_size,
                              num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
