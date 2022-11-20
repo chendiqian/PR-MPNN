@@ -1,19 +1,17 @@
 fixed:
-  dataset: ogbg-molesol
+  dataset: cora
   log_path: './logs'
 
   sample_configs:
-    sample_policy: greedy_neighbors
+    sample_policy: topk
     subgraph2node_aggr: center
-    sample_k: 5
+    sample_k: 0.8
     ensemble: 1
-    # for inner model
-    inner_layer: 5
-    extra_dim: [0, 300]  # data.x || subgraph_emb
 
   imle_configs:
-    emb_hid_size: 64
-    emb_num_layer: 3
+    model: planetoid_gcn
+    emb_hid_size: 16
+    emb_num_layer: 2
     dropout: 0.
     embd_lr: 1.e-3
     reg_embd: 0.

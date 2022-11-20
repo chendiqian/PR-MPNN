@@ -6,7 +6,7 @@ common:
   lr_steps: [ 400, 600 ]
   patience: 100
   reg: 0.
-  num_convlayers: 0
+  num_convlayers: 3
   batch_size: 128
   min_epochs: 700
   max_epochs: 1000

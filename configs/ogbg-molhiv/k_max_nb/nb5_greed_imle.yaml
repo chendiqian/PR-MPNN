@@ -6,6 +6,7 @@ fixed:
     sample_policy: greedy_neighbors
     subgraph2node_aggr: center
     sample_k: 5
+    ensemble: 1
     # for inner model
     inner_layer: 5
     extra_dim: [0, 300]  # data.x || subgraph_emb
@@ -13,6 +14,7 @@ fixed:
   imle_configs:
     emb_hid_size: 64
     emb_num_layer: 3
+    dropout: 0.
     embd_lr: 1.e-3
     reg_embd: 0.
     micro_batch_embd: 1

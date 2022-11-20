@@ -1,0 +1,22 @@
+fixed:
+  dataset: zinc
+  log_path: './logs'
+
+  sample_configs:
+    sample_policy: greedy_neighbors
+    subgraph2node_aggr: center
+    sample_k: 5
+    ensemble: 1
+    # for inner model
+    inner_layer: 4
+    extra_dim: [0, 256]  # data.x || subgraph_emb
+
+  imle_configs:
+    emb_hid_size: 64
+    emb_num_layer: 3
+    dropout: 0.5
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    micro_batch_embd: 1
+    noise_scale: 1.
+    beta: 10.
