@@ -5,8 +5,8 @@ import torch
 from torch_geometric.data import Data, Batch
 from torch_sparse import SparseTensor
 
-from .encoder import AtomEncoder, BondEncoder
-from .nn_utils import reset_modulelist_parameters, residual, MLP
+from models.my_encoder import AtomEncoder, BondEncoder
+from models.nn_utils import reset_modulelist_parameters, residual, MLP
 
 
 class TransformerLayer(torch.nn.Module):

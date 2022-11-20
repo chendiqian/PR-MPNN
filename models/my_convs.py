@@ -2,10 +2,10 @@ from typing import Optional, Union
 
 import torch
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import degree
 from torch_geometric.utils import add_remaining_self_loops
+from torch_geometric.utils import degree
 
-from .encoder import BondEncoder
+from .my_encoder import BondEncoder
 from .nn_utils import reset_sequential_parameters, MLP
 
 

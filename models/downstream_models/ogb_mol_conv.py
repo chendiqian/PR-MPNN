@@ -2,8 +2,8 @@
 # https://github.com/snap-stanford/ogb/blob/master/examples/graphproppred/mol/conv.py
 import torch
 import torch.nn.functional as F
-from .encoder import AtomEncoder, AtomEncoderPlaceholder
-from .my_convs import GINEConv
+from models.my_encoder import AtomEncoder, AtomEncoderPlaceholder
+from models.my_convs import GINEConv
 
 
 # GNN to generate node embedding

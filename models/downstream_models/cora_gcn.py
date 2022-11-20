@@ -1,7 +1,7 @@
 # adapted from https://github.com/tkipf/pygcn/blob/master/pygcn/models.py
 import torch
 import torch.nn.functional as F
-from .my_convs import GCNConv
+from models.my_convs import GCNConv
 
 
 class CoraGCN(torch.nn.Module):

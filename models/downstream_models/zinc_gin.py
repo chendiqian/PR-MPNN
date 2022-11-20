@@ -3,8 +3,8 @@ from torch.nn import Linear, Sequential, ReLU, BatchNorm1d as BN
 from torch_geometric.nn import global_mean_pool, global_add_pool
 from torch_scatter import scatter
 
-from .my_convs import GINEConv, GNN_Placeholder
-from .nn_utils import residual, MLP
+from models.my_convs import GINEConv, GNN_Placeholder
+from models.nn_utils import residual, MLP
 
 
 class BaseGIN(torch.nn.Module):

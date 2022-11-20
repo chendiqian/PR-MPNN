@@ -1,10 +1,10 @@
 from data.const import DATASET_FEATURE_STAT_DICT
-from .emb_model import UpStream
-from .ogb_mol_gnn import OGBGNN, OGBGNN_inner
-from .transformer import Transformer
-from .zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
+from models.downstream_models.cora_gcn import CoraGCN
+from models.downstream_models.ogb_mol_gnn import OGBGNN, OGBGNN_inner
+from models.downstream_models.zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
+from models.upstream_models.linear_embed import UpStream
+from models.upstream_models.transformer import Transformer
 from .bind_model import BindModel
-from .cora_gcn import CoraGCN
 
 
 def get_model(args, device, *_args):

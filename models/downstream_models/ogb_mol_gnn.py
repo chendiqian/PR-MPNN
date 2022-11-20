@@ -3,9 +3,9 @@
 import torch
 from torch_geometric.nn import global_add_pool, global_mean_pool, global_max_pool, GlobalAttention, Set2Set
 from torch_scatter import scatter
-from .encoder import AtomEncoder
+from models.my_encoder import AtomEncoder
 from .ogb_mol_conv import GNN_node
-from .my_convs import GNN_Placeholder
+from models.my_convs import GNN_Placeholder
 
 
 class OGBGNN(torch.nn.Module):
