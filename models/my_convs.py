@@ -23,6 +23,8 @@ class GCNConv(MessagePassing):
 
     def forward(self, x, edge_index, edge_weight):
         """"""
+        if edge_weight is not None and edge_weight.ndim == 1:
+            edge_weight = edge_weight[:, None]
         if self.add_self_loops:
             edge_index, _ = add_remaining_self_loops(edge_index, None, 1., x.shape[0])
 
