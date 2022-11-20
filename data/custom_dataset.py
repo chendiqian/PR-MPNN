@@ -128,7 +128,8 @@ class PlanetoidKhopInductive(InMemoryDataset):
                 data_list.append(Data(x=data.x[m],
                                       edge_index=edge_index,
                                       y=data.y[m][target_mask],
-                                      target_mask=target_mask))
+                                      target_mask=target_mask,
+                                      nnodes=torch.tensor([m.sum()])))
 
             pbar.close()
             torch.save(self.collate(data_list), osp.join(self.processed_dir, f'{sp}.pt'))
