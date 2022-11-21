@@ -1,5 +1,6 @@
 from math import ceil
 from typing import Optional
+import random
 
 import torch
 from torch_geometric.data import Data
@@ -143,7 +144,7 @@ class RandomSampleTopk(GraphModification):
         for c in range(self.ensemble):
             mask = torch.zeros(graph.num_nodes, dtype=torch.bool)
             mask[graph.target_mask] = True
-            candidates = torch.randint(low=0, high=graph.num_nodes, size=(k,))
+            candidates = random.sample(range(graph.num_nodes), k)
             mask[candidates] = True
             edge_index, edge_attr = pyg_subgraph(subset=mask,
                                                  edge_index=graph.edge_index,
