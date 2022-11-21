@@ -32,7 +32,7 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     elif args.sample_configs.sample_policy is None:
         return None
     # train with sampling on the fly
-    elif args.sample_configs.sample_policy in ['greedy_neighbors']:
+    elif args.sample_configs.sample_policy in ['greedy_neighbors', 'topk']:
         return policy2transform(args.sample_configs.sample_policy,
                                 args.sample_configs.sample_k,
                                 args.sample_configs.ensemble)
@@ -40,10 +40,12 @@ def get_transform(args: Union[Namespace, ConfigDict]):
         raise NotImplementedError
 
 
-def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: List):
+def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: List, extra_post: bool = True):
     pretransform = [GraphToUndirected(), AugmentwithNNodes()]
-    for p in extra_pretransforms:
-        pretransform.append(p)
+    if extra_post:
+        pretransform = pretransform + extra_pretransforms
+    else:
+        pretransform = extra_pretransforms + pretransform
     extra_path = None
     if args.sample_configs.sample_policy in ['khop']:
         pretransform.append(policy2transform(args.sample_configs.sample_policy, args.sample_configs.sample_k, 1))
@@ -237,7 +239,7 @@ def get_TUdata(args: Union[Namespace, ConfigDict]):
 
 
 def get_planetoid(args: Union[Namespace, ConfigDict]):
-    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[GraphAddRemainSelfLoop()])
+    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[GraphAddRemainSelfLoop()], extra_post=False)
     transform = get_transform(args)
 
     # if there are specific pretransforms, create individual folders for the dataset

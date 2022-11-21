@@ -1,7 +1,11 @@
+from math import ceil
 from typing import Optional
+
 import torch
 from torch_geometric.data import Data
-from torch_geometric.utils import to_undirected, is_undirected, add_remaining_self_loops
+from torch_geometric.data.collate import collate
+from torch_geometric.utils import to_undirected, add_remaining_self_loops, subgraph as pyg_subgraph
+
 from subgraph.greedy_expand import greedy_grow_tree
 from subgraph.khop_subgraph import parallel_khop_neighbor
 
@@ -59,9 +63,6 @@ class GraphToUndirected(GraphModification):
     """
 
     def __call__(self, graph: Data):
-        if is_undirected(graph.edge_index, graph.edge_attr, graph.num_nodes):
-            return graph
-
         if graph.edge_attr is not None:
             edge_index, edge_attr = to_undirected(graph.edge_index, graph.edge_attr, graph.num_nodes)
         else:
@@ -121,6 +122,48 @@ class AugmentWithKhopMasks(GraphModification):
         return graph
 
 
+class RandomSampleTopk(GraphModification):
+    def __init__(self, k: int, ensemble: int):
+        super(RandomSampleTopk, self).__init__()
+        self.k = k
+        self.ensemble = ensemble
+
+    def __call__(self, graph: Data):
+        if isinstance(self.k, float):
+            k = int(ceil(self.k * graph.num_nodes))
+        elif isinstance(self.k, int):
+            k = self.k
+        else:
+            raise TypeError
+
+        if k >= graph.num_nodes:
+            return collate(graph.__class__, [graph] * self.ensemble, increment=True, add_batch=False)[0]
+
+        data_list = []
+        for c in range(self.ensemble):
+            mask = torch.zeros(graph.num_nodes, dtype=torch.bool)
+            mask[graph.target_mask] = True
+            candidates = torch.randint(low=0, high=graph.num_nodes, size=(k,))
+            mask[candidates] = True
+            edge_index, edge_attr = pyg_subgraph(subset=mask,
+                                                 edge_index=graph.edge_index,
+                                                 edge_attr=graph.edge_attr,
+                                                 relabel_nodes=True,
+                                                 num_nodes=graph.num_nodes)
+            new_data = Data(x=graph.x[mask],
+                            y=graph.y,
+                            edge_index=edge_index,
+                            edge_attr=edge_attr,
+                            num_nodes=mask.sum(),
+                            target_mask=graph.target_mask[mask])
+            for k, v in graph:
+                if k not in ['x', 'edge_index', 'edge_attr', 'num_nodes', 'target_mask', 'y']:
+                    new_data[k] = v
+            data_list.append(new_data)
+
+        return collate(graph.__class__, data_list, increment=True, add_batch=False)[0]
+
+
 def policy2transform(policy: str, sample_k: int, ensemble: int = 1) -> GraphModification:
     """
     transform for datasets
@@ -134,3 +177,7 @@ def policy2transform(policy: str, sample_k: int, ensemble: int = 1) -> GraphModi
         return AugmentWithRandomKNeighbors(sample_k, ensemble)
     elif policy == 'khop':
         return AugmentWithKhopMasks(sample_k)
+    elif policy == 'topk':
+        return RandomSampleTopk(sample_k, ensemble)
+    else:
+        raise NotImplementedError

@@ -85,7 +85,7 @@ class Trainer:
             if self.sample_policy in POLICY_LOCAL_STRUCTURE:
                 self.construct_duplicate_data = self.data_duplication
             elif self.sample_policy in POLICY_SUBGRAPH:
-                raise NotImplementedError
+                self.construct_duplicate_data = lambda x, *args: x
 
     def data_duplication(self, data: Union[Data, Batch], *args):
         """
