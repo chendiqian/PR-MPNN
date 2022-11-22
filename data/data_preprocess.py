@@ -155,7 +155,7 @@ class RandomSampleTopk(GraphModification):
                             y=graph.y,
                             edge_index=edge_index,
                             edge_attr=edge_attr,
-                            num_nodes=mask.sum(),
+                            # num_nodes=mask.sum(),
                             target_mask=graph.target_mask[mask])
             for k, v in graph:
                 if k not in ['x', 'edge_index', 'edge_attr', 'num_nodes', 'target_mask', 'y']:
