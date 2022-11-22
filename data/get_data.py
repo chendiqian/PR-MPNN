@@ -21,7 +21,8 @@ from .custom_dataset import PlanetoidKhopInductive
 DATASET = (PygGraphPropPredDataset, ZINC, TUDataset, PlanetoidKhopInductive)
 
 NAME_DICT = {'zinc_full': "ZINC_full",
-             'cora': 'Cora'}
+             'cora': 'Cora',
+             'pubmed': 'PubMed'}
 
 
 def get_transform(args: Union[Namespace, ConfigDict]):
@@ -71,7 +72,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_zinc(args)
     elif args.dataset.lower() == 'zinc_full':
         train_set, val_set, test_set, mean, std = get_TUdata(args)
-    elif args.dataset.lower() == 'cora':
+    elif args.dataset.lower() in ['cora', 'pubmed']:
         train_set, val_set, test_set, mean, std = get_planetoid(args)
     else:
         raise ValueError

@@ -15,7 +15,8 @@ DATASET_FEATURE_STAT_DICT = {
     'exp': {'node': 1, 'edge': 0, 'num_class': 1},  # bin classification
     'protein': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
 
-    'cora': {'node': 1433, 'edge': 0, 'num_class': 7}
+    'cora': {'node': 1433, 'edge': 0, 'num_class': 7},
+    'pubmed': {'node': 500, 'edge': 0, 'num_class': 3},
 }
 
 MAX_NUM_NODE_DICT = {
@@ -37,6 +38,7 @@ TASK_TYPE_DICT = {
     'protein': 'acc',
 
     'cora': 'acc',
+    'pubmed': 'acc',
 }
 
 CRITERION_DICT = {
@@ -52,4 +54,5 @@ CRITERION_DICT = {
     'protein': nn.BCEWithLogitsLoss(),
 
     'cora': lambda pred, y: nn.CrossEntropyLoss()(pred, y.to(torch.long)),
+    'pubmed': lambda pred, y: nn.CrossEntropyLoss()(pred, y.to(torch.long)),
 }
