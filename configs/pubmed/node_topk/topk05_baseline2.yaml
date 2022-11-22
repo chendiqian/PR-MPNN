@@ -1,0 +1,11 @@
+fixed:
+  dataset: pubmed
+  log_path: './logs'
+
+  sample_configs:
+    sample_policy: topk
+    subgraph2node_aggr: mean
+    sample_k: 0.5
+    ensemble: 1
+
+  imle_configs: null
