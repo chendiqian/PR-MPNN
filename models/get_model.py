@@ -47,13 +47,15 @@ def get_model(args, device, *_args):
                              in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
                              hid=args.hid_size,
                              num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                             dropout=args.dropout).to(device)
+                             dropout=args.dropout,
+                             aggr=args.sample_configs.subgraph2node_aggr).to(device)
     elif args.model.lower() == 'planetoid_gin':
         model = PlanetoidGIN(num_convlayers=args.num_convlayers,
                              in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
                              hid=args.hid_size,
                              num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                             dropout=args.dropout).to(device)
+                             dropout=args.dropout,
+                             aggr=args.sample_configs.subgraph2node_aggr).to(device)
     else:
         raise NotImplementedError
 
