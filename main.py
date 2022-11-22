@@ -38,7 +38,6 @@ def naming(args) -> str:
 
     if args.sample_configs.sample_policy is None:
         name += 'normal'
-        return name
 
     if args.imle_configs is not None:
         name += f'IMLE_'
