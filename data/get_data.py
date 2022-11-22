@@ -66,8 +66,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     if not os.path.isdir(args.data_path):
         os.mkdir(args.data_path)
 
-    if 'ogb' in args.dataset.lower():
-        train_set, val_set, test_set, mean, std = get_ogb_data(args)
+    if 'ogbg' in args.dataset.lower():
+        train_set, val_set, test_set, mean, std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
         train_set, val_set, test_set, mean, std = get_zinc(args)
     elif args.dataset.lower() == 'zinc_full':
@@ -131,7 +131,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     return train_loaders, val_loaders, test_loaders
 
 
-def get_ogb_data(args: Union[Namespace, ConfigDict]):
+def get_ogbg_data(args: Union[Namespace, ConfigDict]):
     pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[])
     transform = get_transform(args)
 
