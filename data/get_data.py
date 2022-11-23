@@ -16,9 +16,9 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop)
 from .const import DATASET_FEATURE_STAT_DICT
-from .custom_dataset import PlanetoidKhopInductive
+from .custom_dataset import PlanetoidKhopInductive, MyPygNodePropPredDataset
 
-DATASET = (PygGraphPropPredDataset, ZINC, TUDataset, PlanetoidKhopInductive)
+DATASET = (PygGraphPropPredDataset, ZINC, TUDataset, PlanetoidKhopInductive, MyPygNodePropPredDataset)
 
 NAME_DICT = {'zinc_full': "ZINC_full",
              'cora': 'Cora',
@@ -68,6 +68,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
     if 'ogbg' in args.dataset.lower():
         train_set, val_set, test_set, mean, std = get_ogbg_data(args)
+    elif 'ogbn' in args.dataset.lower():
+        train_set, val_set, test_set, mean, std = get_ogbn_data(args)
     elif args.dataset.lower() == 'zinc':
         train_set, val_set, test_set, mean, std = get_zinc(args)
     elif args.dataset.lower() == 'zinc_full':
@@ -153,6 +155,39 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
     train_set = dataset[train_idx]
     val_set = dataset[val_idx]
     test_set = dataset[test_idx]
+
+    return train_set, val_set, test_set, None, None,
+
+
+def get_ogbn_data(args: Union[Namespace, ConfigDict]):
+    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[GraphAddRemainSelfLoop()], extra_post=False)
+    transform = get_transform(args)
+
+    # if there are specific pretransforms, create individual folders for the dataset
+    datapath = args.data_path
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
+
+    train_set = MyPygNodePropPredDataset(name=args.dataset,
+                                         root=datapath,
+                                         training_split='train',
+                                         khop=args.khop,
+                                         transform=transform,
+                                         pre_transform=pre_transform)
+
+    val_set = MyPygNodePropPredDataset(name=args.dataset,
+                                       root=datapath,
+                                       training_split='valid',
+                                       khop=args.khop,
+                                       transform=transform,
+                                       pre_transform=pre_transform)
+
+    test_set = MyPygNodePropPredDataset(name=args.dataset,
+                                        root=datapath,
+                                        training_split='test',
+                                        khop=args.khop,
+                                        transform=transform,
+                                        pre_transform=pre_transform)
 
     return train_set, val_set, test_set, None, None,
 
