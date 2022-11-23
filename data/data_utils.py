@@ -39,7 +39,7 @@ AttributedDataLoader = namedtuple(
 
 
 @numba.njit(cache=True)
-def edgeindex2neighbordict(edge_index: np.ndarray, num_nodes: int) -> List[List[int]]:
+def edgeindex2neighbordict(edge_index: np.ndarray, num_nodes: int) -> List[np.ndarray]:
     """
 
     :param edge_index: shape (2, E)
@@ -52,6 +52,8 @@ def edgeindex2neighbordict(edge_index: np.ndarray, num_nodes: int) -> List[List[
 
     for i, n in enumerate(neighbors):
         n.pop(0)
+
+    neighbors = [np.array(n, dtype=np.int64) for n in neighbors]
     return neighbors
 
 
