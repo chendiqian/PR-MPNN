@@ -1,0 +1,10 @@
+fixed:
+  dataset: ogbn-arxiv
+  log_path: './logs'
+
+  sample_configs:
+    sample_policy: null
+    sample_k: null
+    subgraph2node_aggr: center
+
+  imle_configs: null
