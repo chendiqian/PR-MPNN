@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import torch
 from torch_geometric.nn import MessagePassing
@@ -126,6 +126,55 @@ class GINEConv(MessagePassing):
             reset_sequential_parameters(self.bond_encoder)
         else:
             raise TypeError
+
+
+class SAGEConv(MessagePassing):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        project: bool = False,
+    ):
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.project = project
+
+        super(SAGEConv, self).__init__()
+
+        if self.project:
+            self.lin = torch.nn.Linear(in_channels, in_channels, bias=True)
+
+        self.lin_l = torch.nn.Linear(in_channels, out_channels, bias=True)
+        self.lin_r = torch.nn.Linear(in_channels, out_channels, bias=False)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.project:
+            self.lin.reset_parameters()
+        self.lin_l.reset_parameters()
+        self.lin_r.reset_parameters()
+
+    def forward(self, x, edge_index, edge_weight):
+        if edge_weight is not None and edge_weight.ndim < 2:
+            edge_weight = edge_weight[:, None]
+
+        x = (x, x)
+
+        if self.project and hasattr(self, 'lin'):
+            x = (self.lin(x[0]).relu(), x[1])
+
+        # propagate_type: (x: OptPairTensor)
+        out = self.propagate(edge_index, x=x, edge_weight=edge_weight)
+        out = self.lin_l(out)
+
+        x_r = x[1]
+        out = out + self.lin_r(x_r)
+
+        return out
+
+    def message(self, x_j, edge_weight):
+        return x_j * edge_weight if edge_weight is not None else x_j
 
 
 class GNN_Placeholder(torch.nn.Module):
