@@ -190,9 +190,11 @@ class Trainer:
         num_graphs = 0
 
         for batch_id, data in enumerate(dataloader.loader):
-            data = data.to(self.device)
             optimizer.zero_grad()
             new_data = self.construct_duplicate_data(data, emb_model)
+
+            data = data.to(self.device)
+            new_data = new_data.to(self.device)
 
             pred = model(new_data, data)
 
