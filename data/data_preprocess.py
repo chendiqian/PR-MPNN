@@ -5,7 +5,7 @@ import random
 import torch
 from torch_geometric.data import Data
 from torch_geometric.data.collate import collate
-from torch_geometric.utils import to_undirected, add_remaining_self_loops, subgraph as pyg_subgraph
+from torch_geometric.utils import is_undirected, to_undirected, add_remaining_self_loops, coalesce, subgraph as pyg_subgraph
 
 from subgraph.greedy_expand import greedy_grow_tree
 from subgraph.khop_subgraph import parallel_khop_neighbor
@@ -64,11 +64,26 @@ class GraphToUndirected(GraphModification):
     """
 
     def __call__(self, graph: Data):
-        if graph.edge_attr is not None:
-            edge_index, edge_attr = to_undirected(graph.edge_index, graph.edge_attr, graph.num_nodes)
+        if not is_undirected(graph.edge_index, graph.edge_attr, graph.num_nodes):
+            if graph.edge_attr is not None:
+                edge_index, edge_attr = to_undirected(graph.edge_index,
+                                                      graph.edge_attr,
+                                                      graph.num_nodes)
+            else:
+                edge_index = to_undirected(graph.edge_index,
+                                           graph.edge_attr,
+                                           graph.num_nodes)
+                edge_attr = None
         else:
-            edge_index = to_undirected(graph.edge_index, graph.edge_attr, graph.num_nodes)
-            edge_attr = None
+            if graph.edge_attr is not None:
+                edge_index, edge_attr = coalesce(graph.edge_index,
+                                                 graph.edge_attr,
+                                                 graph.num_nodes)
+            else:
+                edge_index = coalesce(graph.edge_index,
+                                      graph.edge_attr,
+                                      graph.num_nodes)
+                edge_attr = None
         new_data = Data(x=graph.x,
                         edge_index=edge_index,
                         edge_attr=edge_attr,
