@@ -75,7 +75,7 @@ class Trainer:
             self.imle_sample_scheme = imle_sample_scheme
 
         if sample_configs.sample_policy is None:
-            self.construct_duplicate_data = lambda x, _: x
+            self.construct_duplicate_data = lambda x, *args: x
         elif imle_configs is not None:
             if self.sample_policy in POLICY_LOCAL_STRUCTURE:
                 self.construct_duplicate_data = self.emb_model_local_structure
@@ -103,15 +103,18 @@ class Trainer:
                                                                self.subgraph2node_aggr)
         return new_batch
 
-    def emb_model_local_structure(self, data: Union[Data, Batch], emb_model: Emb_model):
+    def emb_model_local_structure(self,
+                                  data: Union[Data, Batch],
+                                  emb_model: Emb_model,
+                                  device: Union[torch.device, str]):
         train = emb_model.training
-        logits = emb_model(data)
-
-        split_idx = tuple((data.nnodes ** 2).cpu().tolist())
         graphs = Batch.to_data_list(data)
 
+        logits = emb_model(data.to(device))
+        data = data.to('cpu')
+
         self.imle_scheduler.graphs = graphs
-        self.imle_scheduler.ptr = split_idx
+        self.imle_scheduler.ptr = tuple((data.nnodes ** 2).tolist())
 
         if train:
             node_mask, _ = self.imle_sample_scheme(logits)
@@ -119,7 +122,7 @@ class Trainer:
             node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
 
         new_batch = construct_imle_local_structure_subgraphs(graphs,
-                                                             node_mask,
+                                                             node_mask.cpu(),
                                                              data.nnodes,
                                                              data.batch,
                                                              data.y,
@@ -128,15 +131,18 @@ class Trainer:
 
         return new_batch
 
-    def emb_model_subgraph(self, data: Union[Data, Batch], emb_model: Emb_model):
+    def emb_model_subgraph(self,
+                           data: Union[Data, Batch],
+                           emb_model: Emb_model,
+                           device: Union[torch.device, str]):
         train = emb_model.training
-        logits = emb_model(data)
-
-        split_idx = tuple(data.nnodes.cpu().tolist())
         graphs = Batch.to_data_list(data)
 
+        logits = emb_model(data.to(device))
+        data = data.cpu()
+
         self.imle_scheduler.graphs = graphs
-        self.imle_scheduler.ptr = split_idx
+        self.imle_scheduler.ptr = tuple(data.nnodes.tolist())
         self.imle_scheduler.seed_node_mask = data.target_mask
 
         if train:
@@ -191,7 +197,7 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
-            new_data = self.construct_duplicate_data(data, emb_model)
+            new_data = self.construct_duplicate_data(data, emb_model, self.device)
 
             data = data.to(self.device)
             new_data = new_data.to(self.device)
@@ -259,8 +265,9 @@ class Trainer:
         labels = []
 
         for data in dataloader.loader:
+            new_data = self.construct_duplicate_data(data, emb_model, self.device)
             data = data.to(self.device)
-            new_data = self.construct_duplicate_data(data, emb_model)
+            new_data = new_data.to(self.device)
 
             pred = model(new_data, data)
 
