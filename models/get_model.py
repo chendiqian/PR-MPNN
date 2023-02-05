@@ -67,7 +67,8 @@ def get_model(args, device, *_args):
                 in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                 edge_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
                 hid_size=args.imle_configs.emb_hid_size,
-                num_layer=args.imle_configs.emb_num_layer,
+                gnn_layer=args.imle_configs.gnn_layer,
+                mlp_layer=args.imle_configs.mlp_layer,
                 dropout=args.imle_configs.dropout,
                 ensemble=ensemble,
                 use_ogb_encoder=args.dataset.lower().startswith('ogb')
