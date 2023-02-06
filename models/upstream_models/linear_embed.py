@@ -1,3 +1,4 @@
+import pdb
 from typing import Union
 
 import numpy as np
@@ -39,7 +40,7 @@ class LinearEmbed(torch.nn.Module):
                         BN(hid_size),
                         ReLU(),
                     ),
-                    bond_encoder=MLP([edge_features, hid_size, hid_size], norm=False, dropout=0.),)
+                    bond_encoder=MLP([hid_size, hid_size, hid_size], norm=False, dropout=0.),)
                 for _ in range(gnn_layer)])
 
         # self.node_emb = Linear(hid_size, hid_size)
@@ -53,11 +54,10 @@ class LinearEmbed(torch.nn.Module):
         nnodes = data.nnodes.cpu().numpy()
         idx = np.concatenate([np.triu_indices(n, -n) + ptr[i] for i, n in enumerate(nnodes)], axis=-1)
         x = self.atom_encoder(data.x)
+        edge_attr = self.bond_encoder(data.edge_attr)
 
         for gnn in self.gnn:
-            x = gnn(x, edge_index, data.edge_attr, None)
-
-        edge_attr = self.bond_encoder(data.edge_attr)
+            x = gnn(x, edge_index, edge_attr, None)
 
         # emb_n = self.node_emb(x)
         # emb_e = self.edge_emb(edge_attr)
