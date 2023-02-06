@@ -51,6 +51,7 @@ def naming(args) -> str:
     name += f'policy_{args.sample_configs.sample_policy}_'
     name += f'samplek_{args.sample_configs.sample_k}_'
     name += f'sub2nAggr_{args.sample_configs.subgraph2node_aggr}_'
+    name += f'emb_x_{args.sample_configs.extra_dim}'
     return name
 
 
@@ -160,6 +161,11 @@ def run(fixed):
                 writer.add_scalar('metric/training metric', train_metric, epoch)
                 writer.add_scalar('metric/val metric', val_metric, epoch)
                 writer.add_scalar('lr', scheduler.optimizer.param_groups[0]['lr'], epoch)
+
+                if epoch % 50 == 0:
+                    torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')
+                    if emb_model is not None:
+                        torch.save(emb_model.state_dict(), f'{run_folder}/embd_model_{epoch}.pt')
 
                 if trainer.patience == 0:
                     best_epoch = epoch
