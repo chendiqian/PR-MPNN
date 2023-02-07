@@ -1,11 +1,15 @@
+import random
 from math import ceil
 from typing import Optional
-import random
 
+import numpy as np
 import torch
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import shortest_path
 from torch_geometric.data import Data
 from torch_geometric.data.collate import collate
-from torch_geometric.utils import is_undirected, to_undirected, add_remaining_self_loops, coalesce, subgraph as pyg_subgraph
+from torch_geometric.utils import is_undirected, to_undirected, add_remaining_self_loops, \
+    coalesce, subgraph as pyg_subgraph
 
 from subgraph.greedy_expand import greedy_grow_tree
 from subgraph.khop_subgraph import parallel_khop_neighbor
@@ -135,6 +139,26 @@ class AugmentWithKhopMasks(GraphModification):
     def __call__(self, graph: Data):
         np_mask = parallel_khop_neighbor(graph.edge_index.numpy(), graph.num_nodes, self.khop)
         graph.node_mask = torch.from_numpy(np_mask).reshape(-1).to(torch.bool)
+        return graph
+
+
+class AugmentWithShortedPathDistance(GraphModification):
+    def __init__(self, max_num_nodes):
+        super(AugmentWithShortedPathDistance, self).__init__()
+        self.max_num_nodes = max_num_nodes
+
+    def __call__(self, graph: Data):
+        assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
+        edge_index = graph.edge_index.numpy()
+        mat = csr_matrix((np.ones(edge_index.shape[1]), (edge_index[0], edge_index[1])),
+                         shape=(graph.num_nodes, graph.num_nodes))
+
+        g_dist_mat = torch.zeros(graph.num_nodes, self.max_num_nodes, dtype=torch.float)
+        g_dist_mat[:, :graph.num_nodes] = torch.from_numpy(shortest_path(mat, directed=False, return_predecessors=False, ))
+        g_dist_mat[torch.isinf(g_dist_mat)] = 0.
+        g_dist_mat /= g_dist_mat.max() + 1
+
+        graph.g_dist_mat = g_dist_mat
         return graph
 
 

@@ -1,28 +1,54 @@
 import os
-from typing import Tuple, Union, List
 from argparse import Namespace
+from typing import Tuple, Union, List, Optional
+
 from ml_collections import ConfigDict
-
-from torch_geometric.transforms import Compose
-from torch_geometric.loader import DataLoader
-from torch_geometric.datasets import ZINC, TUDataset
 from ogb.graphproppred import PygGraphPropPredDataset
+from torch_geometric.datasets import ZINC, TUDataset
+from torch_geometric.loader import DataLoader
+from torch_geometric.transforms import Compose
 
-from .data_utils import AttributedDataLoader
+from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
+from .custom_dataset import PlanetoidKhopInductive, MyPygNodePropPredDataset
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected,
                               AugmentwithNNodes,
                               policy2transform,
                               GraphAttrToOneHot,
-                              GraphAddRemainSelfLoop)
-from .const import DATASET_FEATURE_STAT_DICT
-from .custom_dataset import PlanetoidKhopInductive, MyPygNodePropPredDataset
+                              GraphAddRemainSelfLoop,
+                              AugmentWithShortedPathDistance,
+                              AugmentWithRandomKNeighbors,
+                              AugmentWithKhopMasks,
+                              RandomSampleTopk
+                              )
+from .data_utils import AttributedDataLoader
 
 DATASET = (PygGraphPropPredDataset, ZINC, TUDataset, PlanetoidKhopInductive, MyPygNodePropPredDataset)
 
 NAME_DICT = {'zinc_full': "ZINC_full",
              'cora': 'Cora',
              'pubmed': 'PubMed'}
+
+PRETRANSFORM_PRIORITY = {
+    GraphExpandDim: 0,  # low
+    GraphAddRemainSelfLoop: 100,  # highest
+    GraphToUndirected: 99,  # high
+    AugmentwithNNodes: 0,  # low
+    GraphAttrToOneHot: 0,  # low
+    AugmentWithShortedPathDistance: 98,
+    AugmentWithRandomKNeighbors: 0,
+    AugmentWithKhopMasks: 0,
+    RandomSampleTopk: 0,
+}
+
+
+def get_additional_path(args: Union[Namespace, ConfigDict]):
+    extra_path = ''
+    if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
+        extra_path += 'SPDaug_'
+    if args.sample_configs.sample_policy in ['khop']:
+        extra_path += args.sample_configs.sample_policy + '_' + str(args.sample_configs.sample_k) + '_'
+    return extra_path if len(extra_path) else None
 
 
 def get_transform(args: Union[Namespace, ConfigDict]):
@@ -41,17 +67,19 @@ def get_transform(args: Union[Namespace, ConfigDict]):
         raise NotImplementedError
 
 
-def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: List, extra_post: bool = True):
-    pretransform = [GraphToUndirected(), AugmentwithNNodes()]
-    if extra_post:
+def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):
+    pretransform = [GraphToUndirected(), AugmentwithNNodes(), GraphAddRemainSelfLoop()]
+    if extra_pretransforms is not None:
         pretransform = pretransform + extra_pretransforms
-    else:
-        pretransform = extra_pretransforms + pretransform
-    extra_path = None
+
     if args.sample_configs.sample_policy in ['khop']:
         pretransform.append(policy2transform(args.sample_configs.sample_policy, args.sample_configs.sample_k, 1))
-        extra_path = args.sample_configs.sample_policy + '_' + str(args.sample_configs.sample_k)
-    return Compose(pretransform), extra_path
+
+    if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
+        pretransform.append(AugmentWithShortedPathDistance(MAX_NUM_NODE_DICT[args.dataset.lower()]))
+
+    pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
+    return Compose(pretransform)
 
 
 def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[AttributedDataLoader],
@@ -134,11 +162,12 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
 
 def get_ogbg_data(args: Union[Namespace, ConfigDict]):
-    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[])
+    pre_transform = get_pretransform(args)
     transform = get_transform(args)
 
     # if there are specific pretransforms, create individual folders for the dataset
     datapath = args.data_path
+    extra_path = get_additional_path(args)
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
 
@@ -160,11 +189,12 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
 
 
 def get_ogbn_data(args: Union[Namespace, ConfigDict]):
-    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[GraphAddRemainSelfLoop()], extra_post=False)
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphAddRemainSelfLoop()])
     transform = get_transform(args)
 
     # if there are specific pretransforms, create individual folders for the dataset
     datapath = args.data_path
+    extra_path = get_additional_path(args)
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
 
@@ -193,13 +223,14 @@ def get_ogbn_data(args: Union[Namespace, ConfigDict]):
 
 
 def get_zinc(args: Union[Namespace, ConfigDict]):
-    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[
+    pre_transform = get_pretransform(args, extra_pretransforms=[
         GraphExpandDim(),
         GraphAttrToOneHot(DATASET_FEATURE_STAT_DICT['zinc']['node'],
                           DATASET_FEATURE_STAT_DICT['zinc']['edge'])])
     transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, 'ZINC')
+    extra_path = get_additional_path(args)
     if extra_path is not None:
         data_path = os.path.join(data_path, extra_path)
 
@@ -255,10 +286,11 @@ def get_TUdata(args: Union[Namespace, ConfigDict]):
         train_indices = train_indices[:16]
     train_indices = [int(i) for i in train_indices]
 
-    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[GraphExpandDim()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphExpandDim()])
     transform = get_transform(args)
 
     data_path = args.data_path
+    extra_path = get_additional_path(args)
     if extra_path is not None:
         data_path = os.path.join(data_path, extra_path)
 
@@ -275,11 +307,12 @@ def get_TUdata(args: Union[Namespace, ConfigDict]):
 
 
 def get_planetoid(args: Union[Namespace, ConfigDict]):
-    pre_transform, extra_path = get_pretransform(args, extra_pretransforms=[GraphAddRemainSelfLoop()], extra_post=False)
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphAddRemainSelfLoop()])
     transform = get_transform(args)
 
     # if there are specific pretransforms, create individual folders for the dataset
     datapath = args.data_path
+    extra_path = get_additional_path(args)
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
 
