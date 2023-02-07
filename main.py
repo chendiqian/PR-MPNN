@@ -45,6 +45,12 @@ def naming(args) -> str:
         name += f'L_{args.imle_configs.gnn_layer}_{args.imle_configs.mlp_layer}'
         name += f'DP{args.imle_configs.dropout}'
         name += f'Beta{args.imle_configs.beta}_'
+
+        name += 'encoding_'
+        if args.imle_configs.emb_edge:
+            name += 'edge_'
+        if args.imle_configs.emb_spd:
+            name += 'spd_'
     else:
         name += 'OnTheFly_'
 
@@ -64,17 +70,7 @@ def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> Tuple[SummaryW
 
 @ex.automain
 def run(fixed):
-    fixed = dict(fixed)
-    root_dir = fixed['dataset'].lower()
-    with open(f"./configs/{root_dir}/common_configs.yaml", 'r') as stream:
-        try:
-            common_configs = yaml.safe_load(stream)['common']
-            default_configs = {k: v for k, v in common_configs.items() if k not in fixed}
-            fixed.update(default_configs)
-        except yaml.YAMLError as exc:
-            print(exc)
-
-    args = ConfigDict(fixed)
+    args = ConfigDict(dict(fixed))
     hparams = naming(args)
 
     if not os.path.isdir(args.log_path):
