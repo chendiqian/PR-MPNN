@@ -1,4 +1,3 @@
-import pdb
 from typing import Union
 
 import numpy as np
@@ -19,10 +18,16 @@ class LinearEmbed(torch.nn.Module):
                  gnn_layer,
                  mlp_layer,
                  dropout=0.5,
+                 emb_edge=True,
+                 emb_spd=False,
                  ensemble=1,
                  use_bn=False,
                  use_ogb_encoder=True):
         super(LinearEmbed, self).__init__()
+
+        self.emb_edge = emb_edge
+        self.emb_spd = emb_spd
+
         if use_ogb_encoder:
             self.atom_encoder = AtomEncoder(emb_dim=hid_size)
             self.bond_encoder = BondEncoder(emb_dim=hid_size)
@@ -43,32 +48,41 @@ class LinearEmbed(torch.nn.Module):
                     bond_encoder=MLP([hid_size, hid_size, hid_size], norm=False, dropout=0.),)
                 for _ in range(gnn_layer)])
 
-        # self.node_emb = Linear(hid_size, hid_size)
-        # self.edge_emb = Linear(hid_size, hid_size)
-
-        self.mlp = MLP([hid_size * 3] + [hid_size] * (mlp_layer - 1) + [ensemble], norm=use_bn, dropout=0.)
+        mlp_in_size = hid_size * 2
+        if emb_edge:
+            mlp_in_size += hid_size
+        if emb_spd:
+            mlp_in_size += hid_size
+            self.spd_encoder = Linear(1, hid_size)
+        self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
+                       norm=use_bn, dropout=0.)
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
         ptr = data.ptr.cpu().numpy() if hasattr(data, 'ptr') else np.zeros(1, dtype=np.int32)
         nnodes = data.nnodes.cpu().numpy()
         idx = np.concatenate([np.triu_indices(n, -n) + ptr[i] for i, n in enumerate(nnodes)], axis=-1)
+        idx_no_acum = np.concatenate([np.triu_indices(n, -n) for i, n in enumerate(nnodes)], axis=-1)
         x = self.atom_encoder(data.x)
         edge_attr = self.bond_encoder(data.edge_attr)
 
         for gnn in self.gnn:
             x = gnn(x, edge_index, edge_attr, None)
 
-        # emb_n = self.node_emb(x)
-        # emb_e = self.edge_emb(edge_attr)
-        emb_e = SparseTensor.from_edge_index(edge_index,
-                                             edge_attr,
-                                             sparse_sizes=(data.num_nodes, data.num_nodes),
-                                             is_sorted=True).to_dense()
+        emb = [x[idx[0]], x[idx[1]]]
 
-        emb_e = emb_e[idx[0], idx[1]]
+        if self.emb_edge:
+            emb_e = SparseTensor.from_edge_index(edge_index,
+                                                 edge_attr,
+                                                 sparse_sizes=(data.num_nodes, data.num_nodes),
+                                                 is_sorted=True).to_dense()
+            emb.append(emb_e[idx[0], idx[1]])
 
-        emb = torch.cat((x[idx[0]], x[idx[1]], emb_e), dim=-1)
+        if self.emb_spd:
+            spd = data.g_dist_mat[idx[0], idx_no_acum[1]]
+            emb.append(self.spd_encoder(spd[:, None]))
+
+        emb = torch.cat(emb, dim=-1)
         emb = self.mlp(emb)
 
         return emb
@@ -76,8 +90,8 @@ class LinearEmbed(torch.nn.Module):
     def reset_parameters(self):
         self.atom_encoder.reset_parameters()
         self.bond_encoder.reset_parameters()
-        # self.node_emb.reset_parameters()
-        # self.edge_emb.reset_parameters()
         self.mlp.reset_parameters()
         for gnn in self.gnn:
             gnn.reset_parameters()
+        if self.emb_spd:
+            self.spd_encoder.reset_parameters()

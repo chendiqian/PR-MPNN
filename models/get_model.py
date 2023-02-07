@@ -70,6 +70,8 @@ def get_model(args, device, *_args):
                 gnn_layer=args.imle_configs.gnn_layer,
                 mlp_layer=args.imle_configs.mlp_layer,
                 dropout=args.imle_configs.dropout,
+                emb_edge=args.imle_configs.emb_edge,
+                emb_spd=args.imle_configs.emb_spd,
                 ensemble=ensemble,
                 use_ogb_encoder=args.dataset.lower().startswith('ogb')
             ).to(device)
