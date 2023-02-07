@@ -34,7 +34,6 @@ class LinearEmbed(torch.nn.Module):
         else:
             self.atom_encoder = Linear(in_features, hid_size)
             self.bond_encoder = Linear(edge_features, hid_size)
-        self.dropout = dropout
 
         self.gnn = torch.nn.ModuleList([GINEConv(
                     hid_size,
@@ -45,7 +44,7 @@ class LinearEmbed(torch.nn.Module):
                         BN(hid_size),
                         ReLU(),
                     ),
-                    bond_encoder=MLP([hid_size, hid_size, hid_size], norm=False, dropout=0.),)
+                    bond_encoder=MLP([hid_size, hid_size, hid_size], norm=False, dropout=dropout),)
                 for _ in range(gnn_layer)])
 
         mlp_in_size = hid_size * 2
@@ -55,7 +54,7 @@ class LinearEmbed(torch.nn.Module):
             mlp_in_size += hid_size
             self.spd_encoder = Linear(1, hid_size)
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
-                       norm=use_bn, dropout=0.)
+                       norm=use_bn, dropout=dropout)
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
