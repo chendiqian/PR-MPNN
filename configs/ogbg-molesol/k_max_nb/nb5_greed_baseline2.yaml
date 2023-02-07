@@ -3,16 +3,16 @@ fixed:
   log_path: './logs'
 
   sample_configs:
-    sample_policy: null
-    subgraph2node_aggr: null
-    sample_k: null
+    sample_policy: greedy_neighbors
+    subgraph2node_aggr: center
+    sample_k: 5
+    ensemble: 1
     # for inner model
-    inner_layer: 5
-    extra_dim: [0, 300]  # data.x || subgraph_emb
+    inner_layer: 3
+    extra_dim: [150, 150]  # data.x || subgraph_emb
 
   imle_configs: null
 
-  # common settings
   model: ogb_gin
   dropout: 0.5
   hid_size: 300
@@ -20,10 +20,10 @@ fixed:
   lr_steps: [ 10000, 99999 ]
   patience: 100
   reg: 0.
-  num_convlayers: 0  # outer
+  num_convlayers: 5
   batch_size: 32
   min_epochs: 100
-  max_epochs: 100
+  max_epochs: 300
   data_path: './datasets'
   debug: False
   num_runs: 3

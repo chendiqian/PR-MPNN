@@ -12,6 +12,9 @@ fixed:
     extra_dim: [0, 300]  # data.x || subgraph_emb
 
   imle_configs:
+    emb_edge: False
+    emb_spd: True
+
     emb_hid_size: 64
     gnn_layer: 2
     mlp_layer: 3
@@ -21,3 +24,18 @@ fixed:
     micro_batch_embd: 1
     noise_scale: 1.
     beta: 10.
+
+  model: ogb_gin
+  dropout: 0.5
+  hid_size: 300
+  lr: 1.e-3
+  lr_steps: [ 10000, 99999 ]
+  patience: 100
+  reg: 0.
+  num_convlayers: 0
+  batch_size: 32
+  min_epochs: 100
+  max_epochs: 300
+  data_path: './datasets'
+  debug: False
+  num_runs: 3
