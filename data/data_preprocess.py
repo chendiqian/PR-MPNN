@@ -226,7 +226,7 @@ class RandomSampleTopkperNode(GraphModification):
             mask = (logit >= thresh[:, None, :])
             eye = torch.eye(graph.num_nodes, dtype=torch.bool)
             mask = (mask + eye[..., None])
-            graph.node_mask = mask
+            graph.node_mask = mask.reshape(graph.num_nodes ** 2, self.ensemble)
         return graph
 
 
