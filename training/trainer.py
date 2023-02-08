@@ -25,8 +25,8 @@ Emb_model = Any
 Train_model = Any
 Loss = torch.nn.modules.loss
 
-POLICY_LOCAL_STRUCTURE = ['KMaxNeighbors', 'greedy_neighbors']
-POLICY_SUBGRAPH = ['topk']
+POLICY_GRAPH_LEVEL = ['KMaxNeighbors', 'greedy_neighbors', 'graph_topk']
+POLICY_NODE_LEVEL = ['topk']
 
 
 class Trainer:
@@ -77,14 +77,14 @@ class Trainer:
         if sample_configs.sample_policy is None:
             self.construct_duplicate_data = lambda x, *args: x
         elif imle_configs is not None:
-            if self.sample_policy in POLICY_LOCAL_STRUCTURE:
-                self.construct_duplicate_data = self.emb_model_local_structure
-            elif self.sample_policy in POLICY_SUBGRAPH:
-                self.construct_duplicate_data = self.emb_model_subgraph
+            if self.sample_policy in POLICY_GRAPH_LEVEL:
+                self.construct_duplicate_data = self.emb_model_graph_level_pred
+            elif self.sample_policy in POLICY_NODE_LEVEL:
+                self.construct_duplicate_data = self.emb_model_node_level
         else:
-            if self.sample_policy in POLICY_LOCAL_STRUCTURE:
+            if self.sample_policy in POLICY_GRAPH_LEVEL:
                 self.construct_duplicate_data = self.data_duplication
-            elif self.sample_policy in POLICY_SUBGRAPH:
+            elif self.sample_policy in POLICY_NODE_LEVEL:
                 self.construct_duplicate_data = lambda x, *args: x
 
     def data_duplication(self, data: Union[Data, Batch], *args):
@@ -103,10 +103,10 @@ class Trainer:
                                                                self.subgraph2node_aggr)
         return new_batch
 
-    def emb_model_local_structure(self,
-                                  data: Union[Data, Batch],
-                                  emb_model: Emb_model,
-                                  device: Union[torch.device, str]):
+    def emb_model_graph_level_pred(self,
+                                   data: Union[Data, Batch],
+                                   emb_model: Emb_model,
+                                   device: Union[torch.device, str]):
         train = emb_model.training
         graphs = Batch.to_data_list(data)
 
@@ -114,7 +114,7 @@ class Trainer:
         data = data.to('cpu')
 
         self.imle_scheduler.graphs = graphs
-        self.imle_scheduler.ptr = tuple((data.nnodes ** 2).tolist())
+        self.imle_scheduler.ptr = tuple((data.nnodes ** 2).tolist())  # per node has a subg
 
         if train:
             node_mask, _ = self.imle_sample_scheme(logits)
@@ -131,10 +131,10 @@ class Trainer:
 
         return new_batch
 
-    def emb_model_subgraph(self,
-                           data: Union[Data, Batch],
-                           emb_model: Emb_model,
-                           device: Union[torch.device, str]):
+    def emb_model_node_level(self,
+                             data: Union[Data, Batch],
+                             emb_model: Emb_model,
+                             device: Union[torch.device, str]):
         train = emb_model.training
         graphs = Batch.to_data_list(data)
 

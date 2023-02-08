@@ -59,7 +59,7 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     elif args.sample_configs.sample_policy is None:
         return None
     # train with sampling on the fly
-    elif args.sample_configs.sample_policy in ['greedy_neighbors', 'topk']:
+    elif args.sample_configs.sample_policy in ['greedy_neighbors', 'topk', 'graph_topk']:
         return policy2transform(args.sample_configs.sample_policy,
                                 args.sample_configs.sample_k,
                                 args.sample_configs.ensemble)

@@ -84,6 +84,26 @@ class IMLEScheme:
                 else:
                     thresh = torch.topk(logit, k, dim=0, largest=True, sorted=True).values[-1, :]
                     sample_instance_idx.append((logit >= thresh[None]).to(torch.float))
+        elif self.imle_sample_policy == 'graph_topk':
+            for i, logit in enumerate(local_logits):
+                # if isinstance(self.sample_k, float):
+                #     k = int(ceil(self.sample_k * self.graphs[i].num_nodes))
+                if isinstance(self.sample_k, int):
+                    k = self.sample_k
+                else:
+                    raise TypeError
+
+                if k >= self.graphs[i].num_nodes:
+                    sample_instance_idx.append(torch.ones(logit.shape, device=logit.device, dtype=torch.float))
+                else:
+                    logit = logit.reshape(self.graphs[i].num_nodes,
+                                          self.graphs[i].num_nodes,
+                                          self.ensemble)
+                    thresh = torch.topk(logit, k, dim=1, largest=True, sorted=True).values[:, -1, :]
+                    mask = (logit >= thresh[:, None, :])
+                    eye = torch.eye(mask.shape[0], dtype=mask.dtype, device=mask.device)
+                    mask = (mask + eye[..., None]).to(torch.float)   # select seed node
+                    sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
         else:
             raise NotImplementedError
 

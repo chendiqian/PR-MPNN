@@ -204,6 +204,32 @@ class RandomSampleTopk(GraphModification):
         return collate(graph.__class__, data_list, increment=True, add_batch=False)[0]
 
 
+class RandomSampleTopkperNode(GraphModification):
+    def __init__(self, k: int, ensemble: int):
+        super(RandomSampleTopkperNode, self).__init__()
+        self.k = k
+        self.ensemble = ensemble
+
+    def __call__(self, graph: Data):
+        # if isinstance(self.k, float):
+        #     k = int(ceil(self.k * graph.num_nodes))
+        if isinstance(self.k, int):
+            k = self.k
+        else:
+            raise TypeError
+
+        if k >= graph.num_nodes:
+            graph.node_mask = torch.ones(graph.num_nodes ** 2, self.ensemble, dtype=torch.bool)
+        else:
+            logit = torch.rand(graph.num_nodes, graph.num_nodes, self.ensemble)
+            thresh = torch.topk(logit, k, dim=1, largest=True, sorted=True).values[:, -1, :]
+            mask = (logit >= thresh[:, None, :])
+            eye = torch.eye(graph.num_nodes, dtype=torch.bool)
+            mask = (mask + eye[..., None])
+            graph.node_mask = mask
+        return graph
+
+
 def policy2transform(policy: str, sample_k: int, ensemble: int = 1) -> GraphModification:
     """
     transform for datasets
@@ -219,5 +245,7 @@ def policy2transform(policy: str, sample_k: int, ensemble: int = 1) -> GraphModi
         return AugmentWithKhopMasks(sample_k)
     elif policy == 'topk':
         return RandomSampleTopk(sample_k, ensemble)
+    elif policy == 'graph_topk':
+        return RandomSampleTopkperNode(sample_k, ensemble)
     else:
         raise NotImplementedError
