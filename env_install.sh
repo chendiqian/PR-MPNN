@@ -10,7 +10,6 @@ pip install tqdm
 pip install ortools
 pip install sacred
 pip install PyYAML
-pip install ogb
 pip install setuptools==59.5.0
 
 echo y | conda install pytorch==1.10.1 cudatoolkit=11.3 -c pytorch -c conda-forge
@@ -19,3 +18,4 @@ pip install https://data.pyg.org/whl/torch-1.10.0%2Bcu113/torch_sparse-0.6.13-cp
 pip install torch-geometric
 
 pip install tensorboard
+pip install ogb
