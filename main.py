@@ -113,7 +113,10 @@ def run(fixed):
                 optimizer_embd = torch.optim.Adam(emb_model.parameters(),
                                                   lr=args.imle_configs.embd_lr,
                                                   weight_decay=args.imle_configs.reg_embd)
-                scheduler_embd = None
+                scheduler_embd = torch.optim.lr_scheduler.MultiStepLR(optimizer_embd,
+                                                             args.lr_steps,
+                                                             gamma=args.lr_decay_rate if hasattr(args, 'lr_decay_rate')
+                                                             else 0.1 ** 0.5)
             else:
                 optimizer_embd = None
                 scheduler_embd = None
