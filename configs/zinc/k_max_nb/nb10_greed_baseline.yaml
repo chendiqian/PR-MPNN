@@ -5,7 +5,7 @@ fixed:
   sample_configs:
     sample_policy: greedy_neighbors
     subgraph2node_aggr: center
-    sample_k: 5
+    sample_k: 10
     ensemble: 1
     # for inner model
     inner_layer: 1

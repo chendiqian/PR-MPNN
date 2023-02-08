@@ -1,0 +1,41 @@
+fixed:
+  dataset: ogbg-molesol
+  log_path: './logs'
+
+  sample_configs:
+    sample_policy: graph_topk
+    subgraph2node_aggr: mean
+    sample_k: 10
+    ensemble: 1
+    # for inner model
+    inner_layer: 3
+    extra_dim: [300, 300]  # data.x || subgraph_emb
+
+  imle_configs:
+    emb_edge: False
+    emb_spd: False
+
+    emb_hid_size: 64
+    gnn_layer: 3
+    mlp_layer: 3
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    micro_batch_embd: 1
+    noise_scale: 2.
+    beta: 10.
+
+  model: ogb_gin
+  dropout: 0.5
+  hid_size: 300
+  lr: 1.e-3
+  lr_steps: [ 300, 600 ]
+  patience: 100
+  reg: 0.
+  num_convlayers: 5
+  batch_size: 32
+  min_epochs: 700
+  max_epochs: 800
+  data_path: './datasets'
+  debug: False
+  num_runs: 5
