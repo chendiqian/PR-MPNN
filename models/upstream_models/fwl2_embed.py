@@ -5,6 +5,7 @@ from torch.nn import Linear, LayerNorm, ModuleList
 import torch.nn.functional as F
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import to_dense_batch
+from torch_sparse import SparseTensor
 
 from models.my_encoder import AtomEncoder, BondEncoder
 from models.nn_utils import MLP
@@ -74,13 +75,14 @@ class Fwl2Embed(torch.nn.Module):
         x = torch.cat((x[:, :, None, :].repeat(1, 1, nnodes_max, 1),
                        x[:, None, :, :].repeat(1, nnodes_max, 1, 1)), dim=-1)  # batchsize, Nmax, Nmax, 2F
 
+        emb = [x]
         if self.emb_edge:
-            # edge_attr = self.bond_encoder(data.edge_attr)
-            # emb_e = SparseTensor.from_edge_index(data.edge_index,
-            #                                      data.edge_attr,
-            #                                      sparse_sizes=(data.num_nodes, data.num_nodes),
-            #                                      is_sorted=True).to_dense()
-            # emb.append(emb_e)
+            edge_attr = self.bond_encoder(data.edge_attr)
+            emb_e = SparseTensor.from_edge_index(data.edge_index,
+                                                 data.edge_attr,
+                                                 sparse_sizes=(data.num_nodes, data.num_nodes),
+                                                 is_sorted=True).to_dense()
+            emb.append(emb_e)
             raise NotImplementedError
 
         if self.emb_spd:

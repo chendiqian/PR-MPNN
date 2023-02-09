@@ -5,6 +5,7 @@ from models.downstream_models.ogb_mol_gnn import OGBGNN, OGBGNN_inner
 from models.downstream_models.zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
 from models.upstream_models.gcn_embed import GCN_Embed
 from models.upstream_models.linear_embed import LinearEmbed
+from models.upstream_models.fwl2_embed import Fwl2Embed
 from .bind_model import BindModel
 
 
@@ -81,6 +82,19 @@ def get_model(args, device, *_args):
                                   hid=args.imle_configs.emb_hid_size,
                                   num_classes=args.sample_configs.ensemble,
                                   dropout=args.imle_configs.dropout).to(device)
+        elif args.imle_configs.model == 'fwl':
+            emb_model = Fwl2Embed(
+                in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                edge_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
+                hid_size=args.imle_configs.emb_hid_size,
+                fwl_layer=args.imle_configs.gnn_layer,
+                mlp_layer=args.imle_configs.mlp_layer,
+                dropout=args.imle_configs.dropout,
+                emb_edge=args.imle_configs.emb_edge,
+                emb_spd=args.imle_configs.emb_spd,
+                ensemble=ensemble,
+                use_norm=args.imle_configs.bn,
+                use_ogb_encoder=args.dataset.lower().startswith('ogb'))
         else:
             raise NotImplementedError
     else:
