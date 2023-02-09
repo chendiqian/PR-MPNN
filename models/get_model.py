@@ -5,7 +5,6 @@ from models.downstream_models.ogb_mol_gnn import OGBGNN, OGBGNN_inner
 from models.downstream_models.zinc_gin import ZINC_GIN_Inner, ZINC_GIN_Outer
 from models.upstream_models.gcn_embed import GCN_Embed
 from models.upstream_models.linear_embed import LinearEmbed
-from models.upstream_models.transformer import Transformer
 from .bind_model import BindModel
 
 
@@ -73,14 +72,9 @@ def get_model(args, device, *_args):
                 emb_edge=args.imle_configs.emb_edge,
                 emb_spd=args.imle_configs.emb_spd,
                 ensemble=ensemble,
+                use_bn=args.imle_configs.bn,
                 use_ogb_encoder=args.dataset.lower().startswith('ogb')
             ).to(device)
-        elif args.imle_configs.model == 'trans':
-            emb_model = Transformer(num_layers=args.imle_configs.emb_num_layer,
-                                    kq_dim=args.imle_configs.kq_dim,
-                                    v_dim=args.imle_configs.emb_hid_size,
-                                    edge_mlp_hid=args.imle_configs.edge_mlp_hid,
-                                    ensemble=ensemble).to(device)
         elif args.imle_configs.model == 'planetoid_gcn':
             emb_model = GCN_Embed(num_convlayers=args.imle_configs.emb_num_layer,
                                   in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
