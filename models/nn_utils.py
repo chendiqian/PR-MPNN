@@ -44,7 +44,7 @@ class MLP(torch.nn.Module):
         num_layers = len(hidden_dims) - 1
         modules = []
         for i in range(num_layers):
-            modules.append(torch.nn.Linear(hidden_dims[i], hidden_dims[i + 1]))
+            modules.append(torch.nn.Linear(hidden_dims[i], hidden_dims[i + 1], bias=i < num_layers - 1))
             if norm and i < num_layers - 1:
                 modules.append(torch.nn.BatchNorm1d(hidden_dims[i + 1]))
             if i < num_layers - 1:
