@@ -53,7 +53,7 @@ class LinearEmbed(torch.nn.Module):
                         BN(hid_size),
                         ReLU(),
                     ),
-                    bond_encoder=MLP([hid_size, hid_size, hid_size], norm=False, dropout=dropout),))
+                    bond_encoder=MLP([hid_size, hid_size, hid_size], dropout=dropout),))
             # don't regularize these params
             self.p_list.append({'params': self.gnn[-1].parameters(), 'weight_decay': 0.})
 
@@ -64,7 +64,7 @@ class LinearEmbed(torch.nn.Module):
             mlp_in_size += hid_size
             self.spd_encoder = Linear(1, hid_size)
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
-                       norm=use_bn, dropout=dropout)
+                       batch_norm=use_bn, dropout=dropout)
         # don't regularize these params
         self.p_list.append({'params': list(self.mlp.parameters())[:-1], 'weight_decay': 0.})
         # regularize these params

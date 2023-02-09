@@ -38,15 +38,22 @@ class OneHot(torch.nn.Module):
 
 
 class MLP(torch.nn.Module):
-    def __init__(self, hidden_dims: List, norm: bool, dropout: float = 0.5):
+    def __init__(self, hidden_dims: List,
+                 batch_norm: bool = False,
+                 layer_norm: bool = False,
+                 dropout: float = 0.5):
         super(MLP, self).__init__()
+
+        assert not (batch_norm and layer_norm)   # cannot be both true
 
         num_layers = len(hidden_dims) - 1
         modules = []
         for i in range(num_layers):
             modules.append(torch.nn.Linear(hidden_dims[i], hidden_dims[i + 1], bias=i < num_layers - 1))
-            if norm and i < num_layers - 1:
+            if batch_norm and i < num_layers - 1:
                 modules.append(torch.nn.BatchNorm1d(hidden_dims[i + 1]))
+            if layer_norm and i < num_layers - 1:
+                modules.append(torch.nn.LayerNorm(hidden_dims[i + 1]))
             if i < num_layers - 1:
                 modules.append(torch.nn.ReLU())
                 modules.append(torch.nn.Dropout(p=dropout))

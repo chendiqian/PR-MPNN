@@ -11,10 +11,10 @@ class PlanetoidGIN(torch.nn.Module):
     def __init__(self, num_convlayers, in_features, hid, num_classes, dropout, aggr=None):
         super(PlanetoidGIN, self).__init__()
 
-        self.gc = torch.nn.ModuleList([GINConv(hid, MLP([in_features, hid], norm=False, dropout=0.))])
+        self.gc = torch.nn.ModuleList([GINConv(hid, MLP([in_features, hid], dropout=0.))])
         for l in range(num_convlayers - 2):
-            self.gc.append(GINConv(hid, MLP([hid, hid], norm=False, dropout=0.)))
-        self.gc.append(GINConv(hid, MLP([hid, num_classes], norm=False, dropout=0.)))
+            self.gc.append(GINConv(hid, MLP([hid, hid], dropout=0.)))
+        self.gc.append(GINConv(hid, MLP([hid, num_classes], dropout=0.)))
 
         self.dropout = dropout
 

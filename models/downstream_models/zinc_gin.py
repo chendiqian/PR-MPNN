@@ -21,7 +21,7 @@ class BaseGIN(torch.nn.Module):
                 BN(hidden),
                 ReLU(),
             ),
-            bond_encoder=MLP([edge_features, in_features, in_features], dropout=0., norm=False),
+            bond_encoder=MLP([edge_features, in_features, in_features], dropout=0.,),
         )
 
         self.convs = torch.nn.ModuleList()
@@ -36,7 +36,7 @@ class BaseGIN(torch.nn.Module):
                         BN(hidden),
                         ReLU(),
                     ),
-                    bond_encoder=MLP([edge_features, hidden, hidden], norm=False, dropout=0.),)
+                    bond_encoder=MLP([edge_features, hidden, hidden], dropout=0.),)
                 )
 
     def reset_parameters(self):
@@ -79,7 +79,7 @@ class ZINC_GIN_Outer(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        self.mlp = MLP([hidden, hidden, hidden, num_classes], norm=False, dropout=0.)
+        self.mlp = MLP([hidden, hidden, hidden, num_classes], dropout=0.)
 
     def reset_parameters(self):
         if self.atom_encoder is not None:
