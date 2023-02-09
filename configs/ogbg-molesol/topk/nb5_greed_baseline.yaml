@@ -5,38 +5,25 @@ fixed:
   sample_configs:
     sample_policy: graph_topk
     subgraph2node_aggr: mean
-    sample_k: 10
+    sample_k: 5
     ensemble: 1
     # for inner model
     inner_layer: 3
     extra_dim: [300, 300]  # data.x || subgraph_emb
 
-  imle_configs:
-    emb_edge: False
-    emb_spd: False
-
-    emb_hid_size: 64
-    gnn_layer: 3
-    mlp_layer: 3
-    dropout: 0.5
-    embd_lr: 1.e-3
-    reg_embd: 0.01
-    bn: True
-    micro_batch_embd: 1
-    noise_scale: 1.
-    beta: 10.
+  imle_configs: null
 
   model: ogb_gin
   dropout: 0.5
   hid_size: 300
   lr: 1.e-3
-  lr_steps: [ 200, ]
+  lr_steps: [ 10000, ]
   patience: 100
   reg: 0.
   num_convlayers: 5
   batch_size: 32
-  min_epochs: 300
-  max_epochs: 400
+  min_epochs: 100
+  max_epochs: 300
   data_path: './datasets'
   debug: False
   num_runs: 5
