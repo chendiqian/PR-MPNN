@@ -28,6 +28,8 @@ class LinearEmbed(torch.nn.Module):
         self.emb_edge = emb_edge
         self.emb_spd = emb_spd
 
+        self.p_list = []
+
         if use_ogb_encoder:
             self.atom_encoder = AtomEncoder(emb_dim=hid_size)
             self.bond_encoder = BondEncoder(emb_dim=hid_size)
@@ -35,7 +37,14 @@ class LinearEmbed(torch.nn.Module):
             self.atom_encoder = Linear(in_features, hid_size)
             self.bond_encoder = Linear(edge_features, hid_size)
 
-        self.gnn = torch.nn.ModuleList([GINEConv(
+        # don't regularize these params
+        self.p_list.append({'params': self.atom_encoder.parameters(), 'weight_decay': 0.})
+        self.p_list.append({'params': self.bond_encoder.parameters(), 'weight_decay': 0.})
+
+        self.gnn = torch.nn.ModuleList()
+
+        for _ in range(gnn_layer):
+            self.gnn.append(GINEConv(
                     hid_size,
                     Sequential(
                         Linear(hid_size, hid_size),
@@ -44,8 +53,9 @@ class LinearEmbed(torch.nn.Module):
                         BN(hid_size),
                         ReLU(),
                     ),
-                    bond_encoder=MLP([hid_size, hid_size, hid_size], norm=False, dropout=dropout),)
-                for _ in range(gnn_layer)])
+                    bond_encoder=MLP([hid_size, hid_size, hid_size], norm=False, dropout=dropout),))
+            # don't regularize these params
+            self.p_list.append({'params': self.gnn[-1].parameters(), 'weight_decay': 0.})
 
         mlp_in_size = hid_size * 2
         if emb_edge:
@@ -55,6 +65,10 @@ class LinearEmbed(torch.nn.Module):
             self.spd_encoder = Linear(1, hid_size)
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
                        norm=use_bn, dropout=dropout)
+        # don't regularize these params
+        self.p_list.append({'params': list(self.mlp.parameters())[:-1], 'weight_decay': 0.})
+        # regularize these params
+        self.p_list.append({'params': list(self.mlp.parameters())[-1],})
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
