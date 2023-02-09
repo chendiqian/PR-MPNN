@@ -110,7 +110,7 @@ def run(fixed):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(zip(train_loaders, val_loaders, test_loaders)):
             if emb_model is not None:
                 emb_model.reset_parameters()
-                optimizer_embd = torch.optim.Adam(emb_model.parameters(),
+                optimizer_embd = torch.optim.Adam(emb_model.p_list,
                                                   lr=args.imle_configs.embd_lr,
                                                   weight_decay=args.imle_configs.reg_embd)
                 scheduler_embd = torch.optim.lr_scheduler.MultiStepLR(optimizer_embd,
@@ -149,11 +149,11 @@ def run(fixed):
                     break
 
                 logger.info(f'epoch: {epoch}, '
-                            f'training loss: {train_loss}, '
-                            f'val loss: {val_loss}, '
+                            f'training loss: {round(train_loss, 5)}, '
+                            f'val loss: {round(val_loss, 5)}, '
                             f'patience: {trainer.patience}, '
-                            f'training metric: {train_metric}, '
-                            f'val metric: {val_metric}, '
+                            f'training metric: {round(train_metric, 5)}, '
+                            f'val metric: {round(val_metric, 5)}, '
                             f'lr: {scheduler.optimizer.param_groups[0]["lr"]}')
                 writer.add_scalar('loss/training loss', train_loss, epoch)
                 writer.add_scalar('loss/val loss', val_loss, epoch)
