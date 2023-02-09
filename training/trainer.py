@@ -16,6 +16,8 @@ from subgraph.construct import (construct_imle_local_structure_subgraphs,
                                 construct_random_local_structure_subgraphs,
                                 construct_imle_subgraphs)
 from training.imle_scheme import IMLEScheme
+from training.soft_mask_scheme import softmax_all
+
 
 Optimizer = Union[torch.optim.Adam,
                   torch.optim.SGD]
@@ -27,6 +29,7 @@ Loss = torch.nn.modules.loss
 
 POLICY_GRAPH_LEVEL = ['KMaxNeighbors', 'greedy_neighbors', 'graph_topk']
 POLICY_NODE_LEVEL = ['topk']
+POLICY_SOFT_MASK = ['soft_all']
 
 
 class Trainer:
@@ -56,36 +59,52 @@ class Trainer:
         self.subgraph2node_aggr = sample_configs.subgraph2node_aggr
         self.sample_policy = sample_configs.sample_policy
         if imle_configs is not None:
+            # upstream may have micro batching
             self.micro_batch_embd = imle_configs.micro_batch_embd
-            self.imle_scheduler = IMLEScheme(sample_configs.sample_policy,
-                                             None,
-                                             None,
-                                             None,
-                                             sample_configs.sample_k,
-                                             ensemble=sample_configs.ensemble
-                                             if hasattr(sample_configs, 'ensemble') else 1)
 
-            @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
-                  noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
-                  input_noise_temperature=1.,
-                  target_noise_temperature=1.,
-                  nb_samples=1)
-            def imle_sample_scheme(logits: torch.Tensor):
-                return self.imle_scheduler.torch_sample_scheme(logits)
-            self.imle_sample_scheme = imle_sample_scheme
+            if self.sample_policy not in POLICY_SOFT_MASK:
+                self.imle_scheduler = IMLEScheme(sample_configs.sample_policy,
+                                                 None,
+                                                 None,
+                                                 None,
+                                                 sample_configs.sample_k,
+                                                 ensemble=sample_configs.ensemble
+                                                 if hasattr(sample_configs, 'ensemble') else 1)
+
+                @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
+                      noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
+                      input_noise_temperature=1.,
+                      target_noise_temperature=1.,
+                      nb_samples=1)
+                def imle_sample_scheme(logits: torch.Tensor):
+                    return self.imle_scheduler.torch_sample_scheme(logits)
+                self.imle_sample_scheme = imle_sample_scheme
+            else:
+                self.imle_scheduler = None
 
         if sample_configs.sample_policy is None:
+            # normal training
             self.construct_duplicate_data = lambda x, *args: x
         elif imle_configs is not None:
+            # N x N graph level pred, structure per node
             if self.sample_policy in POLICY_GRAPH_LEVEL:
                 self.construct_duplicate_data = self.emb_model_graph_level_pred
+            # already in subgraphs, O(N)
             elif self.sample_policy in POLICY_NODE_LEVEL:
                 self.construct_duplicate_data = self.emb_model_node_level
+            # no need IMLE, just backprop into soft masks
+            elif self.sample_policy in POLICY_SOFT_MASK:
+                self.construct_duplicate_data = self.emb_model_node_soft
+            else:
+                raise ValueError(f'{self.sample_policy} not supported')
         else:
+            # N x N graph level pred, structure per node
             if self.sample_policy in POLICY_GRAPH_LEVEL:
                 self.construct_duplicate_data = self.data_duplication
+            # already in subgraphs, O(N)
             elif self.sample_policy in POLICY_NODE_LEVEL:
                 self.construct_duplicate_data = lambda x, *args: x
+            raise ValueError(f'{self.sample_policy} not supported')
 
     def data_duplication(self, data: Union[Data, Batch], *args):
         """
@@ -157,6 +176,30 @@ class Trainer:
                                              data.y,
                                              self.subgraph2node_aggr,
                                              grad=train)
+
+        return new_batch
+
+    def emb_model_node_soft(self,
+                            data: Union[Data, Batch],
+                            emb_model: Emb_model,
+                            device: Union[torch.device, str]):
+        train = emb_model.training
+        graphs = Batch.to_data_list(data)
+
+        # Todo: consider soft mask + mask selection situations
+        logits = emb_model(data.to(device))
+
+        # need to softmax
+        logits = softmax_all(logits, data.nnodes, data.ptr if hasattr(data, 'ptr') else None)
+        data = data.to('cpu')
+
+        new_batch = construct_imle_local_structure_subgraphs(graphs,
+                                                             logits.cpu(),
+                                                             data.nnodes,
+                                                             data.batch,
+                                                             data.y,
+                                                             self.subgraph2node_aggr,
+                                                             grad=train)
 
         return new_batch
 
@@ -243,7 +286,7 @@ class Trainer:
             train_metric = train_loss
         self.curves['train_metric'].append(train_metric)
 
-        if emb_model is not None:
+        if self.imle_scheduler is not None:
             del self.imle_scheduler.graphs
             del self.imle_scheduler.ptr
 
@@ -322,7 +365,7 @@ class Trainer:
                 if self.patience > self.max_patience:
                     early_stop = True
 
-        if emb_model is not None:
+        if self.imle_scheduler is not None:
             del self.imle_scheduler.graphs
             del self.imle_scheduler.ptr
 
