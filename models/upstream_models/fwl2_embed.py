@@ -5,7 +5,6 @@ from torch.nn import Linear, LayerNorm, ModuleList
 import torch.nn.functional as F
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import to_dense_batch
-# from torch_sparse import SparseTensor
 
 from models.my_encoder import AtomEncoder, BondEncoder
 from models.nn_utils import MLP
@@ -71,24 +70,29 @@ class Fwl2Embed(torch.nn.Module):
     def forward(self, data: Union[Data, Batch]):
         x = self.atom_encoder(data.x)
         x, real_nodes = to_dense_batch(x, data.batch)  # batchsize, Nmax, F
-        nnodes_max = x.shape[1]
+        num_graphs, nnodes_max = x.shape[:2]
         x = torch.cat((x[:, :, None, :].repeat(1, 1, nnodes_max, 1),
                        x[:, None, :, :].repeat(1, nnodes_max, 1, 1)), dim=-1)  # batchsize, Nmax, Nmax, 2F
 
+        xs = [x]
+
         if self.emb_edge:
-            # edge_attr = self.bond_encoder(data.edge_attr)
-            # emb_e = SparseTensor.from_edge_index(data.edge_index,
-            #                                      data.edge_attr,
-            #                                      sparse_sizes=(data.num_nodes, data.num_nodes),
-            #                                      is_sorted=True).to_dense()
-            # emb.append(emb_e)
-            raise NotImplementedError
+            edge_attr = self.bond_encoder(data.edge_attr)
+            num_edges = (data._slice_dict['edge_attr'][1:] - data._slice_dict['edge_attr'][:-1]).to(edge_attr.device)
+            graph_idx_mask = torch.repeat_interleave(torch.arange(num_graphs, device=edge_attr.device), num_edges)  # [0, 0, 0, 1, 1, 1, 2, 2, 2, ... batchsize - 1, ..]
+            edge_index_rel = torch.repeat_interleave(data._inc_dict['edge_index'].to(edge_attr.device), num_edges)
+            local_edge_index = data.edge_index - edge_index_rel
+            edge_embeddings = torch.zeros(num_graphs, nnodes_max, nnodes_max, edge_attr.shape[-1], dtype=torch.float, device=edge_attr.device)
+            edge_embeddings[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = edge_attr
+            xs.append(edge_embeddings)
 
         if self.emb_spd:
-            # spd = data.g_dist_mat[idx[0], idx_no_acum[1]]
-            # emb.append(self.spd_encoder(spd[:, None]))
-            raise NotImplementedError
+            spd_mat, _ = to_dense_batch(data.g_dist_mat, data.batch)   # batchsize, Nmax, max_node_dataset
+            spd_mat = spd_mat[..., :nnodes_max][..., None]   # batchsize, Nmax, Nmax, 1
+            spd_mat = self.spd_encoder(spd_mat)
+            xs.append(spd_mat)
 
+        x = torch.cat(xs, dim=-1)
         for i, fwl in enumerate(self.fwl):
             x = torch.einsum('bijl,bjkl->bikl', x, x)
             x = torch.cat([x, x], dim=-1)

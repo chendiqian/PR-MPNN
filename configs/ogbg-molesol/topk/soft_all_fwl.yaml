@@ -13,8 +13,8 @@ fixed:
 
   imle_configs:
     model: 'fwl'
-    emb_edge: False
-    emb_spd: False
+    emb_edge: True
+    emb_spd: True
 
     emb_hid_size: 64
     gnn_layer: 3
@@ -22,7 +22,7 @@ fixed:
     dropout: 0.
     embd_lr: 1.e-3
     reg_embd: 0.
-    bn: True
+    bn: True  # MUST NEEDED!!!!
     micro_batch_embd: 1
     noise_scale: null
     beta: null
