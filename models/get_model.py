@@ -28,7 +28,7 @@ def get_model(args, device, *_args):
             drop_ratio=args.dropout,
             subgraph2node_aggr=args.sample_configs.subgraph2node_aggr,
         )
-        model = BindModel(inner_model, outer_model).to(device)
+        model = BindModel(inner_model, outer_model)
     elif args.model.lower() == 'zinc_gin':
         outer_model = ZINC_GIN_Outer(in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
                                      edge_features=DATASET_FEATURE_STAT_DICT['zinc']['edge'],
@@ -41,21 +41,21 @@ def get_model(args, device, *_args):
                                      num_layers=args.sample_configs.inner_layer,
                                      hidden=args.hid_size,
                                      subgraph2node_aggr=args.sample_configs.subgraph2node_aggr, )
-        model = BindModel(inner_model, outer_model).to(device)
+        model = BindModel(inner_model, outer_model)
     elif args.model.lower() == 'planetoid_gcn':
         model = PlanetoidGCN(num_convlayers=args.num_convlayers,
                              in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
                              hid=args.hid_size,
                              num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
                              dropout=args.dropout,
-                             aggr=args.sample_configs.subgraph2node_aggr).to(device)
+                             aggr=args.sample_configs.subgraph2node_aggr)
     elif args.model.lower() == 'planetoid_gin':
         model = PlanetoidGIN(num_convlayers=args.num_convlayers,
                              in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
                              hid=args.hid_size,
                              num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
                              dropout=args.dropout,
-                             aggr=args.sample_configs.subgraph2node_aggr).to(device)
+                             aggr=args.sample_configs.subgraph2node_aggr)
     else:
         raise NotImplementedError
 
@@ -75,13 +75,13 @@ def get_model(args, device, *_args):
                 ensemble=ensemble,
                 use_bn=args.imle_configs.bn,
                 use_ogb_encoder=args.dataset.lower().startswith('ogb')
-            ).to(device)
+            )
         elif args.imle_configs.model == 'planetoid_gcn':
             emb_model = GCN_Embed(num_convlayers=args.imle_configs.emb_num_layer,
                                   in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                                   hid=args.imle_configs.emb_hid_size,
                                   num_classes=args.sample_configs.ensemble,
-                                  dropout=args.imle_configs.dropout).to(device)
+                                  dropout=args.imle_configs.dropout)
         elif args.imle_configs.model == 'fwl':
             emb_model = Fwl2Embed(
                 in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
@@ -100,4 +100,4 @@ def get_model(args, device, *_args):
     else:
         emb_model = None
 
-    return model, emb_model
+    return model.to(device), emb_model.to(device) if emb_model is not None else None
