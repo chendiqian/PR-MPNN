@@ -23,6 +23,7 @@ MAX_NUM_NODE_DICT = {
     'zinc': 37,
     'zinc_full': 38,
     'ogbg-molesol': 55,
+    'ogbg-molbace': 97,
 }
 
 TASK_TYPE_DICT = {
