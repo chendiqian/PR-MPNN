@@ -58,6 +58,7 @@ class Trainer:
 
         self.subgraph2node_aggr = sample_configs.subgraph2node_aggr
         self.sample_policy = sample_configs.sample_policy
+        self.imle_scheduler = None
         if imle_configs is not None:
             # upstream may have micro batching
             self.micro_batch_embd = imle_configs.micro_batch_embd
@@ -79,8 +80,6 @@ class Trainer:
                 def imle_sample_scheme(logits: torch.Tensor):
                     return self.imle_scheduler.torch_sample_scheme(logits)
                 self.imle_sample_scheme = imle_sample_scheme
-            else:
-                self.imle_scheduler = None
 
         if sample_configs.sample_policy is None:
             # normal training
