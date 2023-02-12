@@ -154,7 +154,7 @@ def run(fixed):
                             f'patience: {trainer.patience}, '
                             f'training metric: {round(train_metric, 5)}, '
                             f'val metric: {round(val_metric, 5)}, '
-                            f'lr: {round(scheduler.optimizer.param_groups[0]["lr"])}')
+                            f'lr: {round(scheduler.optimizer.param_groups[0]["lr"], 5)}')
                 writer.add_scalar('loss/training loss', train_loss, epoch)
                 writer.add_scalar('loss/val loss', val_loss, epoch)
                 writer.add_scalar('metric/training metric', train_metric, epoch)
