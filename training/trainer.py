@@ -1,5 +1,6 @@
 import os
 import pickle
+from functools import partial
 from collections import defaultdict
 from typing import Union, Optional, Any
 from ml_collections import ConfigDict
@@ -16,7 +17,7 @@ from subgraph.construct import (construct_imle_local_structure_subgraphs,
                                 construct_random_local_structure_subgraphs,
                                 construct_imle_subgraphs)
 from training.imle_scheme import IMLEScheme
-from training.soft_mask_scheme import softmax_all
+from training.soft_mask_scheme import softmax_all, softmax_topk
 
 
 Optimizer = Union[torch.optim.Adam,
@@ -29,7 +30,7 @@ Loss = torch.nn.modules.loss
 
 POLICY_GRAPH_LEVEL = ['KMaxNeighbors', 'greedy_neighbors', 'graph_topk']
 POLICY_NODE_LEVEL = ['topk']
-POLICY_SOFT_MASK = ['soft_all']
+POLICY_SOFT_MASK = ['soft_all', 'soft_topk']
 
 
 class Trainer:
@@ -92,8 +93,10 @@ class Trainer:
             elif self.sample_policy in POLICY_NODE_LEVEL:
                 self.construct_duplicate_data = self.emb_model_node_level
             # no need IMLE, just backprop into soft masks
-            elif self.sample_policy in POLICY_SOFT_MASK:
-                self.construct_duplicate_data = self.emb_model_node_soft
+            elif self.sample_policy == 'soft_all':
+                self.construct_duplicate_data = self.emb_model_node_soft_all
+            elif self.sample_policy == 'soft_topk':
+                self.construct_duplicate_data = partial(self.emb_model_node_soft_topk, k=sample_configs.sample_k)
             else:
                 raise ValueError(f'{self.sample_policy} not supported')
         else:
@@ -178,18 +181,41 @@ class Trainer:
 
         return new_batch
 
-    def emb_model_node_soft(self,
-                            data: Union[Data, Batch],
-                            emb_model: Emb_model,
-                            device: Union[torch.device, str]):
+    def emb_model_node_soft_all(self,
+                                data: Union[Data, Batch],
+                                emb_model: Emb_model,
+                                device: Union[torch.device, str]):
         train = emb_model.training
         graphs = Batch.to_data_list(data)
 
-        # Todo: consider soft mask + mask selection situations
         logits = emb_model(data.to(device))
 
         # need to softmax
         logits = softmax_all(logits, data.nnodes, data.ptr if hasattr(data, 'ptr') else None)
+        data = data.to('cpu')
+
+        new_batch = construct_imle_local_structure_subgraphs(graphs,
+                                                             logits.cpu(),
+                                                             data.nnodes,
+                                                             data.batch,
+                                                             data.y,
+                                                             self.subgraph2node_aggr,
+                                                             grad=train)
+
+        return new_batch
+
+    def emb_model_node_soft_topk(self,
+                                 data: Union[Data, Batch],
+                                 emb_model: Emb_model,
+                                 device: Union[torch.device, str],
+                                 k: int = 1):
+        train = emb_model.training
+        graphs = Batch.to_data_list(data)
+
+        logits = emb_model(data.to(device))
+
+        # need to softmax
+        logits = softmax_topk(logits, data.nnodes, k, training=train)
         data = data.to('cpu')
 
         new_batch = construct_imle_local_structure_subgraphs(graphs,
