@@ -48,7 +48,7 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
     if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
         extra_path += 'SPDaug_'
-    if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_spd:
+    if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
         extra_path += 'PPRaug_'
     if args.sample_configs.sample_policy in ['khop']:
         extra_path += args.sample_configs.sample_policy + '_' + str(args.sample_configs.sample_k) + '_'
