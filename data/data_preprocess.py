@@ -10,6 +10,7 @@ from torch_geometric.data import Data
 from torch_geometric.data.collate import collate
 from torch_geometric.utils import is_undirected, to_undirected, add_remaining_self_loops, \
     coalesce, subgraph as pyg_subgraph
+from torch_sparse import SparseTensor
 
 from subgraph.greedy_expand import greedy_grow_tree
 from subgraph.khop_subgraph import parallel_khop_neighbor
@@ -159,6 +160,34 @@ class AugmentWithShortedPathDistance(GraphModification):
         g_dist_mat /= g_dist_mat.max() + 1
 
         graph.g_dist_mat = g_dist_mat
+        return graph
+
+
+class AugmentWithPPR(GraphModification):
+    def __init__(self, max_num_nodes, alpha = 0.2, iters = 20):
+        super(AugmentWithPPR, self).__init__()
+        self.max_num_nodes = max_num_nodes
+        self.alpha = alpha
+        self.iters = iters
+
+    def __call__(self, graph: Data):
+        assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
+        adj = SparseTensor.from_edge_index(graph.edge_index).to_dense()
+        deg = adj.sum(0)
+
+        deg_inv_sqrt = deg.pow_(-0.5)
+        deg_inv_sqrt.masked_fill_(deg_inv_sqrt == float('inf'), 0.)
+        adj = adj * deg_inv_sqrt.reshape(-1, 1) * deg_inv_sqrt.view(1, -1)
+
+        r = torch.eye(graph.num_nodes, dtype=torch.float)
+        topics = torch.eye(graph.num_nodes, dtype=torch.float)
+
+        for i in range(self.iters):
+            r = (1 - self.alpha) * adj @ r + self.alpha * topics
+
+        ppr_mat = torch.zeros(graph.num_nodes, self.max_num_nodes, dtype=torch.float)
+        ppr_mat[:, :graph.num_nodes] = r
+        graph.ppr_mat = ppr_mat
         return graph
 
 

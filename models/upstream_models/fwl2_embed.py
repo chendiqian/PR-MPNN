@@ -17,8 +17,9 @@ class Fwl2Embed(torch.nn.Module):
                  fwl_layer,
                  mlp_layer,
                  dropout=0.5,
-                 emb_edge=True,
+                 emb_edge=False,
                  emb_spd=False,
+                 emb_ppr=False,
                  ensemble=1,
                  use_norm=False,
                  use_ogb_encoder=True):
@@ -26,6 +27,7 @@ class Fwl2Embed(torch.nn.Module):
 
         self.emb_edge = emb_edge
         self.emb_spd = emb_spd
+        self.emb_ppr = emb_ppr
         self.dropout = dropout
 
         self.p_list = []
@@ -48,6 +50,9 @@ class Fwl2Embed(torch.nn.Module):
         if emb_spd:
             fwl_in_size += hid_size
             self.spd_encoder = Linear(1, hid_size)
+        if emb_ppr:
+            fwl_in_size += hid_size
+            self.ppr_encoder = Linear(1, hid_size)
 
         self.fwl = ModuleList([Linear(2 * fwl_in_size, hid_size)])
         for i in range(fwl_layer - 1):
@@ -92,6 +97,12 @@ class Fwl2Embed(torch.nn.Module):
             spd_mat = self.spd_encoder(spd_mat)
             xs.append(spd_mat)
 
+        if self.emb_ppr:
+            ppr_mat, _ = to_dense_batch(data.ppr_mat, data.batch)  # batchsize, Nmax, max_node_dataset
+            ppr_mat = ppr_mat[..., :nnodes_max][..., None]  # batchsize, Nmax, Nmax, 1
+            ppr_mat = self.ppr_encoder(ppr_mat)
+            xs.append(ppr_mat)
+
         x = torch.cat(xs, dim=-1)
         for i, fwl in enumerate(self.fwl):
             x = torch.einsum('bijl,bjkl->bikl', x, x)
@@ -117,3 +128,5 @@ class Fwl2Embed(torch.nn.Module):
                 n.reset_parameters()
         if self.emb_spd:
             self.spd_encoder.reset_parameters()
+        if self.emb_ppr:
+            self.ppr_encoder.reset_parameters()

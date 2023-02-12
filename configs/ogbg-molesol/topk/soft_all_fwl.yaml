@@ -13,8 +13,9 @@ fixed:
 
   imle_configs:
     model: 'fwl'
-    emb_edge: True
-    emb_spd: True
+    emb_edge: False
+    emb_spd: False
+    emb_ppr: True
 
     emb_hid_size: 64
     gnn_layer: 3

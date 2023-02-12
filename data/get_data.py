@@ -17,6 +17,7 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop,
                               AugmentWithShortedPathDistance,
+                              AugmentWithPPR,
                               AugmentWithRandomKNeighbors,
                               AugmentWithKhopMasks,
                               RandomSampleTopk
@@ -36,6 +37,7 @@ PRETRANSFORM_PRIORITY = {
     AugmentwithNNodes: 0,  # low
     GraphAttrToOneHot: 0,  # low
     AugmentWithShortedPathDistance: 98,
+    AugmentWithPPR: 98,
     AugmentWithRandomKNeighbors: 0,
     AugmentWithKhopMasks: 0,
     RandomSampleTopk: 0,
@@ -46,6 +48,8 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
     if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
         extra_path += 'SPDaug_'
+    if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_spd:
+        extra_path += 'PPRaug_'
     if args.sample_configs.sample_policy in ['khop']:
         extra_path += args.sample_configs.sample_policy + '_' + str(args.sample_configs.sample_k) + '_'
     return extra_path if len(extra_path) else None
@@ -77,6 +81,9 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
 
     if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
         pretransform.append(AugmentWithShortedPathDistance(MAX_NUM_NODE_DICT[args.dataset.lower()]))
+
+    if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
+        pretransform.append(AugmentWithPPR(MAX_NUM_NODE_DICT[args.dataset.lower()]))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)
