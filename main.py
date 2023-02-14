@@ -48,9 +48,11 @@ def naming(args) -> str:
 
         name += 'encoding_'
         if args.imle_configs.emb_edge:
-            name += 'edge_'
+            name += '+edge'
         if args.imle_configs.emb_spd:
-            name += 'spd_'
+            name += '+spd'
+        if args.imle_configs.emb_ppr:
+            name += '+ppr'
     else:
         name += 'OnTheFly_'
 
