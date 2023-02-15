@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import pickle
 import shutil
 from typing import Callable, List, Optional
 
@@ -7,7 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 from ogb.io.read_graph_pyg import read_graph_pyg
-from ogb.utils.url import decide_download, download_url, extract_zip
+from ogb.utils.url import decide_download, extract_zip
 from torch_geometric.data import InMemoryDataset, download_url, Data
 from torch_geometric.io import read_planetoid_data
 from torch_geometric.utils import subgraph
@@ -330,3 +331,61 @@ class MyPygNodePropPredDataset(InMemoryDataset):
 
             pbar.close()
             torch.save(self.collate(data_list), osp.join(self.processed_dir, f'{sp}.pt'))
+
+
+class MyQM9(InMemoryDataset):
+    def __init__(self, root, split, transform=None, pre_transform=None):
+        self.split = split
+        self.root = root
+        assert split in ['train', 'val', 'test']
+        super().__init__(self.root, transform, pre_transform)
+
+        path = osp.join(self.processed_dir, f'{split}.pt')
+        self.data, self.slices = torch.load(path)
+
+    @property
+    def raw_dir(self) -> str:
+        return osp.join(self.root, 'raw')
+
+    @property
+    def raw_file_names(self):
+        return ['QM9_test.p', 'QM9_val.p', 'QM9_train.p']
+
+    @property
+    def processed_dir(self) -> str:
+        return osp.join(self.root, 'processed')
+
+    @property
+    def processed_file_names(self):
+        return f'{self.split}.pt'
+
+    # https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/master/utils/get_data.py
+    def download(self):
+        urls = [('https://www.dropbox.com/sh/acvh0sqgnvra53d/AAAxhVewejSl7gVMACa1tBUda/QM9_test.p?dl=1',
+                'QM9_test.p'),
+                ('https://www.dropbox.com/sh/acvh0sqgnvra53d/AAAOfEx-jGC6vvi43fh0tOq6a/QM9_val.p?dl=1',
+                'QM9_val.p'),
+                ('https://www.dropbox.com/sh/acvh0sqgnvra53d/AADtx0EMRz5fhUNXaHFipkrza/QM9_train.p?dl=1',
+                'QM9_train.p')]
+        for url, filename in urls:
+            _ = download_url(url, self.raw_dir)
+
+    def process(self):
+        data_list = []
+
+        with open(osp.join(self.raw_dir, f'QM9_{self.split}.p'), 'rb') as f:
+            data = pickle.load(f)
+
+        for g in tqdm(data):
+            pyg_data = Data(x=torch.from_numpy(g['usable_features']['x']),
+                            y=torch.from_numpy(g['y']),
+                            edge_index=torch.from_numpy(
+                                g['original_features']['edge_index']),
+                            edge_attr=torch.from_numpy(
+                                g['original_features']['edge_attr']), )
+            if self.pre_transform is not None:
+                pyg_data = self.pre_transform(pyg_data)
+            data_list.append(pyg_data)
+
+        data, slices = self.collate(data_list)
+        torch.save((data, slices), osp.join(self.processed_dir, f'{self.split}.pt'))

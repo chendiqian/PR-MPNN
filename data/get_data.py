@@ -9,7 +9,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.transforms import Compose
 
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
-from .custom_dataset import PlanetoidKhopInductive, MyPygNodePropPredDataset
+from .custom_dataset import PlanetoidKhopInductive, MyPygNodePropPredDataset, MyQM9
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected,
                               AugmentwithNNodes,
@@ -109,6 +109,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_zinc(args)
     elif args.dataset.lower() in ['cora', 'pubmed']:
         train_set, val_set, test_set, mean, std = get_planetoid(args)
+    elif args.dataset.lower() == 'qm9':
+        train_set, val_set, test_set, mean, std = get_qm9(args)
     else:
         raise ValueError
 
@@ -303,3 +305,47 @@ def get_planetoid(args: Union[Namespace, ConfigDict]):
         test = test[:16]
 
     return train, val, test, None, None
+
+
+def get_qm9(args: Union[Namespace, ConfigDict]):
+    pre_transform = get_pretransform(args)
+    transform = get_transform(args)
+
+    datapath = os.path.join(args.data_path, 'QM9')
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
+
+    train_set = MyQM9(root=datapath,
+                      split='train',
+                      transform=transform,
+                      pre_transform=pre_transform)
+
+    val_set = MyQM9(root=datapath,
+                    split='val',
+                    transform=transform,
+                    pre_transform=pre_transform)
+
+    test_set = MyQM9(root=datapath,
+                     split='test',
+                     transform=transform,
+                     pre_transform=pre_transform)
+
+    train_set.data.y = train_set.data.y[:, 0:12]
+    val_set.data.y = val_set.data.y[:, 0:12]
+    test_set.data.y = test_set.data.y[:, 0:12]
+
+    # https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/master/data_loader/data_generator.py#L31
+    train_mean = train_set.data.y.mean(dim=0, keepdim=True)
+    train_std = train_set.data.y.std(dim=0, keepdim=True)
+
+    train_set.data.y = (train_set.data.y - train_mean) / train_std
+    val_set.data.y = (val_set.data.y - train_mean) / train_std
+    test_set.data.y = (test_set.data.y - train_mean) / train_std
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
+
+    return train_set, val_set, test_set, train_mean, train_std
