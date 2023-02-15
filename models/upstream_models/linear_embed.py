@@ -20,6 +20,7 @@ class LinearEmbed(torch.nn.Module):
                  dropout=0.5,
                  emb_edge=True,
                  emb_spd=False,
+                 emb_ppr=False,
                  ensemble=1,
                  use_bn=False,
                  use_ogb_encoder=True):
@@ -27,6 +28,7 @@ class LinearEmbed(torch.nn.Module):
 
         self.emb_edge = emb_edge
         self.emb_spd = emb_spd
+        self.emb_ppr = emb_ppr
 
         self.p_list = []
 
@@ -63,6 +65,12 @@ class LinearEmbed(torch.nn.Module):
         if emb_spd:
             mlp_in_size += hid_size
             self.spd_encoder = Linear(1, hid_size)
+            self.p_list.append({'params': self.spd_encoder.parameters(), 'weight_decay': 0.})
+        if emb_ppr:
+            mlp_in_size += hid_size
+            self.ppr_encoder = Linear(1, hid_size)
+            self.p_list.append({'params': self.ppr_encoder.parameters(), 'weight_decay': 0.})
+
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
                        batch_norm=use_bn, dropout=dropout)
         # don't regularize these params
@@ -95,6 +103,10 @@ class LinearEmbed(torch.nn.Module):
             spd = data.g_dist_mat[idx[0], idx_no_acum[1]]
             emb.append(self.spd_encoder(spd[:, None]))
 
+        if self.emb_ppr:
+            ppr = data.ppr_mat[idx[0], idx_no_acum[1]]
+            emb.append(self.ppr_encoder(ppr[:, None]))
+
         emb = torch.cat(emb, dim=-1)
         emb = self.mlp(emb)
 
@@ -108,3 +120,5 @@ class LinearEmbed(torch.nn.Module):
             gnn.reset_parameters()
         if self.emb_spd:
             self.spd_encoder.reset_parameters()
+        if self.emb_ppr:
+            self.ppr_encoder.reset_parameters()

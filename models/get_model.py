@@ -72,6 +72,7 @@ def get_model(args, device, *_args):
                 dropout=args.imle_configs.dropout,
                 emb_edge=args.imle_configs.emb_edge,
                 emb_spd=args.imle_configs.emb_spd,
+                emb_ppr=args.imle_configs.emb_ppr,
                 ensemble=ensemble,
                 use_bn=args.imle_configs.bn,
                 use_ogb_encoder=args.dataset.lower().startswith('ogb')
