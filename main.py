@@ -44,6 +44,7 @@ def naming(args) -> str:
         name += f'H{args.imle_configs.emb_hid_size}'
         name += f'L_{args.imle_configs.gnn_layer}_{args.imle_configs.mlp_layer}'
         name += f'DP{args.imle_configs.dropout}'
+        name += f'noise{args.imle_configs.noise_scale}_'
         name += f'Beta{args.imle_configs.beta}_'
 
         name += 'encoding_'
