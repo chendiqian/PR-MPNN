@@ -73,10 +73,8 @@ class LinearEmbed(torch.nn.Module):
 
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
                        batch_norm=use_bn, dropout=dropout)
-        # don't regularize these params
-        self.p_list.append({'params': list(self.mlp.parameters())[:-1], 'weight_decay': 0.})
         # regularize these params
-        self.p_list.append({'params': list(self.mlp.parameters())[-1],})
+        self.p_list.append({'params': self.mlp.parameters(),})
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
