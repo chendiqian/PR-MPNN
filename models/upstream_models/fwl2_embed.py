@@ -10,6 +10,28 @@ from models.my_encoder import AtomEncoder, BondEncoder
 from models.nn_utils import MLP
 
 
+class RegularBlock(torch.nn.Module):
+    def __init__(self, in_features, out_features, num_mlp_layers=2):
+        super().__init__()
+
+        self.mlp1 = MLP([in_features] + [out_features] * num_mlp_layers, dropout=0., activate_last=True)
+        self.mlp2 = MLP([in_features] + [out_features] * num_mlp_layers, dropout=0., activate_last=True)
+        self.skip = Linear(in_features + out_features, out_features)
+
+    def forward(self, inputs):
+        mlp1 = self.mlp1(inputs)
+        mlp2 = self.mlp2(inputs)
+        mult = torch.einsum('bijl,bjkl->bikl', mlp1, mlp2)
+
+        out = self.skip(torch.cat([inputs, mult], dim=-1))
+        return out
+
+    def reset_parameters(self):
+        self.mlp1.reset_parameters()
+        self.mlp2.reset_parameters()
+        self.skip.reset_parameters()
+
+
 class Fwl2Embed(torch.nn.Module):
     def __init__(self, in_features,
                  edge_features,
@@ -43,7 +65,7 @@ class Fwl2Embed(torch.nn.Module):
         self.p_list.append({'params': self.atom_encoder.parameters(), 'weight_decay': 0.})
         self.p_list.append({'params': self.bond_encoder.parameters(), 'weight_decay': 0.})
 
-        # 2FWL layers
+        # input head
         fwl_in_size = hid_size * 2
         if emb_edge:
             fwl_in_size += hid_size
@@ -53,24 +75,25 @@ class Fwl2Embed(torch.nn.Module):
         if emb_ppr:
             fwl_in_size += hid_size
             self.ppr_encoder = Linear(1, hid_size)
+        self.input_head = MLP([fwl_in_size, hid_size], dropout=0., layer_norm=use_norm, activate_last=True)
+        self.p_list.append({'params': self.input_head.parameters(), 'weight_decay': 0.})
 
-        self.fwl = ModuleList([Linear(2 * fwl_in_size, hid_size)])
-        for i in range(fwl_layer - 1):
-            self.fwl.append(Linear(hid_size * 2, hid_size))
-        self.p_list.append({'params': list(self.fwl.parameters()), 'weight_decay': 0.})
+        # 2-FWL layers
+        self.fwl = ModuleList([RegularBlock(hid_size, hid_size) for _ in range(fwl_layer)])
+        self.p_list.append({'params': self.fwl.parameters(), 'weight_decay': 0.})
+
+        # norm layers
         if use_norm:
             self.norms = ModuleList([LayerNorm(hid_size) for _ in range(fwl_layer)])
-            self.p_list.append({'params': list(self.norms.parameters()), 'weight_decay': 0.})
+            self.p_list.append({'params': self.norms.parameters(), 'weight_decay': 0.})
         else:
             self.norms = None
 
         # MLP layers
         self.mlp = MLP([hid_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
                        layer_norm=use_norm, dropout=dropout)
-        # don't regularize these params
-        self.p_list.append({'params': list(self.mlp.parameters())[:-1], 'weight_decay': 0.})
         # regularize these params
-        self.p_list.append({'params': list(self.mlp.parameters())[-1],})
+        self.p_list.append({'params': self.mlp.parameters(),})
 
     def forward(self, data: Union[Data, Batch]):
         x = self.atom_encoder(data.x)
@@ -104,9 +127,8 @@ class Fwl2Embed(torch.nn.Module):
             xs.append(ppr_mat)
 
         x = torch.cat(xs, dim=-1)
+        x = self.input_head(x)
         for i, fwl in enumerate(self.fwl):
-            x = torch.einsum('bijl,bjkl->bikl', x, x)
-            x = torch.cat([x, x], dim=-1)
             x = fwl(x)
             if self.norms is not None:
                 x = self.norms[i](x)
@@ -120,6 +142,7 @@ class Fwl2Embed(torch.nn.Module):
     def reset_parameters(self):
         self.atom_encoder.reset_parameters()
         self.bond_encoder.reset_parameters()
+        self.input_head.reset_parameters()
         self.mlp.reset_parameters()
         for fwl in self.fwl:
             fwl.reset_parameters()

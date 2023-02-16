@@ -41,7 +41,8 @@ class MLP(torch.nn.Module):
     def __init__(self, hidden_dims: List,
                  batch_norm: bool = False,
                  layer_norm: bool = False,
-                 dropout: float = 0.5):
+                 dropout: float = 0.5,
+                 activate_last: bool = False):
         super(MLP, self).__init__()
 
         assert not (batch_norm and layer_norm)   # cannot be both true
@@ -54,7 +55,7 @@ class MLP(torch.nn.Module):
                 modules.append(torch.nn.BatchNorm1d(hidden_dims[i + 1]))
             if layer_norm and i < num_layers - 1:
                 modules.append(torch.nn.LayerNorm(hidden_dims[i + 1]))
-            if i < num_layers - 1:
+            if i < num_layers - 1 or activate_last:
                 modules.append(torch.nn.ReLU())
                 modules.append(torch.nn.Dropout(p=dropout))
 
