@@ -13,14 +13,15 @@ fixed:
 
   imle_configs:
     emb_edge: False
-    emb_spd: False
+    emb_spd: True
+    emb_ppr: False
 
     emb_hid_size: 64
     gnn_layer: 3
     mlp_layer: 3
-    dropout: 0.5
+    dropout: 0.
     embd_lr: 1.e-3
-    reg_embd: 0.01
+    reg_embd: 0.001
     bn: True
     micro_batch_embd: 1
     noise_scale: 1.
