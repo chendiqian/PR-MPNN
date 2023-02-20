@@ -76,8 +76,7 @@ class Trainer:
                 @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
                       noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
                       input_noise_temperature=1.,
-                      target_noise_temperature=1.,
-                      nb_samples=1)
+                      target_noise_temperature=1.,)
                 def imle_sample_scheme(logits: torch.Tensor):
                     return self.imle_scheduler.torch_sample_scheme(logits)
                 self.imle_sample_scheme = imle_sample_scheme
