@@ -79,15 +79,6 @@ def construct_imle_local_structure_subgraphs(graphs: List[Union[Data, BaseData]]
     :param grad:
     :return:
     """
-
-    if not grad:
-        return construct_random_local_structure_subgraphs(graphs,
-                                                          node_mask.to(torch.bool),
-                                                          nnodes_wo_duplicate,
-                                                          batch_wo_duplicate,
-                                                          y_wo_duplicate,
-                                                          subgraph2node_aggr)
-
     subgraphs = []
     channels = node_mask.shape[-1]
     for i, g in enumerate(graphs):
@@ -96,7 +87,7 @@ def construct_imle_local_structure_subgraphs(graphs: List[Union[Data, BaseData]]
 
     new_batch = Batch.from_data_list(subgraphs)
 
-    n2e_func = Nodemask2Edgemask.apply
+    n2e_func = Nodemask2Edgemask.apply if grad else nodemask2edgemask
     new_batch.edge_weight = n2e_func(node_mask,
                                      new_batch.edge_index[:, :new_batch.edge_index.shape[1] // channels],
                                      torch.tensor(new_batch.num_nodes // channels,
