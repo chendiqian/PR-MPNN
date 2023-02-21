@@ -25,7 +25,7 @@ def get_model(args, device, *_args):
             emb_dim=args.hid_size,
             gnn_type='gin',
             virtual_node=False,
-            drop_ratio=args.dropout,
+            drop_ratio=0.,
             subgraph2node_aggr=args.sample_configs.subgraph2node_aggr,
         )
         model = BindModel(inner_model, outer_model)
