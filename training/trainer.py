@@ -5,7 +5,9 @@ from collections import defaultdict
 from typing import Union, Optional, Any
 from ml_collections import ConfigDict
 
-import torch.linalg
+import numpy as np
+import torch
+import torch.nn.functional as F
 from torch_geometric.data import Batch, Data
 
 from data.data_utils import scale_grad, AttributedDataLoader, IsBetter
@@ -32,6 +34,8 @@ POLICY_GRAPH_LEVEL = ['KMaxNeighbors', 'greedy_neighbors', 'graph_topk']
 POLICY_NODE_LEVEL = ['topk']
 POLICY_SOFT_MASK = ['soft_all', 'soft_topk']
 
+kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
+
 
 class Trainer:
     def __init__(self,
@@ -41,7 +45,8 @@ class Trainer:
                  criterion: Loss,
                  device: Union[str, torch.device],
                  imle_configs: ConfigDict,
-                 sample_configs: ConfigDict):
+                 sample_configs: ConfigDict,
+                 auxloss: float = 0.):
         super(Trainer, self).__init__()
 
         self.dataset = dataset
@@ -54,6 +59,7 @@ class Trainer:
         self.best_val_metric = None
         self.patience = 0
         self.max_patience = max_patience
+        self.auxloss = auxloss
 
         self.curves = defaultdict(list)
 
@@ -121,7 +127,7 @@ class Trainer:
                                                                data.batch,
                                                                data.y,
                                                                self.subgraph2node_aggr)
-        return new_batch
+        return new_batch, None
 
     def emb_model_graph_level_pred(self,
                                    data: Union[Data, Batch],
@@ -141,6 +147,11 @@ class Trainer:
         else:
             node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
 
+        if self.auxloss > 0 and train:
+            auxloss = self.get_aux_loss(node_mask, data.nnodes.to(device), )
+        else:
+            auxloss = None
+
         new_batch = construct_imle_local_structure_subgraphs(graphs,
                                                              node_mask.cpu(),
                                                              data.nnodes,
@@ -149,7 +160,7 @@ class Trainer:
                                                              self.subgraph2node_aggr,
                                                              grad=train)
 
-        return new_batch
+        return new_batch, auxloss
 
     def emb_model_node_level(self,
                              data: Union[Data, Batch],
@@ -178,7 +189,7 @@ class Trainer:
                                              self.subgraph2node_aggr,
                                              grad=train)
 
-        return new_batch
+        return new_batch, None
 
     def emb_model_node_soft_all(self,
                                 data: Union[Data, Batch],
@@ -201,7 +212,7 @@ class Trainer:
                                                              self.subgraph2node_aggr,
                                                              grad=train)
 
-        return new_batch
+        return new_batch, None
 
     def emb_model_node_soft_topk(self,
                                  data: Union[Data, Batch],
@@ -225,22 +236,43 @@ class Trainer:
                                                              self.subgraph2node_aggr,
                                                              grad=train)
 
-        return new_batch
+        return new_batch, None
 
-    # def get_aux_loss(self, logits: torch.Tensor, split_idx: Tuple):
-    #     """
-    #     A KL divergence version
-    #     """
-    #     targets = torch.ones(logits.shape[0], device=logits.device, dtype=torch.float32)
-    #     logits = torch.split(logits, split_idx, dim=0)
-    #     targets = torch.split(targets, split_idx, dim=0)
-    #     kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
-    #     loss = 0.
-    #     for logit, target in zip(logits, targets):
-    #         log_softmax_logits = torch.nn.LogSoftmax(dim=0)(logit.sum(1))
-    #         target = target / logit.shape[0]
-    #         loss += kl_loss(log_softmax_logits, target)
-    #     return loss * self.aux_loss_weight
+    def get_aux_loss(self, logits: torch.Tensor, nnodes: torch.Tensor, ):
+        """
+        A KL divergence version
+        """
+        ensemble = logits.shape[-1]
+        bsz = len(nnodes)
+        max_num_nodes = max(nnodes)
+        base = torch.cat([torch.arange(n, device=nnodes.device).repeat(n) for n in nnodes], dim=0)
+        rel_row = torch.cat(
+            [torch.repeat_interleave(torch.arange(n, device=nnodes.device), n) for n in nnodes],
+            dim=0) * max_num_nodes
+        rel_batch = torch.repeat_interleave(torch.arange(bsz, device=nnodes.device), nnodes ** 2) * (
+                    max_num_nodes ** 2)
+        dst = logits.new_zeros(max_num_nodes ** 2 * bsz, ensemble)
+        dst[base + rel_row + rel_batch, :] = logits
+        dst = dst.reshape(bsz, max_num_nodes, max_num_nodes, ensemble)   # batchsize * Nmax * Nmax * ensemble
+
+        # option 1: maximize pairwise KL divergence
+        # ind1, ind2 = np.triu_indices(max_num_nodes, 1)
+        # targets = dst[:, ind1, ...].reshape(-1, max_num_nodes * ensemble)
+        # logits = dst[:, ind2, ...].reshape(-1, max_num_nodes * ensemble)
+        #
+        # log_softmax_logits = F.log_softmax(logits, dim=-1)
+        # softmax_target = F.softmax(targets, dim=-1)
+        # loss = kl_loss(log_softmax_logits, softmax_target)
+        # return - loss * self.auxloss  # care the sign
+
+        # option 2: the sum distribution must be close to uniform, i.e. differently distribution
+        logits = dst.sum(1, keepdims=False).reshape(bsz, max_num_nodes * ensemble)
+        targets = logits.new_ones(logits.shape)
+
+        log_softmax_logits = F.log_softmax(logits, dim=-1)
+        softmax_target = F.softmax(targets, dim=-1)
+        loss = kl_loss(log_softmax_logits, softmax_target)
+        return loss * self.auxloss  # care the sign
 
     def train(self,
               dataloader: AttributedDataLoader,
@@ -264,7 +296,7 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
-            new_data = self.construct_duplicate_data(data, emb_model, self.device)
+            new_data, auxloss = self.construct_duplicate_data(data, emb_model, self.device)
 
             data = data.to(self.device)
             new_data = new_data.to(self.device)
@@ -274,6 +306,9 @@ class Trainer:
             is_labeled = data.y == data.y
             loss = self.criterion(pred[is_labeled], data.y[is_labeled].to(torch.float))
             train_losses += loss.detach() * data.num_graphs
+
+            if auxloss is not None:
+                loss = loss + auxloss
 
             loss.backward()
             optimizer.step()
@@ -332,7 +367,7 @@ class Trainer:
         labels = []
 
         for data in dataloader.loader:
-            new_data = self.construct_duplicate_data(data, emb_model, self.device)
+            new_data, _ = self.construct_duplicate_data(data, emb_model, self.device)
             data = data.to(self.device)
             new_data = new_data.to(self.device)
 

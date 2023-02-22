@@ -102,7 +102,8 @@ def run(fixed):
                       criterion=criterion,
                       device=device,
                       imle_configs=args.imle_configs,
-                      sample_configs=args.sample_configs)
+                      sample_configs=args.sample_configs,
+                      auxloss=args.imle_configs.auxloss)
 
     best_val_losses = [[] for _ in range(args.num_runs)]
     test_losses = [[] for _ in range(args.num_runs)]

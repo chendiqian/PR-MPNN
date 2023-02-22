@@ -31,6 +31,8 @@ fixed:
     noise_scale: 0.3
     beta: 10.
 
+    auxloss: 0.1
+
   model: ogb_gin
   dropout: 0.5
   hid_size: 300
