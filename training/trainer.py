@@ -111,7 +111,8 @@ class Trainer:
             # already in subgraphs, O(N)
             elif self.sample_policy in POLICY_NODE_LEVEL:
                 self.construct_duplicate_data = lambda x, *args: x
-            raise ValueError(f'{self.sample_policy} not supported')
+            else:
+                raise ValueError(f'{self.sample_policy} not supported')
 
     def data_duplication(self, data: Union[Data, Batch], *args):
         """
