@@ -47,6 +47,7 @@ def naming(args) -> str:
         name += f'noise{args.imle_configs.noise_scale}'
         name += f'Beta{args.imle_configs.beta}'
         name += f'upreg{args.imle_configs.reg_embd}'
+        name += f'aux{args.imle_configs.auxloss}'
 
         name += 'encoding_'
         if args.imle_configs.emb_edge:
