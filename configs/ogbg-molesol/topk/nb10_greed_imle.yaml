@@ -31,7 +31,7 @@ fixed:
     noise_scale: 0.3
     beta: 10.
 
-    auxloss: 0.1
+    auxloss: 0.01
 
   model: ogb_gin
   dropout: 0.5
