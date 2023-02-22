@@ -70,4 +70,4 @@ def nodemask2edgemask(mask: torch.Tensor, edge_index: torch.Tensor, placeholder=
     :param placeholder:
     :return:
     """
-    return mask[edge_index[0], :] * mask[edge_index[1], :]
+    return mask[edge_index[0]] * mask[edge_index[1]]
