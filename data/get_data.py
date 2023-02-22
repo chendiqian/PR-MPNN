@@ -20,7 +20,8 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPPR,
                               AugmentWithRandomKNeighbors,
                               AugmentWithKhopMasks,
-                              RandomSampleTopk
+                              RandomSampleTopk,
+                              AugmentFullGraphsPerNode
                               )
 from .data_utils import AttributedDataLoader
 
@@ -58,7 +59,7 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
 def get_transform(args: Union[Namespace, ConfigDict]):
     # I-MLE training does not require transform, instead the masks are given by upstream + I-MLE
     if args.imle_configs is not None:
-        return None
+        return AugmentFullGraphsPerNode(args.sample_configs.ensemble)
     # normal training
     elif args.sample_configs.sample_policy is None:
         return None

@@ -2,7 +2,7 @@ import os
 import pickle
 from functools import partial
 from collections import defaultdict
-from typing import Union, Optional, Any
+from typing import Union, Optional, Any, Sequence
 from ml_collections import ConfigDict
 
 import numpy as np
@@ -16,10 +16,9 @@ from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
 from subgraph.construct import (construct_imle_local_structure_subgraphs,
-                                construct_random_local_structure_subgraphs,
                                 construct_imle_subgraphs)
 from training.imle_scheme import IMLEScheme
-from training.soft_mask_scheme import softmax_all, softmax_topk
+# from training.soft_mask_scheme import softmax_all, softmax_topk
 
 
 Optimizer = Union[torch.optim.Adam,
@@ -89,7 +88,7 @@ class Trainer:
 
         if sample_configs.sample_policy is None:
             # normal training
-            self.construct_duplicate_data = lambda x, *args: x
+            self.construct_duplicate_data = lambda x, *args: (x, x, None)
         elif imle_configs is not None:
             # N x N graph level pred, structure per node
             if self.sample_policy in POLICY_GRAPH_LEVEL:
@@ -114,34 +113,40 @@ class Trainer:
             else:
                 raise ValueError(f'{self.sample_policy} not supported')
 
-    def data_duplication(self, data: Union[Data, Batch], *args):
+
+    def data_duplication(self, data: Sequence, *args):
         """
-        For random sampling, graphs already have node_mask, but not other attributes
+        For random sampling, we already have (graphs, sampled graphs)
+        In this function we shift the subgraphs2nodes idx with bias, so that the sampled graphs
+        aggregate to the correct nodes
 
         :param data:
         :return:
         """
-        graphs = Batch.to_data_list(data)
-        new_batch = construct_random_local_structure_subgraphs(graphs,
-                                                               data.node_mask,
-                                                               data.nnodes,
-                                                               data.batch,
-                                                               data.y,
-                                                               self.subgraph2node_aggr)
-        return new_batch, None
+        assert isinstance(data, (tuple, list)), "Should be [Original graph, batch of sample graphs]"
+        graph, sampled_graphs = data
+        graph, sampled_graphs = graph.to(self.device), sampled_graphs.to(self.device)
+
+        # the "subgraphs2nodes" is like (000 111 222) * ensemble, (0000 1111 2222) * ensemble
+        bias = torch.repeat_interleave(graph.ptr[:-1], sampled_graphs.ptr[1:] - sampled_graphs.ptr[:-1])
+        sampled_graphs.subgraphs2nodes += bias
+
+        return graph, sampled_graphs, None
 
     def emb_model_graph_level_pred(self,
-                                   data: Union[Data, Batch],
-                                   emb_model: Emb_model,
-                                   device: Union[torch.device, str]):
+                                   data: Sequence,
+                                   emb_model: Emb_model,):
+        assert isinstance(data, (tuple, list)), "Should be [Original graph, batch of sample graphs]"
+
+        graph, sampled_graphs = data
+        graph, sampled_graphs = graph.to(self.device), sampled_graphs.to(self.device)
+
         train = emb_model.training
-        graphs = Batch.to_data_list(data)
 
-        logits = emb_model(data.to(device))
-        data = data.to('cpu')
+        logits = emb_model(graph)
 
-        self.imle_scheduler.graphs = graphs
-        self.imle_scheduler.ptr = tuple((data.nnodes ** 2).tolist())  # per node has a subg
+        self.imle_scheduler.graphs = Batch.to_data_list(graph)
+        self.imle_scheduler.ptr = tuple((graph.nnodes ** 2).cpu().tolist())  # per node has a subg
 
         if train:
             node_mask, _ = self.imle_sample_scheme(logits)
@@ -149,19 +154,17 @@ class Trainer:
             node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
 
         if self.auxloss > 0 and train:
-            auxloss = self.get_aux_loss(node_mask, data.nnodes.to(device), )
+            auxloss = self.get_aux_loss(node_mask, graph.nnodes, )
         else:
             auxloss = None
 
-        new_batch = construct_imle_local_structure_subgraphs(graphs,
-                                                             node_mask.cpu(),
-                                                             data.nnodes,
-                                                             data.batch,
-                                                             data.y,
+        new_batch = construct_imle_local_structure_subgraphs(graph,
+                                                             sampled_graphs,
+                                                             node_mask,
                                                              self.subgraph2node_aggr,
                                                              grad=train)
 
-        return new_batch, auxloss
+        return graph, new_batch, auxloss
 
     def emb_model_node_level(self,
                              data: Union[Data, Batch],
@@ -196,48 +199,50 @@ class Trainer:
                                 data: Union[Data, Batch],
                                 emb_model: Emb_model,
                                 device: Union[torch.device, str]):
-        train = emb_model.training
-        graphs = Batch.to_data_list(data)
-
-        logits = emb_model(data.to(device))
-
-        # need to softmax
-        logits = softmax_all(logits, data.nnodes, data.ptr if hasattr(data, 'ptr') else None)
-        data = data.to('cpu')
-
-        new_batch = construct_imle_local_structure_subgraphs(graphs,
-                                                             logits.cpu(),
-                                                             data.nnodes,
-                                                             data.batch,
-                                                             data.y,
-                                                             self.subgraph2node_aggr,
-                                                             grad=train)
-
-        return new_batch, None
+        # train = emb_model.training
+        # graphs = Batch.to_data_list(data)
+        #
+        # logits = emb_model(data.to(device))
+        #
+        # # need to softmax
+        # logits = softmax_all(logits, data.nnodes, data.ptr if hasattr(data, 'ptr') else None)
+        # data = data.to('cpu')
+        #
+        # new_batch = construct_imle_local_structure_subgraphs(graphs,
+        #                                                      logits.cpu(),
+        #                                                      data.nnodes,
+        #                                                      data.batch,
+        #                                                      data.y,
+        #                                                      self.subgraph2node_aggr,
+        #                                                      grad=train)
+        #
+        # return new_batch, None
+        raise NotImplementedError
 
     def emb_model_node_soft_topk(self,
                                  data: Union[Data, Batch],
                                  emb_model: Emb_model,
                                  device: Union[torch.device, str],
                                  k: int = 1):
-        train = emb_model.training
-        graphs = Batch.to_data_list(data)
-
-        logits = emb_model(data.to(device))
-
-        # need to softmax
-        logits = softmax_topk(logits, data.nnodes, k, training=train)
-        data = data.to('cpu')
-
-        new_batch = construct_imle_local_structure_subgraphs(graphs,
-                                                             logits.cpu(),
-                                                             data.nnodes,
-                                                             data.batch,
-                                                             data.y,
-                                                             self.subgraph2node_aggr,
-                                                             grad=train)
-
-        return new_batch, None
+        # train = emb_model.training
+        # graphs = Batch.to_data_list(data)
+        #
+        # logits = emb_model(data.to(device))
+        #
+        # # need to softmax
+        # logits = softmax_topk(logits, data.nnodes, k, training=train)
+        # data = data.to('cpu')
+        #
+        # new_batch = construct_imle_local_structure_subgraphs(graphs,
+        #                                                      logits.cpu(),
+        #                                                      data.nnodes,
+        #                                                      data.batch,
+        #                                                      data.y,
+        #                                                      self.subgraph2node_aggr,
+        #                                                      grad=train)
+        #
+        # return new_batch, None
+        raise NotImplementedError
 
     def get_aux_loss(self, logits: torch.Tensor, nnodes: torch.Tensor, ):
         """
@@ -297,10 +302,7 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
-            new_data, auxloss = self.construct_duplicate_data(data, emb_model, self.device)
-
-            data = data.to(self.device)
-            new_data = new_data.to(self.device)
+            data, new_data, auxloss = self.construct_duplicate_data(data, emb_model)
 
             pred = model(new_data, data)
 
@@ -368,9 +370,7 @@ class Trainer:
         labels = []
 
         for data in dataloader.loader:
-            new_data, _ = self.construct_duplicate_data(data, emb_model, self.device)
-            data = data.to(self.device)
-            new_data = new_data.to(self.device)
+            data, new_data, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(new_data, data)
 

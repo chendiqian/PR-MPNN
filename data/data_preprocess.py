@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import shortest_path
-from torch_geometric.data import Data
+from torch_geometric.data import Data, Batch
 from torch_geometric.data.collate import collate
 from torch_geometric.utils import is_undirected, to_undirected, add_remaining_self_loops, \
     coalesce, subgraph as pyg_subgraph
@@ -257,22 +257,88 @@ class RandomSampleTopkperNode(GraphModification):
         return graph
 
 
-def policy2transform(policy: str, sample_k: int, ensemble: int = 1) -> GraphModification:
+class AugmentTopkSampledGraphsPerNode(GraphModification):
+    def __init__(self, k: int, ensemble: int, subgraph2node_aggr: str = 'mean'):
+        super(AugmentTopkSampledGraphsPerNode, self).__init__()
+        assert isinstance(k, int)
+        self.k = k
+        self.ensemble = ensemble
+
+        if subgraph2node_aggr == 'center':
+            raise ValueError("center does not make sense, since center node not necessarily selected")
+        elif subgraph2node_aggr not in ['mean', 'sum', 'add']:
+            raise NotImplementedError
+
+    def __call__(self, graph: Data):
+
+        if self.k >= graph.num_nodes:
+            node_mask = torch.ones(self.ensemble, graph.num_nodes, graph.num_nodes, dtype=torch.bool)
+        else:
+            logit = torch.rand(self.ensemble, graph.num_nodes, graph.num_nodes)
+            thresh = torch.topk(logit, self.k, dim=2, largest=True, sorted=True).values[:, :, -1]
+            node_mask = (logit >= thresh[:, :, None])
+
+        graphs = [graph] * self.ensemble * graph.num_nodes
+        full_graph_batch = Batch.from_data_list(graphs)
+        flat_node_mask = node_mask.reshape(-1)    # ensemble1node1, ensemble1node2, ensemble1node3, ensemble2node1, ......
+
+        new_edge_index, new_edge_attr = pyg_subgraph(flat_node_mask,
+                                                     full_graph_batch.edge_index,
+                                                     full_graph_batch.edge_attr,
+                                                     relabel_nodes=True,
+                                                     num_nodes=full_graph_batch.num_nodes)
+
+        sampled_square_graph = Data(x=full_graph_batch.x[flat_node_mask],
+                                    edge_index=new_edge_index,
+                                    edge_attr=new_edge_attr,
+                                    y=graph.y,)
+
+        mask_node_2b_aggregated = torch.ones(node_mask.sum(), dtype=torch.bool)
+        actual_sampled_nodes = node_mask.sum(2)   # ensemble, n_nodes
+        subgraphs2nodes = torch.hstack([torch.repeat_interleave(torch.arange(len(ac)), ac) for ac in actual_sampled_nodes])
+
+        sampled_square_graph.node_mask = mask_node_2b_aggregated
+        sampled_square_graph.subgraphs2nodes = subgraphs2nodes
+
+        return graph, sampled_square_graph
+
+
+class AugmentFullGraphsPerNode(GraphModification):
+    def __init__(self, ensemble: int):
+        super(AugmentFullGraphsPerNode, self).__init__()
+        self.ensemble = ensemble
+
+    def __call__(self, graph: Data):
+
+        graphs = [graph] * self.ensemble * graph.num_nodes
+        full_graph_batch = Batch.from_data_list(graphs)
+
+        square_graph = Data(x=full_graph_batch.x,
+                            edge_index=full_graph_batch.edge_index,
+                            edge_attr=full_graph_batch.edge_attr,
+                            y=graph.y, )
+
+        return graph, square_graph
+
+
+def policy2transform(policy: str, sample_k: int, ensemble: int = 1, subgraph2node_aggr: str = 'mean') -> GraphModification:
     """
     transform for datasets
 
     :param policy:
     :param sample_k:
     :param ensemble:
+    :param subgraph2node_aggr:
     :return:
     """
     if policy == 'greedy_neighbors':
-        return AugmentWithRandomKNeighbors(sample_k, ensemble)
+        # return AugmentWithRandomKNeighbors(sample_k, ensemble)
+        raise NotImplementedError("should implement this with aug data in dataloader")
     elif policy == 'khop':
         return AugmentWithKhopMasks(sample_k)
     elif policy == 'topk':
         return RandomSampleTopk(sample_k, ensemble)
     elif policy == 'graph_topk':
-        return RandomSampleTopkperNode(sample_k, ensemble)
+        return AugmentTopkSampledGraphsPerNode(sample_k, ensemble, subgraph2node_aggr)
     else:
         raise NotImplementedError
