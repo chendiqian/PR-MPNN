@@ -253,8 +253,6 @@ class RandomSampleTopkperNode(GraphModification):
             logit = torch.rand(graph.num_nodes, graph.num_nodes, self.ensemble)
             thresh = torch.topk(logit, k, dim=1, largest=True, sorted=True).values[:, -1, :]
             mask = (logit >= thresh[:, None, :])
-            eye = torch.eye(graph.num_nodes, dtype=torch.bool)
-            mask = (mask + eye[..., None])
             graph.node_mask = mask.reshape(graph.num_nodes ** 2, self.ensemble)
         return graph
 
