@@ -7,6 +7,7 @@ from sacred import Experiment
 from datetime import datetime
 
 import torch
+torch.multiprocessing.set_sharing_strategy('file_system')
 from torch.utils.tensorboard import SummaryWriter
 from numpy import mean as np_mean
 from numpy import std as np_std
