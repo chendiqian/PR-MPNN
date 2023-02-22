@@ -66,7 +66,8 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     elif args.sample_configs.sample_policy in ['greedy_neighbors', 'topk', 'graph_topk']:
         return policy2transform(args.sample_configs.sample_policy,
                                 args.sample_configs.sample_k,
-                                args.sample_configs.ensemble)
+                                args.sample_configs.ensemble,
+                                args.sample_configs.subgraph2node_aggr)
     else:
         raise NotImplementedError
 
@@ -118,14 +119,16 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_loaders = [AttributedDataLoader(
             loader=DataLoader(t,
                               batch_size=args.batch_size,
-                              shuffle=not args.debug, ),
+                              shuffle=not args.debug,
+                              num_workers=16),
             mean=mean,
             std=std) for t in train_set]
     elif isinstance(train_set, DATASET):
         train_loaders = [AttributedDataLoader(
             loader=DataLoader(train_set,
                               batch_size=args.batch_size,
-                              shuffle=not args.debug, ),
+                              shuffle=not args.debug,
+                              num_workers=16),
             mean=mean,
             std=std)]
     else:
@@ -135,14 +138,16 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         val_loaders = [AttributedDataLoader(
             loader=DataLoader(t,
                               batch_size=args.batch_size,
-                              shuffle=False, ),
+                              shuffle=False,
+                              num_workers=16),
             mean=mean,
             std=std) for t in val_set]
     elif isinstance(val_set, DATASET):
         val_loaders = [AttributedDataLoader(
             loader=DataLoader(val_set,
                               batch_size=args.batch_size,
-                              shuffle=False, ),
+                              shuffle=False,
+                              num_workers=16),
             mean=mean,
             std=std)]
     else:
@@ -152,14 +157,16 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         test_loaders = [AttributedDataLoader(
             loader=DataLoader(t,
                               batch_size=args.batch_size,
-                              shuffle=False, ),
+                              shuffle=False,
+                              num_workers=16),
             mean=mean,
             std=std) for t in test_set]
     elif isinstance(test_set, DATASET):
         test_loaders = [AttributedDataLoader(
             loader=DataLoader(test_set,
                               batch_size=args.batch_size,
-                              shuffle=False, ),
+                              shuffle=False,
+                              num_workers=16),
             mean=mean,
             std=std)]
     else:
