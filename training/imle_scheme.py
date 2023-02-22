@@ -101,8 +101,9 @@ class IMLEScheme:
                                           self.ensemble)
                     thresh = torch.topk(logit, k, dim=1, largest=True, sorted=True).values[:, -1, :]
                     mask = (logit >= thresh[:, None, :])
-                    eye = torch.eye(mask.shape[0], dtype=mask.dtype, device=mask.device)
-                    mask = (mask + eye[..., None]).to(torch.float)   # select seed node
+                    # eye = torch.eye(mask.shape[0], dtype=mask.dtype, device=mask.device)
+                    # mask = (mask + eye[..., None])   # select seed node
+                    mask = mask.to(torch.float)
                     sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
         else:
             raise NotImplementedError
