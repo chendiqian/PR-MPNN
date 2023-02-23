@@ -24,6 +24,7 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentFullGraphsPerNode
                               )
 from .data_utils import AttributedDataLoader
+NUM_WORKERS = 8
 
 DATASET = (PygGraphPropPredDataset, ZINC, PlanetoidKhopInductive, MyPygNodePropPredDataset)
 
@@ -121,7 +122,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
             loader=DataLoader(t,
                               batch_size=args.batch_size,
                               shuffle=not args.debug,
-                              num_workers=16),
+                              num_workers=NUM_WORKERS),
             mean=mean,
             std=std) for t in train_set]
     elif isinstance(train_set, DATASET):
@@ -129,7 +130,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
             loader=DataLoader(train_set,
                               batch_size=args.batch_size,
                               shuffle=not args.debug,
-                              num_workers=16),
+                              num_workers=NUM_WORKERS),
             mean=mean,
             std=std)]
     else:
@@ -140,7 +141,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
             loader=DataLoader(t,
                               batch_size=args.batch_size,
                               shuffle=False,
-                              num_workers=16),
+                              num_workers=NUM_WORKERS),
             mean=mean,
             std=std) for t in val_set]
     elif isinstance(val_set, DATASET):
@@ -148,7 +149,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
             loader=DataLoader(val_set,
                               batch_size=args.batch_size,
                               shuffle=False,
-                              num_workers=16),
+                              num_workers=NUM_WORKERS),
             mean=mean,
             std=std)]
     else:
@@ -159,7 +160,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
             loader=DataLoader(t,
                               batch_size=args.batch_size,
                               shuffle=False,
-                              num_workers=16),
+                              num_workers=NUM_WORKERS),
             mean=mean,
             std=std) for t in test_set]
     elif isinstance(test_set, DATASET):
@@ -167,7 +168,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
             loader=DataLoader(test_set,
                               batch_size=args.batch_size,
                               shuffle=False,
-                              num_workers=16),
+                              num_workers=NUM_WORKERS),
             mean=mean,
             std=std)]
     else:
