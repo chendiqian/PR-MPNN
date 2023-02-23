@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from torch.nn import Sequential, Linear, ReLU, BatchNorm1d as BN
 from torch_geometric.data import Data, Batch
+from torch_geometric.utils import to_dense_batch
 from torch_sparse import SparseTensor
 
 from models.my_encoder import AtomEncoder, BondEncoder
@@ -59,17 +60,13 @@ class LinearEmbed(torch.nn.Module):
             # don't regularize these params
             self.p_list.append({'params': self.gnn[-1].parameters(), 'weight_decay': 0.})
 
-        mlp_in_size = hid_size * 2
+        mlp_in_size = 1
         if emb_edge:
-            mlp_in_size += hid_size
+            mlp_in_size += 1
         if emb_spd:
-            mlp_in_size += hid_size
-            self.spd_encoder = Linear(1, hid_size)
-            self.p_list.append({'params': self.spd_encoder.parameters(), 'weight_decay': 0.})
+            mlp_in_size += 1
         if emb_ppr:
-            mlp_in_size += hid_size
-            self.ppr_encoder = Linear(1, hid_size)
-            self.p_list.append({'params': self.ppr_encoder.parameters(), 'weight_decay': 0.})
+            mlp_in_size += 1
 
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
                        batch_norm=use_bn, dropout=dropout)
@@ -78,34 +75,45 @@ class LinearEmbed(torch.nn.Module):
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
-        ptr = data.ptr.cpu().numpy() if hasattr(data, 'ptr') else np.zeros(1, dtype=np.int32)
-        nnodes = data.nnodes.cpu().numpy()
-        idx = np.concatenate([np.triu_indices(n, -n) + ptr[i] for i, n in enumerate(nnodes)], axis=-1)
-        idx_no_acum = np.concatenate([np.triu_indices(n, -n) for i, n in enumerate(nnodes)], axis=-1)
         x = self.atom_encoder(data.x)
         edge_attr = self.bond_encoder(data.edge_attr)
 
         for gnn in self.gnn:
             x = gnn(x, edge_index, edge_attr, None)
 
-        emb = [x[idx[0]], x[idx[1]]]
+        # THIS MAY LEAD TO STATIC ATTENTION ISSUE SEE https://arxiv.org/abs/2105.14491
+        # emb = [x[idx[0]], x[idx[1]]]
+
+        feature_dims = x.shape[-1]
+
+        logits, real = to_dense_batch(x, data.batch)
+        real_node_node_mask = torch.einsum('bn,bm->bnm', real, real)
+        attention_mask = torch.einsum('bnk,bmk->bnm', logits, logits) / (feature_dims ** 0.5)
+        emb = [attention_mask[real_node_node_mask]]
 
         if self.emb_edge:
+            ptr = data.ptr.cpu().numpy() if hasattr(data, 'ptr') else np.zeros(1, dtype=np.int32)
+            nnodes = data.nnodes.cpu().numpy()
+            idx = np.concatenate([np.triu_indices(n, -n) + ptr[i] for i, n in enumerate(nnodes)], axis=-1)
+
             emb_e = SparseTensor.from_edge_index(edge_index,
-                                                 edge_attr,
                                                  sparse_sizes=(data.num_nodes, data.num_nodes),
-                                                 is_sorted=True).to_dense()
+                                                 is_sorted=True).to_dense().to(torch.float)
             emb.append(emb_e[idx[0], idx[1]])
 
         if self.emb_spd:
-            spd = data.g_dist_mat[idx[0], idx_no_acum[1]]
-            emb.append(self.spd_encoder(spd[:, None]))
+            spd = data.g_dist_mat
+            spd, _ = to_dense_batch(spd, data.batch)
+            spd = spd[:, :, :spd.shape[1]]
+            emb.append(spd[real_node_node_mask])
 
         if self.emb_ppr:
-            ppr = data.ppr_mat[idx[0], idx_no_acum[1]]
-            emb.append(self.ppr_encoder(ppr[:, None]))
+            ppr = data.ppr_mat
+            ppr, _ = to_dense_batch(ppr, data.batch)
+            ppr = ppr[:, :, :ppr.shape[1]]
+            emb.append(ppr[real_node_node_mask])
 
-        emb = torch.cat(emb, dim=-1)
+        emb = torch.stack(emb, dim=1)
         emb = self.mlp(emb)
 
         return emb
@@ -116,7 +124,3 @@ class LinearEmbed(torch.nn.Module):
         self.mlp.reset_parameters()
         for gnn in self.gnn:
             gnn.reset_parameters()
-        if self.emb_spd:
-            self.spd_encoder.reset_parameters()
-        if self.emb_ppr:
-            self.ppr_encoder.reset_parameters()
