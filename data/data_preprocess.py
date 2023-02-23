@@ -175,9 +175,13 @@ class AugmentWithPPR(GraphModification):
         adj = SparseTensor.from_edge_index(graph.edge_index).to_dense()
         deg = adj.sum(0)
 
-        deg_inv_sqrt = deg.pow_(-0.5)
-        deg_inv_sqrt.masked_fill_(deg_inv_sqrt == float('inf'), 0.)
-        adj = adj * deg_inv_sqrt.reshape(-1, 1) * deg_inv_sqrt.view(1, -1)
+        # deg_inv_sqrt = deg.pow_(-0.5)
+        # deg_inv_sqrt.masked_fill_(deg_inv_sqrt == float('inf'), 0.)
+        # adj = adj * deg_inv_sqrt.reshape(-1, 1) * deg_inv_sqrt.view(1, -1)
+
+        deg_inv = deg.pow_(-1)
+        deg_inv.masked_fill_(deg_inv == float('inf'), 0.)
+        adj = adj * deg_inv.view(1, -1)
 
         r = torch.eye(graph.num_nodes, dtype=torch.float)
         topics = torch.eye(graph.num_nodes, dtype=torch.float)
