@@ -98,12 +98,12 @@ class Fwl2Embed(torch.nn.Module):
     def forward(self, data: Union[Data, Batch]):
         x = self.atom_encoder(data.x)
         x, real_nodes = to_dense_batch(x, data.batch)  # batchsize, Nmax, F
-        num_graphs, nnodes_max, F = x.shape
+        num_graphs, nnodes_max, features = x.shape
         # x = torch.cat((x[:, :, None, :].repeat(1, 1, nnodes_max, 1),
         #                x[:, None, :, :].repeat(1, nnodes_max, 1, 1)), dim=-1)  # batchsize, Nmax, Nmax, 2F
 
         diag = torch.arange(nnodes_max, device=x.device)
-        xs = x.new_zeros(num_graphs, nnodes_max, nnodes_max, F)
+        xs = x.new_zeros(num_graphs, nnodes_max, nnodes_max, features)
         xs[:, diag, diag, :] = x
 
         xs = [xs]
