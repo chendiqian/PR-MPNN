@@ -9,14 +9,14 @@ fixed:
     ensemble: 1
     # for inner model
     inner_layer: 2
-    extra_dim: [128, 128]  # data.x || subgraph_emb
+    extra_dim: [256, 256]  # data.x || subgraph_emb
 
   imle_configs:
-    emb_edge: True
+    emb_edge: False
     emb_spd: True
-    emb_ppr: True
+    emb_ppr: False
 
-    emb_hid_size: 64
+    emb_hid_size: 256
     gnn_layer: 3
     mlp_layer: 3
     dropout: 0.
