@@ -66,7 +66,7 @@ class Fwl2Embed(torch.nn.Module):
         self.p_list.append({'params': self.bond_encoder.parameters(), 'weight_decay': 0.})
 
         # input head
-        fwl_in_size = hid_size * 2
+        fwl_in_size = hid_size
         if emb_edge:
             fwl_in_size += hid_size
         if emb_spd:
@@ -98,11 +98,15 @@ class Fwl2Embed(torch.nn.Module):
     def forward(self, data: Union[Data, Batch]):
         x = self.atom_encoder(data.x)
         x, real_nodes = to_dense_batch(x, data.batch)  # batchsize, Nmax, F
-        num_graphs, nnodes_max = x.shape[:2]
-        x = torch.cat((x[:, :, None, :].repeat(1, 1, nnodes_max, 1),
-                       x[:, None, :, :].repeat(1, nnodes_max, 1, 1)), dim=-1)  # batchsize, Nmax, Nmax, 2F
+        num_graphs, nnodes_max, F = x.shape
+        # x = torch.cat((x[:, :, None, :].repeat(1, 1, nnodes_max, 1),
+        #                x[:, None, :, :].repeat(1, nnodes_max, 1, 1)), dim=-1)  # batchsize, Nmax, Nmax, 2F
 
-        xs = [x]
+        diag = torch.arange(nnodes_max, device=x.device)
+        xs = x.new_zeros(num_graphs, nnodes_max, nnodes_max, F)
+        xs[:, diag, diag, :] = x
+
+        xs = [xs]
 
         if self.emb_edge:
             edge_attr = self.bond_encoder(data.edge_attr)
@@ -110,7 +114,7 @@ class Fwl2Embed(torch.nn.Module):
             graph_idx_mask = torch.repeat_interleave(torch.arange(num_graphs, device=edge_attr.device), num_edges)  # [0, 0, 0, 1, 1, 1, 2, 2, 2, ... batchsize - 1, ..]
             edge_index_rel = torch.repeat_interleave(data._inc_dict['edge_index'].to(edge_attr.device), num_edges)
             local_edge_index = data.edge_index - edge_index_rel
-            edge_embeddings = torch.zeros(num_graphs, nnodes_max, nnodes_max, edge_attr.shape[-1], dtype=torch.float, device=edge_attr.device)
+            edge_embeddings = edge_attr.new_zeros(num_graphs, nnodes_max, nnodes_max, edge_attr.shape[-1])
             edge_embeddings[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = edge_attr
             xs.append(edge_embeddings)
 
