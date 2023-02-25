@@ -12,7 +12,7 @@ fixed:
     extra_dim: [256, 256]  # data.x || subgraph_emb
 
   imle_configs:
-    model: "lin_outer"
+    model: "lin_cat"
     emb_edge: False
     emb_spd: True
     emb_ppr: False
