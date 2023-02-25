@@ -182,6 +182,16 @@ def run(fixed):
             writer.flush()
             writer.close()
 
+            # rm cached model
+            used_model = os.listdir(run_folder)
+            for modelname in used_model:
+                if modelname.endswith('.pt') and not modelname.endswith('best.pt'):
+                    os.remove(os.path.join(run_folder, modelname))
+            # save last model
+            torch.save(model.state_dict(), f'{run_folder}/model_final.pt')
+            if emb_model is not None:
+                torch.save(emb_model.state_dict(), f'{run_folder}/embd_model_final.pt')
+            # test inference
             model.load_state_dict(torch.load(f'{run_folder}/model_best.pt'))
             logger.info(f'loaded best model at epoch {best_epoch}')
             if emb_model is not None:
