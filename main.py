@@ -39,10 +39,12 @@ def naming(args) -> str:
 
     if args.sample_configs.sample_policy is None:
         name += 'normal'
+        return name
 
     if args.imle_configs is not None:
         name += f'IMLE_'
-        name += f'H{args.imle_configs.emb_hid_size}'
+        name += f'model_{args.imle_configs.model}_'
+        name += f'H{args.imle_configs.emb_hid_size}_'
         name += f'L_{args.imle_configs.gnn_layer}_{args.imle_configs.mlp_layer}'
         name += f'DP{args.imle_configs.dropout}'
         name += f'noise{args.imle_configs.noise_scale}'
