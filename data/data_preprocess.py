@@ -262,11 +262,12 @@ class RandomSampleTopkperNode(GraphModification):
 
 
 class AugmentTopkSampledGraphsPerNode(GraphModification):
-    def __init__(self, k: int, ensemble: int, subgraph2node_aggr: str = 'mean'):
+    def __init__(self, k: int, ensemble: int, subgraph2node_aggr: str = 'mean', rm_nodes: bool = True):
         super(AugmentTopkSampledGraphsPerNode, self).__init__()
         assert isinstance(k, int)
         self.k = k
         self.ensemble = ensemble
+        self.rm_nodes = rm_nodes
 
         if subgraph2node_aggr == 'center':
             raise ValueError("center does not make sense, since center node not necessarily selected")
@@ -286,20 +287,37 @@ class AugmentTopkSampledGraphsPerNode(GraphModification):
         full_graph_batch = Batch.from_data_list(graphs)
         flat_node_mask = node_mask.reshape(-1)    # ensemble1node1, ensemble1node2, ensemble1node3, ensemble2node1, ......
 
-        new_edge_index, new_edge_attr = pyg_subgraph(flat_node_mask,
-                                                     full_graph_batch.edge_index,
-                                                     full_graph_batch.edge_attr,
-                                                     relabel_nodes=True,
-                                                     num_nodes=full_graph_batch.num_nodes)
+        if self.rm_nodes:
+            new_edge_index, new_edge_attr = pyg_subgraph(flat_node_mask,
+                                                         full_graph_batch.edge_index,
+                                                         full_graph_batch.edge_attr,
+                                                         relabel_nodes=True,
+                                                         num_nodes=full_graph_batch.num_nodes)
 
-        sampled_square_graph = Data(x=full_graph_batch.x[flat_node_mask],
-                                    edge_index=new_edge_index,
-                                    edge_attr=new_edge_attr,
-                                    y=graph.y,)
+            sampled_square_graph = Data(x=full_graph_batch.x[flat_node_mask],
+                                        edge_index=new_edge_index,
+                                        edge_attr=new_edge_attr,
+                                        y=graph.y,)
 
-        mask_node_2b_aggregated = torch.ones(node_mask.sum(), dtype=torch.bool)
-        actual_sampled_nodes = node_mask.sum(2)   # ensemble, n_nodes
-        subgraphs2nodes = torch.hstack([torch.repeat_interleave(torch.arange(len(ac)), ac) for ac in actual_sampled_nodes])
+            mask_node_2b_aggregated = torch.ones(node_mask.sum(), dtype=torch.bool)
+            actual_sampled_nodes = node_mask.sum(2)   # ensemble, n_nodes
+            subgraphs2nodes = torch.hstack([torch.repeat_interleave(torch.arange(len(ac)), ac) for ac in actual_sampled_nodes])
+        else:
+            *_, edge_mask = pyg_subgraph(flat_node_mask,
+                                         full_graph_batch.edge_index,
+                                         full_graph_batch.edge_attr,
+                                         relabel_nodes=False,
+                                         num_nodes=full_graph_batch.num_nodes,
+                                         return_edge_mask=True)
+
+            sampled_square_graph = Data(x=full_graph_batch.x,
+                                        edge_index=full_graph_batch.edge_index[:, edge_mask],
+                                        edge_attr=full_graph_batch.edge_attr[edge_mask],
+                                        y=graph.y, )
+
+            mask_node_2b_aggregated = torch.ones(node_mask.numel(), dtype=torch.bool)
+            subgraphs2nodes = torch.repeat_interleave(torch.arange(graph.num_nodes),
+                                                      graph.num_nodes).repeat(self.ensemble)
 
         sampled_square_graph.node_mask = mask_node_2b_aggregated
         sampled_square_graph.subgraphs2nodes = subgraphs2nodes
