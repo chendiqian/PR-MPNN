@@ -10,7 +10,6 @@ from torch_sparse import SparseTensor
 from models.my_encoder import AtomEncoder, BondEncoder
 from models.my_convs import GINEConv
 from models.nn_utils import MLP
-from .topk_gumbel import SubsetOperator
 
 
 class LinearEmbed(torch.nn.Module):
@@ -76,7 +75,7 @@ class LinearEmbed(torch.nn.Module):
         mlp_in_size += int(emb_edge) + int(emb_spd) + int(emb_ppr)
 
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
-                       layer_norm=use_bn, dropout=dropout)
+                       batch_norm=use_bn, dropout=dropout)
         # regularize these params
         self.p_list.append({'params': self.mlp.parameters(),})
 
@@ -101,41 +100,29 @@ class LinearEmbed(torch.nn.Module):
             if self.tuple_type == 'inner':
                 feature_dims = x.shape[-1]
                 attention_mask = torch.einsum('bnk,bmk->bnm', logits, logits) / (feature_dims ** 0.5)
-                emb.append(attention_mask[..., None])  # batchsize, Nmax, Nmax, 1
+                emb.append(attention_mask[real_node_node_mask][:, None])
             elif self.tuple_type == 'outer':
                 outer_prod = torch.einsum('bnk,bmk->bnmk', logits, logits)
                 emb.append(outer_prod[real_node_node_mask])
 
         if self.emb_edge:
-            raise NotImplementedError
-            # emb_e = SparseTensor.from_edge_index(edge_index,
-            #                                      sparse_sizes=(data.num_nodes, data.num_nodes),
-            #                                      is_sorted=True).to_dense()
-            # emb.append(emb_e[idx[0], idx[1]][:, None])
+            emb_e = SparseTensor.from_edge_index(edge_index,
+                                                 sparse_sizes=(data.num_nodes, data.num_nodes),
+                                                 is_sorted=True).to_dense()
+            emb.append(emb_e[idx[0], idx[1]][:, None])
 
         if self.emb_spd:
-            spd = data.g_dist_mat
-            spd, _ = to_dense_batch(spd, data.batch)
-            spd = spd[:, :, :spd.shape[1]]
-            emb.append(spd[..., None])
+            spd = data.g_dist_mat[idx[0], idx_no_acum[1]]
+            emb.append(spd[:, None])
 
         if self.emb_ppr:
-            ppr = data.ppr_mat
-            ppr, _ = to_dense_batch(ppr, data.batch)
-            ppr = ppr[:, :, :ppr.shape[1]]
-            emb.append(ppr[..., None])
+            ppr = data.ppr_mat[idx[0], idx_no_acum[1]]
+            emb.append(ppr[:, None])
 
         emb = torch.cat(emb, dim=-1)
-        emb = self.mlp(emb).squeeze()
+        emb = self.mlp(emb)
 
-        bias = torch.full(emb.shape, -100000., device=emb.device)
-        emb = real_node_node_mask.to(torch.float) * emb + bias * (1 - real_node_node_mask.to(torch.float))
-
-        sampler = SubsetOperator(10, hard=True)
-        sampled_mask = sampler(emb)
-        sampled_mask = sampled_mask[real_node_node_mask]
-
-        return sampled_mask.reshape(-1, 1)
+        return emb
 
     def reset_parameters(self):
         self.atom_encoder.reset_parameters()

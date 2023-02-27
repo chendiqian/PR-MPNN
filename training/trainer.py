@@ -143,18 +143,15 @@ class Trainer:
 
         train = emb_model.training
 
-        node_mask = emb_model(graph)
+        logits = emb_model(graph)
 
-        self.imle_scheduler.graphs = None
-        self.imle_scheduler.ptr = None
+        self.imle_scheduler.graphs = Batch.to_data_list(graph)
+        self.imle_scheduler.ptr = tuple((graph.nnodes ** 2).cpu().tolist())  # per node has a subg
 
-        # self.imle_scheduler.graphs = Batch.to_data_list(graph)
-        # self.imle_scheduler.ptr = tuple((graph.nnodes ** 2).cpu().tolist())  # per node has a subg
-        #
-        # if train:
-        #     node_mask, _ = self.imle_sample_scheme(logits)
-        # else:
-        #     node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
+        if train:
+            node_mask, _ = self.imle_sample_scheme(logits)
+        else:
+            node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
 
         if self.auxloss > 0 and train:
             auxloss = self.get_aux_loss(node_mask, graph.nnodes, )
