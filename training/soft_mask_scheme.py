@@ -31,27 +31,3 @@ def softmax_all(emb: torch.Tensor,
                           dim=0, reduce='sum')
     sft_emb = exp_emb / sum_exp_emb[idx]
     return sft_emb
-
-
-def softmax_topk(emb: torch.Tensor,
-                 nnodes: torch.Tensor,
-                 k: int = 1,
-                 training: bool = False):
-    ensemble = emb.shape[-1]
-    embs = torch.split(emb, (nnodes ** 2).cpu().tolist(), dim=0)   # n1 ^ 2 * ensemble, n2 ^ 2 * ensemble, ...
-
-    softmax_embs = []
-
-    for i, emb in enumerate(embs):
-        emb = emb.reshape(nnodes[i], nnodes[i], ensemble)
-        # if training:
-        #     emb = emb + torch.randn(emb.shape, device=emb.device)
-        thresh = torch.topk(emb, min(k, nnodes[i]), dim=1, largest=True, sorted=True).values[:, -1, :][:, None, :]
-        mask = emb >= thresh
-        bias = torch.zeros(emb.shape, device=emb.device)
-        bias[~mask] = 1.e10
-        emb = emb - bias
-        emb = torch.nn.functional.softmax(emb, dim=1)
-        softmax_embs.append(emb.reshape(nnodes[i] * nnodes[i], ensemble))
-
-    return torch.cat(softmax_embs, dim=0)

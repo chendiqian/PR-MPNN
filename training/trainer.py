@@ -31,7 +31,7 @@ Loss = torch.nn.modules.loss
 
 POLICY_GRAPH_LEVEL = ['KMaxNeighbors', 'greedy_neighbors', 'graph_topk']
 POLICY_NODE_LEVEL = ['topk']
-POLICY_SOFT_MASK = ['soft_all', 'soft_topk']
+POLICY_SOFT_MASK = ['soft_all',]
 
 kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
 
@@ -99,8 +99,6 @@ class Trainer:
             # no need IMLE, just backprop into soft masks
             elif self.sample_policy == 'soft_all':
                 self.construct_duplicate_data = self.emb_model_node_soft_all
-            elif self.sample_policy == 'soft_topk':
-                self.construct_duplicate_data = partial(self.emb_model_node_soft_topk, k=sample_configs.sample_k)
             else:
                 raise ValueError(f'{self.sample_policy} not supported')
         else:
@@ -219,30 +217,6 @@ class Trainer:
         # return new_batch, None
         raise NotImplementedError
 
-    def emb_model_node_soft_topk(self,
-                                 data: Union[Data, Batch],
-                                 emb_model: Emb_model,
-                                 device: Union[torch.device, str],
-                                 k: int = 1):
-        # train = emb_model.training
-        # graphs = Batch.to_data_list(data)
-        #
-        # logits = emb_model(data.to(device))
-        #
-        # # need to softmax
-        # logits = softmax_topk(logits, data.nnodes, k, training=train)
-        # data = data.to('cpu')
-        #
-        # new_batch = construct_imle_local_structure_subgraphs(graphs,
-        #                                                      logits.cpu(),
-        #                                                      data.nnodes,
-        #                                                      data.batch,
-        #                                                      data.y,
-        #                                                      self.subgraph2node_aggr,
-        #                                                      grad=train)
-        #
-        # return new_batch, None
-        raise NotImplementedError
 
     def get_aux_loss(self, logits: torch.Tensor, nnodes: torch.Tensor, ):
         """
