@@ -1,13 +1,10 @@
 import os
 import pickle
-from functools import partial
 from collections import defaultdict
 from typing import Union, Optional, Any, Sequence
 from ml_collections import ConfigDict
 
-import numpy as np
 import torch
-import torch.nn.functional as F
 from torch_geometric.data import Batch, Data
 
 from data.data_utils import scale_grad, AttributedDataLoader, IsBetter
@@ -18,6 +15,7 @@ from imle.wrapper import imle
 from subgraph.construct import (construct_imle_local_structure_subgraphs,
                                 construct_imle_subgraphs)
 from training.imle_scheme import IMLEScheme
+from training.aux_loss import get_pair_aux_loss
 # from training.soft_mask_scheme import softmax_all, softmax_topk
 
 
@@ -32,8 +30,6 @@ Loss = torch.nn.modules.loss
 POLICY_GRAPH_LEVEL = ['KMaxNeighbors', 'greedy_neighbors', 'graph_topk']
 POLICY_NODE_LEVEL = ['topk']
 POLICY_SOFT_MASK = ['soft_all',]
-
-kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=False)
 
 
 class Trainer:
@@ -74,9 +70,8 @@ class Trainer:
                                                  None,
                                                  None,
                                                  None,
-                                                 sample_configs.sample_k,
-                                                 ensemble=sample_configs.ensemble
-                                                 if hasattr(sample_configs, 'ensemble') else 1)
+                                                 None,
+                                                 sample_configs.sample_k)
 
                 @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
                       noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
@@ -141,10 +136,13 @@ class Trainer:
 
         train = emb_model.training
 
-        logits = emb_model(graph)
+        logits, real_node_node_mask = emb_model(graph)
 
-        self.imle_scheduler.graphs = Batch.to_data_list(graph)
-        self.imle_scheduler.ptr = tuple((graph.nnodes ** 2).cpu().tolist())  # per node has a subg
+        # self.imle_scheduler.graphs = Batch.to_data_list(graph)
+        # self.imle_scheduler.ptr = tuple((graph.nnodes ** 2).cpu().tolist())  # per node has a subg
+        self.imle_scheduler.graphs = None
+        self.imle_scheduler.ptr = None
+        self.imle_scheduler.real_node_node_mask = real_node_node_mask
 
         if train:
             node_mask, _ = self.imle_sample_scheme(logits)
@@ -152,9 +150,12 @@ class Trainer:
             node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
 
         if self.auxloss > 0 and train:
-            auxloss = self.get_aux_loss(node_mask, graph.nnodes, )
+            assert logits.shape[-1] == 1, "Add KLDiv between ensembles"
+            auxloss = get_pair_aux_loss(node_mask, graph.nnodes, self.auxloss)
         else:
             auxloss = None
+
+        node_mask =  node_mask[real_node_node_mask]
 
         new_batch = construct_imle_local_structure_subgraphs(graph,
                                                              sampled_graphs,
@@ -217,42 +218,6 @@ class Trainer:
         # return new_batch, None
         raise NotImplementedError
 
-
-    def get_aux_loss(self, logits: torch.Tensor, nnodes: torch.Tensor, ):
-        """
-        A KL divergence version
-        """
-        ensemble = logits.shape[-1]
-        bsz = len(nnodes)
-        max_num_nodes = max(nnodes)
-        base = torch.cat([torch.arange(n, device=nnodes.device).repeat(n) for n in nnodes], dim=0)
-        rel_row = torch.cat(
-            [torch.repeat_interleave(torch.arange(n, device=nnodes.device), n) for n in nnodes],
-            dim=0) * max_num_nodes
-        rel_batch = torch.repeat_interleave(torch.arange(bsz, device=nnodes.device), nnodes ** 2) * (
-                    max_num_nodes ** 2)
-        dst = logits.new_zeros(max_num_nodes ** 2 * bsz, ensemble)
-        dst[base + rel_row + rel_batch, :] = logits
-        dst = dst.reshape(bsz, max_num_nodes, max_num_nodes, ensemble)   # batchsize * Nmax * Nmax * ensemble
-
-        # option 1: maximize pairwise KL divergence
-        # ind1, ind2 = np.triu_indices(max_num_nodes, 1)
-        # targets = dst[:, ind1, ...].reshape(-1, max_num_nodes * ensemble)
-        # logits = dst[:, ind2, ...].reshape(-1, max_num_nodes * ensemble)
-        #
-        # log_softmax_logits = F.log_softmax(logits, dim=-1)
-        # softmax_target = F.softmax(targets, dim=-1)
-        # loss = kl_loss(log_softmax_logits, softmax_target)
-        # return - loss * self.auxloss  # care the sign
-
-        # option 2: the sum distribution must be close to uniform, i.e. differently distribution
-        logits = dst.sum(1, keepdims=False).reshape(bsz, max_num_nodes * ensemble)
-        targets = logits.new_ones(logits.shape)
-
-        log_softmax_logits = F.log_softmax(logits, dim=-1)
-        softmax_target = F.softmax(targets, dim=-1)
-        loss = kl_loss(log_softmax_logits, softmax_target)
-        return loss * self.auxloss  # care the sign
 
     def train(self,
               dataloader: AttributedDataLoader,

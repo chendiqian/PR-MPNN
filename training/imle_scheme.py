@@ -1,18 +1,18 @@
-from math import ceil
+# from math import ceil
 
 import torch
-from subgraph.or_based import get_or_optim_subgraphs
-from subgraph.greedy_expand import greedy_grow_tree
+# from subgraph.or_based import get_or_optim_subgraphs
+# from subgraph.greedy_expand import greedy_grow_tree
 
 
 class IMLEScheme:
-    def __init__(self, imle_sample_policy, ptr, graphs, seed_node_mask, sample_k, ensemble=1):
+    def __init__(self, imle_sample_policy, ptr, graphs, seed_node_mask, real_node_node_mask, sample_k):
         self.imle_sample_policy = imle_sample_policy
         self.sample_k = sample_k
         self._ptr = ptr
         self._graphs = graphs
         self._seed_node_mask = seed_node_mask
-        self.ensemble = ensemble
+        self._real_node_node_mask = real_node_node_mask
 
     @property
     def ptr(self):
@@ -20,6 +20,7 @@ class IMLEScheme:
 
     @ptr.setter
     def ptr(self, value):
+        assert value is None or value.dtype == torch.long
         self._ptr = value
 
     @ptr.deleter
@@ -51,67 +52,64 @@ class IMLEScheme:
     def seed_node_mask(self):
         del self._seed_node_mask
 
+    @property
+    def real_node_node_mask(self):
+        return self._real_node_node_mask
+
+    @real_node_node_mask.setter
+    def real_node_node_mask(self, value):
+        assert value is None or value.dtype == torch.bool
+        self._real_node_node_mask = value
+
+    @real_node_node_mask.deleter
+    def real_node_node_mask(self):
+        del self._real_node_node_mask
+
     @torch.no_grad()
     def torch_sample_scheme(self, logits: torch.Tensor):
 
         local_logits = logits.detach()
-        local_logits = torch.split(local_logits, self.ptr, dim=0)
+        # local_logits = torch.split(local_logits, self.ptr, dim=0)
 
-        sample_instance_idx = []
-        if self.imle_sample_policy == 'KMaxNeighbors':
-            for i, logit in enumerate(local_logits):
-                logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes, self.ensemble)
-                mask = get_or_optim_subgraphs(self.graphs[i].edge_index, logit, self.sample_k)
-                mask.requires_grad = False
-                sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
-        elif self.imle_sample_policy == 'greedy_neighbors':
-            for i, logit in enumerate(local_logits):
-                logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes, self.ensemble)
-                mask = greedy_grow_tree(self.graphs[i], self.sample_k, logit)
-                mask.requires_grad = False
-                sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
-        elif self.imle_sample_policy == 'topk':
-            for i, logit in enumerate(local_logits):
-                if isinstance(self.sample_k, float):
-                    k = int(ceil(self.sample_k * logit.shape[0]))
-                elif isinstance(self.sample_k, int):
-                    k = self.sample_k
-                else:
-                    raise TypeError
-
-                if k >= logit.shape[0]:
-                    sample_instance_idx.append(torch.ones(logit.shape, device=logit.device, dtype=torch.float))
-                else:
-                    thresh = torch.topk(logit, k, dim=0, largest=True, sorted=True).values[-1, :]
-                    sample_instance_idx.append((logit >= thresh[None]).to(torch.float))
-        elif self.imle_sample_policy == 'graph_topk':
-            for i, logit in enumerate(local_logits):
-                # if isinstance(self.sample_k, float):
-                #     k = int(ceil(self.sample_k * self.graphs[i].num_nodes))
-                if isinstance(self.sample_k, int):
-                    k = self.sample_k
-                else:
-                    raise TypeError
-
-                if k >= self.graphs[i].num_nodes:
-                    sample_instance_idx.append(torch.ones(logit.shape, device=logit.device, dtype=torch.float))
-                else:
-                    logit = logit.reshape(self.graphs[i].num_nodes,
-                                          self.graphs[i].num_nodes,
-                                          self.ensemble)
-                    thresh = torch.topk(logit, k, dim=1, largest=True, sorted=True).values[:, -1, :]
-                    mask = (logit >= thresh[:, None, :])
-                    # eye = torch.eye(mask.shape[0], dtype=mask.dtype, device=mask.device)
-                    # mask = (mask + eye[..., None])   # select seed node
-                    mask = mask.to(torch.float)
-                    sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
+        # if self.imle_sample_policy == 'KMaxNeighbors':
+        #     for i, logit in enumerate(local_logits):
+        #         logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes, self.ensemble)
+        #         mask = get_or_optim_subgraphs(self.graphs[i].edge_index, logit, self.sample_k)
+        #         mask.requires_grad = False
+        #         sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
+        # elif self.imle_sample_policy == 'greedy_neighbors':
+        #     for i, logit in enumerate(local_logits):
+        #         logit = logit.reshape(self.graphs[i].num_nodes, self.graphs[i].num_nodes, self.ensemble)
+        #         mask = greedy_grow_tree(self.graphs[i], self.sample_k, logit)
+        #         mask.requires_grad = False
+        #         sample_instance_idx.append(mask.reshape(self.graphs[i].num_nodes ** 2, self.ensemble))
+        # elif self.imle_sample_policy == 'topk':
+        #     for i, logit in enumerate(local_logits):
+        #         if isinstance(self.sample_k, float):
+        #             k = int(ceil(self.sample_k * logit.shape[0]))
+        #         elif isinstance(self.sample_k, int):
+        #             k = self.sample_k
+        #         else:
+        #             raise TypeError
+        #
+        #         if k >= logit.shape[0]:
+        #             sample_instance_idx.append(torch.ones(logit.shape, device=logit.device, dtype=torch.float))
+        #         else:
+        #             thresh = torch.topk(logit, k, dim=0, largest=True, sorted=True).values[-1, :]
+        #             sample_instance_idx.append((logit >= thresh[None]).to(torch.float))
+        if self.imle_sample_policy == 'graph_topk':
+            # local_logits: (Batch, Nmax, Nmax, ensemble)
+            local_logits[~self.real_node_node_mask] -= 1.e10
+            thresh = torch.topk(local_logits, self.sample_k, dim=2, largest=True, sorted=True).values[:, :, -1, :][:, :, None, :]
+            mask = (local_logits >= thresh).to(torch.float)
+            return mask, None
         else:
             raise NotImplementedError
-
-        sample_instance_idx = torch.cat(sample_instance_idx, dim=0)
-        # seed node must be selected
-        if self.seed_node_mask is not None:
-            sample_instance_idx[self.seed_node_mask] = 1.
-        sample_instance_idx.requires_grad = False
-
-        return sample_instance_idx, None
+        #
+        # sample_instance_idx = torch.cat(sample_instance_idx, dim=0)
+        # # seed node must be selected
+        # if self.seed_node_mask is not None:
+        #     sample_instance_idx[self.seed_node_mask] = 1.
+        # sample_instance_idx.requires_grad = False
+        #
+        # return sample_instance_idx, None

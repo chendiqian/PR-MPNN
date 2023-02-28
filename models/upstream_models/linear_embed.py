@@ -75,54 +75,60 @@ class LinearEmbed(torch.nn.Module):
         mlp_in_size += int(emb_edge) + int(emb_spd) + int(emb_ppr)
 
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
-                       batch_norm=use_bn, dropout=dropout)
+                       layer_norm=use_bn, dropout=dropout)
         # regularize these params
         self.p_list.append({'params': self.mlp.parameters(),})
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
-        ptr = data.ptr.cpu().numpy() if hasattr(data, 'ptr') else np.zeros(1, dtype=np.int32)
-        nnodes = data.nnodes.cpu().numpy()
-        idx = np.concatenate([np.triu_indices(n, -n) + ptr[i] for i, n in enumerate(nnodes)], axis=-1)
-        idx_no_acum = np.concatenate([np.triu_indices(n, -n) for i, n in enumerate(nnodes)], axis=-1)
+        # ptr = data.ptr.cpu().numpy() if hasattr(data, 'ptr') else np.zeros(1, dtype=np.int32)
+        # nnodes = data.nnodes.cpu().numpy()
+        # idx = np.concatenate([np.triu_indices(n, -n) + ptr[i] for i, n in enumerate(nnodes)], axis=-1)
+        # idx_no_acum = np.concatenate([np.triu_indices(n, -n) for i, n in enumerate(nnodes)], axis=-1)
         x = self.atom_encoder(data.x)
         edge_attr = self.bond_encoder(data.edge_attr)
 
         for gnn in self.gnn:
             x = gnn(x, edge_index, edge_attr, None)
 
+        logits, real = to_dense_batch(x, data.batch)
+        real_node_node_mask = torch.einsum('bn,bm->bnm', real, real)
+        Nmax = logits.shape[1]
+
         emb = []
         if self.tuple_type == 'cat':
-            emb += [x[idx[0]], x[idx[1]]]
+            emb.append(logits[:, None, :, :].repeat(1, Nmax, 1, 1))
+            emb.append(logits[:, :, None, :].repeat(1, 1, Nmax, 1))
         else:
-            logits, real = to_dense_batch(x, data.batch)
-            real_node_node_mask = torch.einsum('bn,bm->bnm', real, real)
             if self.tuple_type == 'inner':
                 feature_dims = x.shape[-1]
                 attention_mask = torch.einsum('bnk,bmk->bnm', logits, logits) / (feature_dims ** 0.5)
-                emb.append(attention_mask[real_node_node_mask][:, None])
+                emb.append(attention_mask[..., None])
             elif self.tuple_type == 'outer':
                 outer_prod = torch.einsum('bnk,bmk->bnmk', logits, logits)
-                emb.append(outer_prod[real_node_node_mask])
+                emb.append(outer_prod)
 
         if self.emb_edge:
-            emb_e = SparseTensor.from_edge_index(edge_index,
-                                                 sparse_sizes=(data.num_nodes, data.num_nodes),
-                                                 is_sorted=True).to_dense()
-            emb.append(emb_e[idx[0], idx[1]][:, None])
+            # emb_e = SparseTensor.from_edge_index(edge_index,
+            #                                      sparse_sizes=(data.num_nodes, data.num_nodes),
+            #                                      is_sorted=True).to_dense()
+            # emb.append(emb_e[idx[0], idx[1]][:, None])
+            raise NotImplementedError("see fwl2 how to embed edge")
 
         if self.emb_spd:
-            spd = data.g_dist_mat[idx[0], idx_no_acum[1]]
-            emb.append(spd[:, None])
+            spd_mat, _ = to_dense_batch(data.g_dist_mat, data.batch)  # batchsize, Nmax, max_node_dataset
+            spd_mat = spd_mat[..., :Nmax, None]  # batchsize, Nmax, Nmax, 1
+            emb.append(spd_mat)
 
         if self.emb_ppr:
-            ppr = data.ppr_mat[idx[0], idx_no_acum[1]]
-            emb.append(ppr[:, None])
+            ppr, _ = to_dense_batch(data.ppr_mat, data.batch)  # batchsize, Nmax, max_node_dataset
+            ppr = ppr[..., :Nmax, None]  # batchsize, Nmax, Nmax, 1
+            emb.append(ppr)
 
         emb = torch.cat(emb, dim=-1)
         emb = self.mlp(emb)
 
-        return emb
+        return emb, real_node_node_mask
 
     def reset_parameters(self):
         self.atom_encoder.reset_parameters()
