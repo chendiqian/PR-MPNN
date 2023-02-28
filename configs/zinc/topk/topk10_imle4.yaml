@@ -22,13 +22,13 @@ fixed:
     mlp_layer: 2
     dropout: 0.
     embd_lr: 1.e-3
-    reg_embd: 0.001
+    reg_embd: 0.
     bn: True  # MUST NEEDED!!!!
     micro_batch_embd: 1
     noise_scale: 0.3
     beta: 10.
 
-    auxloss: 1.
+    auxloss: 0.1
 
   model: zinc_gin
   hid_size: 256
