@@ -15,7 +15,7 @@ from imle.wrapper import imle
 from subgraph.construct import (construct_imle_local_structure_subgraphs,
                                 construct_imle_subgraphs)
 from training.imle_scheme import IMLEScheme
-from training.aux_loss import get_pair_aux_loss
+from training.aux_loss import get_pair_aux_loss, get_batch_aux_loss
 # from training.soft_mask_scheme import softmax_all, softmax_topk
 
 
@@ -41,6 +41,7 @@ class Trainer:
                  device: Union[str, torch.device],
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
+                 aux_type: str,
                  auxloss: float = 0.):
         super(Trainer, self).__init__()
 
@@ -54,6 +55,7 @@ class Trainer:
         self.best_val_metric = None
         self.patience = 0
         self.max_patience = max_patience
+        self.aux_type = aux_type
         self.auxloss = auxloss
 
         self.curves = defaultdict(list)
@@ -151,7 +153,12 @@ class Trainer:
 
         if self.auxloss > 0 and train:
             assert logits.shape[-1] == 1, "Add KLDiv between ensembles"
-            auxloss = get_pair_aux_loss(node_mask, graph.nnodes, self.auxloss)
+            if self.aux_type == 'batch':
+                auxloss = get_batch_aux_loss(logits * real_node_node_mask[..., None].to(torch.float), self.auxloss)
+            elif self.aux_type == 'pair':
+                auxloss = get_pair_aux_loss(node_mask, graph.nnodes, self.auxloss)
+            else:
+                raise ValueError
         else:
             auxloss = None
 

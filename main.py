@@ -107,6 +107,7 @@ def run(fixed):
                       device=device,
                       imle_configs=args.imle_configs,
                       sample_configs=args.sample_configs,
+                      aux_type=args.imle_configs.aux_type if hasattr(args.imle_configs, 'aux_type') else None,
                       auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else 0.)
 
     best_val_losses = [[] for _ in range(args.num_runs)]

@@ -5,31 +5,20 @@ import numpy as np
 
 kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)
 
-def get_batch_aux_loss(logits: torch.Tensor, nnodes: torch.Tensor, auxloss: float):
+def get_batch_aux_loss(logits: torch.Tensor, auxloss: float,):
     """
     A KL divergence version
     """
     # Only when the input is flattened
-    ensemble = logits.shape[-1]
-    bsz = len(nnodes)
-    max_num_nodes = max(nnodes)
-    base = torch.cat([torch.arange(n, device=nnodes.device).repeat(n) for n in nnodes], dim=0)
-    rel_row = torch.cat(
-        [torch.repeat_interleave(torch.arange(n, device=nnodes.device), n) for n in nnodes],
-        dim=0) * max_num_nodes
-    rel_batch = torch.repeat_interleave(torch.arange(bsz, device=nnodes.device), nnodes ** 2) * (
-                max_num_nodes ** 2)
-    dst = logits.new_zeros(max_num_nodes ** 2 * bsz, ensemble)
-    dst[base + rel_row + rel_batch, :] = logits
-    dst = dst.reshape(bsz, max_num_nodes, max_num_nodes, ensemble)   # batchsize * Nmax * Nmax * ensemble
+    B, N, _, E = logits.shape
+    logits = torch.permute(logits, (0, 1, 3, 2)).reshape(B, N, N * E)
 
-    # option 2: the sum distribution must be close to uniform, i.e. differently distribution
-    logits = dst.sum(1, keepdims=False).reshape(bsz, max_num_nodes * ensemble)
+    logits = logits.sum(1, keepdims=False)
     targets = logits.new_ones(logits.shape)
 
     log_softmax_logits = F.log_softmax(logits, dim=-1)
-    softmax_target = F.softmax(targets, dim=-1)
-    loss = kl_loss(log_softmax_logits, softmax_target)
+    log_softmax_target = F.log_softmax(targets, dim=-1)
+    loss = kl_loss(log_softmax_logits, log_softmax_target)
     return loss * auxloss  # care the sign
 
 
