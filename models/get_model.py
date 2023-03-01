@@ -65,6 +65,7 @@ def get_model(args, device, *_args):
         if args.imle_configs.model.startswith('lin'):
             emb_model = LinearEmbed(
                 tuple_type=args.imle_configs.model.split('_')[-1],
+                heads=args.imle_configs.heads if hasattr(args.imle_configs, 'heads') else 1,
                 in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                 edge_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
                 hid_size=args.imle_configs.emb_hid_size,
