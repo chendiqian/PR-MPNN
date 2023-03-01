@@ -13,7 +13,7 @@ fixed:
 
   imle_configs:
     model: "lin_inner"
-    heads: 4    # for attention-like inner product
+    heads: 1    # for attention-like inner product
     emb_edge: False
     emb_spd: True
     emb_ppr: True
@@ -29,7 +29,8 @@ fixed:
     noise_scale: 0.3
     beta: 10.
 
-    auxloss: 1.
+    aux: 'batch'   # batch or pair
+    auxloss: 0.01
 
   model: zinc_gin
   hid_size: 256
