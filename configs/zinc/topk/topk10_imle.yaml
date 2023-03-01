@@ -13,6 +13,7 @@ fixed:
 
   imle_configs:
     model: "lin_inner"
+    heads: 4    # for attention-like inner product
     emb_edge: False
     emb_spd: True
     emb_ppr: True
@@ -23,7 +24,7 @@ fixed:
     dropout: 0.
     embd_lr: 1.e-3
     reg_embd: 0.
-    bn: True  # MUST NEEDED!!!!
+    bn: False
     micro_batch_embd: 1
     noise_scale: 0.3
     beta: 10.
