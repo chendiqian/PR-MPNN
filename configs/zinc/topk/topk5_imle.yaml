@@ -5,7 +5,7 @@ fixed:
   sample_configs:
     sample_policy: graph_topk
     subgraph2node_aggr: mean
-    sample_k: 10
+    sample_k: 5
     ensemble: 1
     # for inner model
     inner_layer: 2
@@ -30,7 +30,7 @@ fixed:
     beta: 10.
 
     aux: 'batch'   # batch or pair
-    auxloss: 0.01
+    auxloss: 0.0
 
   model: zinc_gin
   hid_size: 256
