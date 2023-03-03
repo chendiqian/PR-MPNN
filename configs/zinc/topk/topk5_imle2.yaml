@@ -30,7 +30,7 @@ fixed:
     beta: 10.
 
     aux: 'batch'   # batch or pair
-    auxloss: 0.001
+    auxloss: 0.01
 
   model: zinc_gin
   hid_size: 256
