@@ -114,11 +114,13 @@ class LinearEmbed(torch.nn.Module):
                 emb.append(outer_prod)
 
         if self.emb_edge:
-            # emb_e = SparseTensor.from_edge_index(edge_index,
-            #                                      sparse_sizes=(data.num_nodes, data.num_nodes),
-            #                                      is_sorted=True).to_dense()
-            # emb.append(emb_e[idx[0], idx[1]][:, None])
-            raise NotImplementedError("see fwl2 how to embed edge")
+            num_edges = (data._slice_dict['edge_attr'][1:] - data._slice_dict['edge_attr'][:-1]).to(edge_attr.device)
+            graph_idx_mask = torch.repeat_interleave(torch.arange(bsz, device=edge_attr.device), num_edges)  # [0, 0, 0, 1, 1, 1, 2, 2, 2, ... batchsize - 1, ..]
+            edge_index_rel = torch.repeat_interleave(data._inc_dict['edge_index'].to(edge_attr.device), num_edges)
+            local_edge_index = data.edge_index - edge_index_rel
+            edge_embeddings = edge_attr.new_zeros(bsz, Nmax, Nmax, 1)
+            edge_embeddings[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = 1
+            emb.append(edge_embeddings)
 
         if self.emb_spd:
             spd_mat, _ = to_dense_batch(data.g_dist_mat, data.batch)  # batchsize, Nmax, max_node_dataset
