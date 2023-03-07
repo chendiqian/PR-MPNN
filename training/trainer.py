@@ -131,7 +131,7 @@ class Trainer:
         if self.auxloss > 0 and train:
             assert logits.shape[-1] == 1, "Add KLDiv between ensembles"
             if self.aux_type == 'batch':
-                auxloss = get_batch_aux_loss(logits * real_node_node_mask[..., None].to(torch.float), self.auxloss)
+                auxloss = get_batch_aux_loss(node_mask * real_node_node_mask[..., None].to(torch.float), self.auxloss)
             elif self.aux_type == 'pair':
                 auxloss = get_pair_aux_loss(node_mask, graph.nnodes, self.auxloss)
             else:
@@ -141,9 +141,12 @@ class Trainer:
 
         assert node_mask.shape[-1] == 1
         graph.edge_weight = node_mask[real_node_node_mask].squeeze()
-        row = torch.hstack([torch.repeat_interleave(torch.arange(n, device=node_mask.device), n) for n in graph.nnodes])
-        col = torch.hstack([torch.arange(n, device=node_mask.device).repeat(n) for n in graph.nnodes])
-        graph.edge_index = torch.vstack([row, col])
+        row = torch.hstack([torch.repeat_interleave(torch.arange(n, device=self.device), n) for n in graph.nnodes])
+        col = torch.hstack([torch.arange(n, device=self.device).repeat(n) for n in graph.nnodes])
+        edge_index = torch.vstack([row, col])
+        edge_index += torch.repeat_interleave(graph._inc_dict['edge_index'].to(self.device), graph.nnodes ** 2)
+        graph.edge_index = edge_index
+
         return graph, auxloss
 
     def train(self,
