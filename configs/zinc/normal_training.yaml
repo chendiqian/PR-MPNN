@@ -4,10 +4,20 @@ fixed:
 
   sample_configs:
     sample_policy: null
-    subgraph2node_aggr: null
     sample_k: null
-    # for inner model
-    inner_layer: 1
-    extra_dim: [0, 256]  # data.x || subgraph_emb
 
   imle_configs: null
+
+  model: zinc_gin
+  hid_size: 256
+  lr: 1.e-3
+  lr_steps: [ 400, 600 ]
+  patience: 100
+  reg: 0.
+  num_convlayers: 4
+  batch_size: 128
+  min_epochs: 700
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 3

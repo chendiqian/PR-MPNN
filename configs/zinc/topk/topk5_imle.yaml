@@ -1,15 +1,11 @@
 fixed:
   dataset: zinc
-  log_path: './logs_zinc_batchaux'
+  log_path: './logs'
 
   sample_configs:
     sample_policy: graph_topk
-    subgraph2node_aggr: mean
     sample_k: 5
     ensemble: 1
-    # for inner model
-    inner_layer: 2
-    extra_dim: [256, 256]  # data.x || subgraph_emb
 
   imle_configs:
     model: "lin_inner"
@@ -30,7 +26,7 @@ fixed:
     beta: 10.
 
     aux_type: 'batch'   # batch or pair
-    auxloss: 0.001
+    auxloss: 0.0
 
   model: zinc_gin
   hid_size: 256

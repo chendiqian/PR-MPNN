@@ -12,9 +12,6 @@ from torch_geometric.utils import is_undirected, to_undirected, add_remaining_se
     coalesce, subgraph as pyg_subgraph
 from torch_sparse import SparseTensor
 
-from subgraph.greedy_expand import greedy_grow_tree
-from subgraph.khop_subgraph import parallel_khop_neighbor
-
 
 class GraphModification:
     """
@@ -105,41 +102,6 @@ class AugmentwithNNodes(GraphModification):
 
     def __call__(self, graph: Data):
         graph.nnodes = torch.tensor([graph.num_nodes])
-        return graph
-
-
-class AugmentWithRandomKNeighbors(GraphModification):
-    """
-    Sample best k neighbors randomly, return the induced subgraph
-    Serves as transform because of its randomness
-    """
-
-    def __init__(self, sample_k: int, ensemble: int):
-        super(AugmentWithRandomKNeighbors, self).__init__()
-        self.num_neighnors = sample_k
-        self.ensemble = ensemble
-
-    def __call__(self, graph: Data):
-        mask = greedy_grow_tree(graph,
-                                self.num_neighnors,
-                                torch.rand(graph.num_nodes, graph.num_nodes, self.ensemble, device=graph.x.device),
-                                target_dtype=torch.bool)
-        graph.node_mask = mask.reshape(graph.num_nodes ** 2, self.ensemble)
-        return graph
-
-
-class AugmentWithKhopMasks(GraphModification):
-    """
-    Should be used as pretransform, because it is deterministic
-    """
-
-    def __init__(self, k: int):
-        super(AugmentWithKhopMasks, self).__init__()
-        self.khop = k
-
-    def __call__(self, graph: Data):
-        np_mask = parallel_khop_neighbor(graph.edge_index.numpy(), graph.num_nodes, self.khop)
-        graph.node_mask = torch.from_numpy(np_mask).reshape(-1).to(torch.bool)
         return graph
 
 
@@ -341,26 +303,3 @@ class AugmentFullGraphsPerNode(GraphModification):
                             y=graph.y, )
 
         return graph, square_graph
-
-
-def policy2transform(policy: str, sample_k: int, ensemble: int = 1, subgraph2node_aggr: str = 'mean') -> GraphModification:
-    """
-    transform for datasets
-
-    :param policy:
-    :param sample_k:
-    :param ensemble:
-    :param subgraph2node_aggr:
-    :return:
-    """
-    if policy == 'greedy_neighbors':
-        # return AugmentWithRandomKNeighbors(sample_k, ensemble)
-        raise NotImplementedError("should implement this with aug data in dataloader")
-    elif policy == 'khop':
-        return AugmentWithKhopMasks(sample_k)
-    elif policy == 'topk':
-        return RandomSampleTopk(sample_k, ensemble)
-    elif policy == 'graph_topk':
-        return AugmentTopkSampledGraphsPerNode(sample_k, ensemble, subgraph2node_aggr)
-    else:
-        raise NotImplementedError

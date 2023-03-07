@@ -1,7 +1,7 @@
 import os
 import pickle
 from collections import defaultdict
-from typing import Union, Optional, Any, Sequence
+from typing import Union, Optional, Any
 from ml_collections import ConfigDict
 
 import torch
@@ -12,11 +12,8 @@ from data.metrics import eval_rocauc, eval_acc, eval_rmse
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from subgraph.construct import (construct_imle_local_structure_subgraphs,
-                                construct_imle_subgraphs)
 from training.imle_scheme import IMLEScheme
 from training.aux_loss import get_pair_aux_loss, get_batch_aux_loss
-# from training.soft_mask_scheme import softmax_all, softmax_topk
 
 
 Optimizer = Union[torch.optim.Adam,
@@ -26,10 +23,6 @@ Scheduler = Union[torch.optim.lr_scheduler.ReduceLROnPlateau,
 Emb_model = Any
 Train_model = Any
 Loss = torch.nn.modules.loss
-
-POLICY_GRAPH_LEVEL = ['KMaxNeighbors', 'greedy_neighbors', 'graph_topk']
-POLICY_NODE_LEVEL = ['topk']
-POLICY_SOFT_MASK = ['soft_all',]
 
 
 class Trainer:
@@ -60,56 +53,44 @@ class Trainer:
 
         self.curves = defaultdict(list)
 
-        self.subgraph2node_aggr = sample_configs.subgraph2node_aggr
         self.sample_policy = sample_configs.sample_policy
         self.imle_scheduler = None
         if imle_configs is not None:
             # upstream may have micro batching
             self.micro_batch_embd = imle_configs.micro_batch_embd
 
-            if self.sample_policy not in POLICY_SOFT_MASK:
-                self.imle_scheduler = IMLEScheme(sample_configs.sample_policy,
-                                                 None,
-                                                 None,
-                                                 None,
-                                                 None,
-                                                 sample_configs.sample_k)
+            self.imle_scheduler = IMLEScheme(sample_configs.sample_policy,
+                                             None,
+                                             None,
+                                             None,
+                                             sample_configs.sample_k)
 
-                @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
-                      noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
-                      input_noise_temperature=1.,
-                      target_noise_temperature=1.,)
-                def imle_sample_scheme(logits: torch.Tensor):
-                    return self.imle_scheduler.torch_sample_scheme(logits)
-                self.imle_sample_scheme = imle_sample_scheme
+            @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
+                  noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
+                  input_noise_temperature=1.,
+                  target_noise_temperature=1.,)
+            def imle_sample_scheme(logits: torch.Tensor):
+                return self.imle_scheduler.torch_sample_scheme(logits)
+            self.imle_sample_scheme = imle_sample_scheme
 
         if sample_configs.sample_policy is None:
             # normal training
-            self.construct_duplicate_data = lambda x, *args: (x, x, None)
+            self.construct_duplicate_data = lambda x, *args: (x, None)
         elif imle_configs is not None:
             # N x N graph level pred, structure per node
-            if self.sample_policy in POLICY_GRAPH_LEVEL:
+            if self.sample_policy == 'graph_topk':
                 self.construct_duplicate_data = self.emb_model_graph_level_pred
-            # already in subgraphs, O(N)
-            elif self.sample_policy in POLICY_NODE_LEVEL:
-                self.construct_duplicate_data = self.emb_model_node_level
-            # no need IMLE, just backprop into soft masks
-            elif self.sample_policy == 'soft_all':
-                self.construct_duplicate_data = self.emb_model_node_soft_all
             else:
                 raise ValueError(f'{self.sample_policy} not supported')
         else:
             # N x N graph level pred, structure per node
-            if self.sample_policy in POLICY_GRAPH_LEVEL:
+            if self.sample_policy in 'graph_topk':
                 self.construct_duplicate_data = self.data_duplication
-            # already in subgraphs, O(N)
-            elif self.sample_policy in POLICY_NODE_LEVEL:
-                self.construct_duplicate_data = lambda x, *args: x
             else:
                 raise ValueError(f'{self.sample_policy} not supported')
 
 
-    def data_duplication(self, data: Sequence, *args):
+    def data_duplication(self, graph: Data, *args):
         """
         For random sampling, we already have (graphs, sampled graphs)
         In this function we shift the subgraphs2nodes idx with bias, so that the sampled graphs
@@ -118,26 +99,22 @@ class Trainer:
         :param data:
         :return:
         """
-        assert isinstance(data, (tuple, list)), "Should be [Original graph, batch of sample graphs]"
-        graph, sampled_graphs = data
-        graph, sampled_graphs = graph.to(self.device), sampled_graphs.to(self.device)
-
-        # the "subgraphs2nodes" is like (000 111 222) * ensemble, (0000 1111 2222) * ensemble
-        bias = torch.repeat_interleave(graph.ptr[:-1], sampled_graphs.ptr[1:] - sampled_graphs.ptr[:-1])
-        sampled_graphs.subgraphs2nodes += bias
-
-        return graph, sampled_graphs, None
+        # assert isinstance(data, (tuple, list)), "Should be [Original graph, batch of sample graphs]"
+        # graph, sampled_graphs = data
+        # graph, sampled_graphs = graph.to(self.device), sampled_graphs.to(self.device)
+        #
+        # # the "subgraphs2nodes" is like (000 111 222) * ensemble, (0000 1111 2222) * ensemble
+        # bias = torch.repeat_interleave(graph.ptr[:-1], sampled_graphs.ptr[1:] - sampled_graphs.ptr[:-1])
+        # sampled_graphs.subgraphs2nodes += bias
+        #
+        # return graph, sampled_graphs, None
+        raise NotImplementedError
 
     def emb_model_graph_level_pred(self,
-                                   data: Sequence,
+                                   graph: Data,
                                    emb_model: Emb_model,):
-        assert isinstance(data, (tuple, list)), "Should be [Original graph, batch of sample graphs]"
-
-        graph, sampled_graphs = data
-        graph, sampled_graphs = graph.to(self.device), sampled_graphs.to(self.device)
 
         train = emb_model.training
-
         logits, real_node_node_mask = emb_model(graph)
 
         # self.imle_scheduler.graphs = Batch.to_data_list(graph)
@@ -162,69 +139,12 @@ class Trainer:
         else:
             auxloss = None
 
-        node_mask =  node_mask[real_node_node_mask]
-
-        new_batch = construct_imle_local_structure_subgraphs(graph,
-                                                             sampled_graphs,
-                                                             node_mask,
-                                                             self.subgraph2node_aggr,
-                                                             grad=train)
-
-        return graph, new_batch, auxloss
-
-    def emb_model_node_level(self,
-                             data: Union[Data, Batch],
-                             emb_model: Emb_model,
-                             device: Union[torch.device, str]):
-        train = emb_model.training
-        graphs = Batch.to_data_list(data)
-
-        logits = emb_model(data.to(device))
-        data = data.cpu()
-
-        self.imle_scheduler.graphs = graphs
-        self.imle_scheduler.ptr = tuple(data.nnodes.tolist())
-        self.imle_scheduler.seed_node_mask = data.target_mask
-
-        if train:
-            node_mask, _ = self.imle_sample_scheme(logits)
-        else:
-            node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
-
-        new_batch = construct_imle_subgraphs(graphs,
-                                             node_mask,
-                                             data.nnodes,
-                                             data.batch,
-                                             data.y,
-                                             self.subgraph2node_aggr,
-                                             grad=train)
-
-        return new_batch, None
-
-    def emb_model_node_soft_all(self,
-                                data: Union[Data, Batch],
-                                emb_model: Emb_model,
-                                device: Union[torch.device, str]):
-        # train = emb_model.training
-        # graphs = Batch.to_data_list(data)
-        #
-        # logits = emb_model(data.to(device))
-        #
-        # # need to softmax
-        # logits = softmax_all(logits, data.nnodes, data.ptr if hasattr(data, 'ptr') else None)
-        # data = data.to('cpu')
-        #
-        # new_batch = construct_imle_local_structure_subgraphs(graphs,
-        #                                                      logits.cpu(),
-        #                                                      data.nnodes,
-        #                                                      data.batch,
-        #                                                      data.y,
-        #                                                      self.subgraph2node_aggr,
-        #                                                      grad=train)
-        #
-        # return new_batch, None
-        raise NotImplementedError
-
+        assert node_mask.shape[-1] == 1
+        graph.edge_weight = node_mask[real_node_node_mask].squeeze()
+        row = torch.hstack([torch.repeat_interleave(torch.arange(n, device=node_mask.device), n) for n in graph.nnodes])
+        col = torch.hstack([torch.arange(n, device=node_mask.device).repeat(n) for n in graph.nnodes])
+        graph.edge_index = torch.vstack([row, col])
+        return graph, auxloss
 
     def train(self,
               dataloader: AttributedDataLoader,
@@ -248,9 +168,10 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
-            data, new_data, auxloss = self.construct_duplicate_data(data, emb_model)
+            data = data.to(self.device)
+            data, auxloss = self.construct_duplicate_data(data, emb_model)
 
-            pred = model(new_data, data)
+            pred = model(data)
 
             is_labeled = data.y == data.y
             loss = self.criterion(pred[is_labeled], data.y[is_labeled].to(torch.float))
@@ -316,9 +237,10 @@ class Trainer:
         labels = []
 
         for data in dataloader.loader:
-            data, new_data, _ = self.construct_duplicate_data(data, emb_model)
+            data = data.to(self.device)
+            data, _ = self.construct_duplicate_data(data, emb_model)
 
-            pred = model(new_data, data)
+            pred = model(data)
 
             if dataloader.std is not None:
                 preds.append(pred * dataloader.std)
