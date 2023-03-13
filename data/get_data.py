@@ -16,7 +16,6 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAddRemainSelfLoop,
                               AugmentWithShortedPathDistance,
                               AugmentWithPPR,
-                              RandomSampleTopk,
                               )
 from .data_utils import AttributedDataLoader
 NUM_WORKERS = 8
@@ -33,7 +32,6 @@ PRETRANSFORM_PRIORITY = {
     GraphAttrToOneHot: 0,  # low
     AugmentWithShortedPathDistance: 98,
     AugmentWithPPR: 98,
-    RandomSampleTopk: 0,
 }
 
 
