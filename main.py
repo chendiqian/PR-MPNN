@@ -18,6 +18,8 @@ from data.get_data import get_data
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
 from data.data_utils import SyncMeanTimer
 
+import wandb
+
 ex = Experiment()
 
 
@@ -91,6 +93,8 @@ def run(fixed):
 
     logger = get_logger(folder_name)
 
+    wandb.init(project="imle", mode="online", config=args.to_dict(), name=hparams, entity="mls-stuttgart")
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_loaders, val_loaders, test_loaders = get_data(args, device)
 
@@ -98,6 +102,9 @@ def run(fixed):
     criterion = CRITERION_DICT[args.dataset.lower()]
 
     model, emb_model = get_model(args, device)
+
+    wandb.watch(model, log="all")
+    wandb.watch(emb_model, log="all")
 
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=task_type,
@@ -169,6 +176,8 @@ def run(fixed):
                 writer.add_scalar('metric/training metric', train_metric, epoch)
                 writer.add_scalar('metric/val metric', val_metric, epoch)
                 writer.add_scalar('lr', scheduler.optimizer.param_groups[0]['lr'], epoch)
+                
+                wandb.log({"train_loss": train_loss, "val_loss": val_loss, "train_metric": train_metric, "val_metric": val_metric, "lr": scheduler.optimizer.param_groups[0]['lr']})
 
                 if epoch % 50 == 0:
                     torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')
