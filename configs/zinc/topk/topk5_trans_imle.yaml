@@ -16,8 +16,20 @@ fixed:
       dim_pe: 24
       raw_norm_type: 'BatchNorm'
 
+    lap:
+      eigen:
+        laplacian_norm: null
+        eigvec_norm: 'L2'
+        max_freqs: 1
+      model: 'DeepSet'
+      dim_pe: 4
+      layers: 2
+      n_heads: 4
+      post_layers: 0
+      raw_norm_type: null
+
     emb_hid_size: 64
-    tf_layer: 3
+    tf_layer: 0
     dropout: 0.
     attn_dropout: 0.5
     embd_lr: 1.e-3
