@@ -2,6 +2,7 @@ from data.const import DATASET_FEATURE_STAT_DICT
 from models.downstream_models.ogb_mol_gnn import OGBGNN
 from models.downstream_models.zinc_gin import ZINC_GIN
 from models.upstream_models.linear_embed import LinearEmbed
+from models.upstream_models.transformer import FeatureEncoder, Transformer
 
 
 def get_model(args, device, *_args):
@@ -41,6 +42,26 @@ def get_model(args, device, *_args):
                 use_bn=args.imle_configs.bn,
                 use_ogb_encoder=args.dataset.lower().startswith('ogb')
             )
+        elif args.imle_configs.model == 'transformer':
+            if args.dataset.lower() in ['zinc']:
+                type_encoder = 'linear'
+            else:
+                raise ValueError
+            encoder = FeatureEncoder(dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                                     hidden=args.imle_configs.emb_hid_size,
+                                     type_encoder=type_encoder,
+                                     lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
+                                     rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
+            emb_model = Transformer(encoder=encoder,
+                                    hidden=args.imle_configs.emb_hid_size,
+                                    layers=args.imle_configs.tf_layer,
+                                    num_heads=args.imle_configs.heads,
+                                    ensemble=args.sample_configs.ensemble,
+                                    act='relu',
+                                    dropout=args.imle_configs.dropout,
+                                    attn_dropout=args.imle_configs.attn_dropout,
+                                    layer_norm=args.imle_configs.layernorm,
+                                    batch_norm=args.imle_configs.batchnorm)
         else:
             raise NotImplementedError
     else:
