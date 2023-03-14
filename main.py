@@ -93,7 +93,7 @@ def run(fixed):
 
     logger = get_logger(folder_name)
 
-    wandb.init(project="imle", mode="online", config=args.to_dict(), name=hparams, entity="mls-stuttgart")
+    wandb.init(project="imle", mode="online" if not args.debug else "disabled", config=args.to_dict(), name=hparams, entity="mls-stuttgart")
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_loaders, val_loaders, test_loaders = get_data(args, device)
