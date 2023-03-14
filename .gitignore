@@ -1,6 +1,7 @@
 .ipynb_checkpoints
 .idea
 .DS_Store
+.wandb
 __pycache__
 datasets
 *logs*
