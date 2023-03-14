@@ -16,7 +16,7 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAddRemainSelfLoop,
                               AugmentWithShortedPathDistance,
                               AugmentWithPPR,
-                              AugmentWithRandomWalkProbs)
+                              AugmentWithRandomWalkProbs, AugmentWithLaplace)
 from .data_utils import AttributedDataLoader
 NUM_WORKERS = 8
 
@@ -24,6 +24,7 @@ DATASET = (PygGraphPropPredDataset, ZINC)
 
 NAME_DICT = {'zinc_full': "ZINC_full",}
 
+# sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
     GraphExpandDim: 0,  # low
     GraphAddRemainSelfLoop: 100,  # highest
@@ -33,6 +34,7 @@ PRETRANSFORM_PRIORITY = {
     AugmentWithShortedPathDistance: 98,
     AugmentWithPPR: 98,
     AugmentWithRandomWalkProbs: 98,
+    AugmentWithLaplace: 98,
 }
 
 
@@ -44,6 +46,8 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
         extra_path += 'PPRaug_'
     if hasattr(args.imle_configs, 'rwse'):
         extra_path += 'rwse_'
+    if hasattr(args.imle_configs, 'lap'):
+        extra_path += 'lap_'
     return extra_path if len(extra_path) else None
 
 
@@ -71,6 +75,11 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
 
     if hasattr(args.imle_configs, 'rwse'):
         pretransform.append(AugmentWithRandomWalkProbs(eval(args.imle_configs.rwse.kernel)))
+
+    if hasattr(args.imle_configs, 'lap'):
+        pretransform.append(AugmentWithLaplace(args.imle_configs.lap.eigen.laplacian_norm,
+                                               args.imle_configs.lap.eigen.max_freqs,
+                                               args.imle_configs.lap.eigen.eigvec_norm))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)

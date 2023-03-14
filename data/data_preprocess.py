@@ -5,10 +5,15 @@ import torch
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import shortest_path
 from torch_geometric.data import Data
-from torch_geometric.utils import is_undirected, to_undirected, add_remaining_self_loops, coalesce
+from torch_geometric.utils import (is_undirected,
+                                   to_undirected,
+                                   add_remaining_self_loops,
+                                   coalesce,
+                                   to_scipy_sparse_matrix,
+                                   get_laplacian)
 from torch_sparse import SparseTensor
 
-from data.encoding import get_rw_landing_probs
+from data.encoding import get_rw_landing_probs, get_lap_decomp_stats
 
 
 class GraphModification:
@@ -186,4 +191,26 @@ class AugmentWithRandomWalkProbs(GraphModification):
 
     def __call__(self, graph: Data):
         graph.pestat_RWSE = get_rw_landing_probs(self.ksteps, graph.edge_index, graph.num_nodes)
+        return graph
+
+
+class AugmentWithLaplace(GraphModification):
+    def __init__(self, laplacian_norm_type, max_freqs, eigvec_norm):
+        super(AugmentWithLaplace).__init__()
+        self.laplacian_norm_type = laplacian_norm_type
+        self.max_freqs = max_freqs
+        self.eigvec_norm = eigvec_norm
+
+    def __call__(self, graph: Data):
+        assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
+        L = to_scipy_sparse_matrix(
+            *get_laplacian(graph.edge_index,
+                           normalization=self.laplacian_norm_type,
+                           num_nodes=graph.num_nodes)
+        )
+        evals, evects = np.linalg.eigh(L.toarray())
+        graph.EigVals, graph.EigVecs = get_lap_decomp_stats(
+            evals=evals, evects=evects,
+            max_freqs=self.max_freqs,
+            eigvec_norm=self.eigvec_norm)
         return graph
