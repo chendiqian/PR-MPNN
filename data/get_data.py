@@ -16,7 +16,7 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAddRemainSelfLoop,
                               AugmentWithShortedPathDistance,
                               AugmentWithPPR,
-                              )
+                              AugmentWithRandomWalkProbs)
 from .data_utils import AttributedDataLoader
 NUM_WORKERS = 8
 
@@ -32,6 +32,7 @@ PRETRANSFORM_PRIORITY = {
     GraphAttrToOneHot: 0,  # low
     AugmentWithShortedPathDistance: 98,
     AugmentWithPPR: 98,
+    AugmentWithRandomWalkProbs: 98,
 }
 
 
@@ -41,6 +42,8 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
         extra_path += 'SPDaug_'
     if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
         extra_path += 'PPRaug_'
+    if hasattr(args.imle_configs, 'rwse'):
+        extra_path += 'rwse_'
     return extra_path if len(extra_path) else None
 
 
@@ -65,6 +68,9 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
 
     if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
         pretransform.append(AugmentWithPPR(MAX_NUM_NODE_DICT[args.dataset.lower()]))
+
+    if hasattr(args.imle_configs, 'rwse'):
+        pretransform.append(AugmentWithRandomWalkProbs(eval(args.imle_configs.rwse.kernel)))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)

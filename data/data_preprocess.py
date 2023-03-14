@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 import torch
@@ -7,6 +7,8 @@ from scipy.sparse.csgraph import shortest_path
 from torch_geometric.data import Data
 from torch_geometric.utils import is_undirected, to_undirected, add_remaining_self_loops, coalesce
 from torch_sparse import SparseTensor
+
+from data.encoding import get_rw_landing_probs
 
 
 class GraphModification:
@@ -174,4 +176,14 @@ class RandomSampleTopkperNode(GraphModification):
             thresh = torch.topk(logit, k, dim=1, largest=True, sorted=True).values[:, -1, :]
             mask = (logit >= thresh[:, None, :])
             graph.node_mask = mask.reshape(graph.num_nodes ** 2, self.ensemble)
+        return graph
+
+
+class AugmentWithRandomWalkProbs(GraphModification):
+    def __init__(self, ksteps: List):
+        super(AugmentWithRandomWalkProbs, self).__init__()
+        self.ksteps = ksteps
+
+    def __call__(self, graph: Data):
+        graph.pestat_RWSE = get_rw_landing_probs(self.ksteps, graph.edge_index, graph.num_nodes)
         return graph
