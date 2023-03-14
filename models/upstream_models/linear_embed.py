@@ -32,8 +32,6 @@ class LinearEmbed(torch.nn.Module):
         self.emb_spd = emb_spd
         self.emb_ppr = emb_ppr
 
-        self.p_list = []
-
         if use_ogb_encoder:
             self.atom_encoder = AtomEncoder(emb_dim=hid_size)
             self.bond_encoder = BondEncoder(emb_dim=hid_size)
@@ -42,8 +40,8 @@ class LinearEmbed(torch.nn.Module):
             self.bond_encoder = Linear(edge_features, hid_size)
 
         # don't regularize these params
-        self.p_list.append({'params': self.atom_encoder.parameters(), 'weight_decay': 0.})
-        self.p_list.append({'params': self.bond_encoder.parameters(), 'weight_decay': 0.})
+        # self.p_list.append({'params': self.atom_encoder.parameters(), 'weight_decay': 0.})
+        # self.p_list.append({'params': self.bond_encoder.parameters(), 'weight_decay': 0.})
 
         self.gnn = torch.nn.ModuleList()
 
@@ -62,8 +60,6 @@ class LinearEmbed(torch.nn.Module):
                     hid_size,
                     seq,
                     bond_encoder=MLP([hid_size, hid_size, hid_size], dropout=dropout),))
-            # don't regularize these params
-            self.p_list.append({'params': self.gnn[-1].parameters(), 'weight_decay': 0.})
 
         if tuple_type == 'cat':
             mlp_in_size = hid_size * 2
@@ -80,8 +76,6 @@ class LinearEmbed(torch.nn.Module):
 
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
                        layer_norm=use_bn, dropout=dropout)
-        # regularize these params
-        self.p_list.append({'params': self.mlp.parameters(),})
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
