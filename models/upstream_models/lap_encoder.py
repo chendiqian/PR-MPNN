@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-
+from models.nn_utils import reset_sequential_parameters
 
 class LapPENodeEncoder(torch.nn.Module):
     """Laplace Positional Embedding node encoder.
@@ -26,8 +26,6 @@ class LapPENodeEncoder(torch.nn.Module):
         n_heads = pecfg.n_heads  # Num. attention heads in Trf PE encoder
         post_n_layers = pecfg.post_layers  # Num. layers to apply after pooling
         max_freqs = pecfg.eigen.max_freqs  # Num. eigenvectors (frequencies)
-        norm_type = pecfg.raw_norm_type.lower()  # Raw PE normalization layer type
-        self.pass_as_var = pecfg.pass_as_var  # Pass PE also as a separate variable
 
         if dim_emb - dim_pe < 0: # formerly 1, but you could have zero feature size
             raise ValueError(f"LapPE size {dim_pe} is too large for "
@@ -39,10 +37,12 @@ class LapPENodeEncoder(torch.nn.Module):
 
         # Initial projection of eigenvalue and the node's eigenvector value
         self.linear_A = nn.Linear(2, dim_pe)
-        if norm_type == 'batchnorm':
+        if pecfg.raw_norm_type is None:
+            self.raw_norm = None
+        elif pecfg.raw_norm_type.lower() == 'batchnorm':
             self.raw_norm = nn.BatchNorm1d(max_freqs)
         else:
-            self.raw_norm = None
+            raise ValueError
 
         activation = nn.ReLU  # register.act_dict[cfg.gnn.act]
         if model_type == 'Transformer':
@@ -85,7 +85,7 @@ class LapPENodeEncoder(torch.nn.Module):
             self.post_mlp = nn.Sequential(*layers)
 
 
-    def forward(self, batch):
+    def forward(self, x, batch):
         if not (hasattr(batch, 'EigVals') and hasattr(batch, 'EigVecs')):
             raise ValueError("Precomputed eigen values and vectors are "
                              f"required for {self.__class__.__name__}; "
@@ -127,12 +127,20 @@ class LapPENodeEncoder(torch.nn.Module):
 
         # Expand node features if needed
         if self.expand_x:
-            h = self.linear_x(batch.x)
+            h = self.linear_x(x)
         else:
-            h = batch.x
+            h = x
         # Concatenate final PEs to input embedding
-        batch.x = torch.cat((h, pos_enc), 1)
+        x = torch.cat((h, pos_enc), 1)
         # Keep PE also separate in a variable (e.g. for skip connections to input)
-        if self.pass_as_var:
-            batch.pe_LapPE = pos_enc
-        return batch
+        return x
+
+    def reset_parameters(self):
+        self.linear_A.reset_parameters()
+        if self.expand_x:
+            self.linear_x.reset_parameters()
+        if self.raw_norm:
+            self.raw_norm.reset_parameters()
+        if self.post_mlp is not None:
+            reset_sequential_parameters(self.post_mlp)
+        reset_sequential_parameters(self.pe_encoder)

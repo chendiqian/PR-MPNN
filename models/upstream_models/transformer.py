@@ -6,6 +6,7 @@ import torch_geometric.nn as pygnn
 from torch_geometric.utils import to_dense_batch
 
 from .kernel_encoder import RWSENodeEncoder
+from .lap_encoder import LapPENodeEncoder
 
 
 class FeatureEncoder(torch.nn.Module):
@@ -16,7 +17,7 @@ class FeatureEncoder(torch.nn.Module):
         if type_encoder == 'linear':
             lin_hidden = hidden
             if lap_encoder is not None:
-                raise NotImplementedError
+                lin_hidden -= lap_encoder.dim_pe
             if rw_encoder is not None:
                 lin_hidden -= rw_encoder.dim_pe
             self.linear_embed = nn.Linear(dim_in, lin_hidden)
@@ -27,7 +28,7 @@ class FeatureEncoder(torch.nn.Module):
             raise ValueError
 
         if lap_encoder is not None:
-            raise NotImplementedError
+            self.lap_encoder = LapPENodeEncoder(hidden, hidden - rw_encoder.dim_pe, lap_encoder, expand_x=False)
 
         if rw_encoder is not None:
             self.rw_encoder = RWSENodeEncoder(hidden, hidden, rw_encoder, expand_x=False)
@@ -55,11 +56,13 @@ class FeatureEncoder(torch.nn.Module):
 
     def forward(self, batch):
         x = self.linear_embed(batch.x)
+        x = self.lap_encoder(x, batch)
         x = self.rw_encoder(x, batch)
         return x
 
     def reset_parameters(self):
         self.linear_embed.reset_parameters()
+        self.lap_encoder.reset_parameters()
         self.rw_encoder.reset_parameters()
 
 
