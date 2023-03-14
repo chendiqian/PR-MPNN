@@ -43,7 +43,10 @@ def naming(args) -> str:
         name += f'IMLE_'
         name += f'model_{args.imle_configs.model}_'
         name += f'H{args.imle_configs.emb_hid_size}_'
-        name += f'L_{args.imle_configs.gnn_layer}_{args.imle_configs.mlp_layer}'
+        if args.imle_configs.model.startswith('lin'):
+            name += f'L_{args.imle_configs.gnn_layer}_{args.imle_configs.mlp_layer}'
+        elif args.imle_configs.model == 'transformer':
+            name += f'L{args.imle_configs.tf_layer}'
         name += f'DP{args.imle_configs.dropout}'
         name += f'noise{args.imle_configs.noise_scale}'
         name += f'Beta{args.imle_configs.beta}'
@@ -51,11 +54,11 @@ def naming(args) -> str:
         name += f'aux{args.imle_configs.auxloss}'
 
         name += 'encoding_'
-        if args.imle_configs.emb_edge:
+        if hasattr(args.imle_configs, 'emb_edge') and args.imle_configs.emb_edge:
             name += '+edge'
-        if args.imle_configs.emb_spd:
+        if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
             name += '+spd'
-        if args.imle_configs.emb_ppr:
+        if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
             name += '+ppr'
     else:
         name += 'OnTheFly_'
