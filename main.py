@@ -65,6 +65,7 @@ def naming(args) -> str:
     else:
         name += 'OnTheFly_'
 
+    name += f'ensemble_{args.sample_configs.ensemble}_'
     name += f'policy_{args.sample_configs.sample_policy}_'
     name += f'samplek_{args.sample_configs.sample_k}_'
     return name
@@ -104,7 +105,8 @@ def run(fixed):
     model, emb_model = get_model(args, device)
 
     wandb.watch(model, log="all")
-    wandb.watch(emb_model, log="all")
+    if emb_model is not None:
+        wandb.watch(emb_model, log="all")
 
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=task_type,
