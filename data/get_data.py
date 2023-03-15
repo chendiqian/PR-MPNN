@@ -17,7 +17,8 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithShortedPathDistance,
                               AugmentWithPPR,
                               AugmentWithRandomWalkProbs, AugmentWithLaplace,
-                              AugmentWithRewiredGraphs)
+                              AugmentWithPerNodeRewiredGraphs,
+                              AugmentWithGlobalRewiredGraphs)
 from .data_utils import AttributedDataLoader
 NUM_WORKERS = 8
 
@@ -60,9 +61,13 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     if args.sample_configs.sample_policy is None:
         return None
     elif args.sample_configs.sample_policy == 'graph_topk':
-        transform = AugmentWithRewiredGraphs(args.sample_configs.sample_k,
-                                             args.sample_configs.include_original_graph,
-                                             args.sample_configs.ensemble)
+        transform = AugmentWithPerNodeRewiredGraphs(args.sample_configs.sample_k,
+                                                    args.sample_configs.include_original_graph,
+                                                    args.sample_configs.ensemble)
+    elif args.sample_configs.sample_policy == 'global_topk':
+        transform = AugmentWithGlobalRewiredGraphs(args.sample_configs.sample_k,
+                                                   args.sample_configs.include_original_graph,
+                                                   args.sample_configs.ensemble)
     else:
         raise ValueError
     return transform

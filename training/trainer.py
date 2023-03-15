@@ -84,7 +84,7 @@ class Trainer:
                 raise ValueError(f'{self.sample_policy} not supported')
         else:
             # N x N graph level pred, structure per node
-            if self.sample_policy in 'graph_topk':
+            if self.sample_policy in ['graph_topk', 'global_topk']:
                 self.construct_duplicate_data = lambda x, *args: (x, None)
             else:
                 raise ValueError(f'{self.sample_policy} not supported')
