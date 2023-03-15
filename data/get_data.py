@@ -16,7 +16,8 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAddRemainSelfLoop,
                               AugmentWithShortedPathDistance,
                               AugmentWithPPR,
-                              AugmentWithRandomWalkProbs, AugmentWithLaplace)
+                              AugmentWithRandomWalkProbs, AugmentWithLaplace,
+                              AugmentWithRewiredGraphs)
 from .data_utils import AttributedDataLoader
 NUM_WORKERS = 8
 
@@ -58,8 +59,13 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     # normal training
     if args.sample_configs.sample_policy is None:
         return None
+    elif args.sample_configs.sample_policy == 'graph_topk':
+        transform = AugmentWithRewiredGraphs(args.sample_configs.sample_k,
+                                             args.sample_configs.include_original_graph,
+                                             args.sample_configs.ensemble)
     else:
-        raise NotImplementedError
+        raise ValueError
+    return transform
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):

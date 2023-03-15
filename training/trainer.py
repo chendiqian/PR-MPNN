@@ -85,30 +85,9 @@ class Trainer:
         else:
             # N x N graph level pred, structure per node
             if self.sample_policy in 'graph_topk':
-                self.construct_duplicate_data = self.data_duplication
+                self.construct_duplicate_data = lambda x, *args: (x, None)
             else:
                 raise ValueError(f'{self.sample_policy} not supported')
-
-
-    def data_duplication(self, graph: Data, *args):
-        """
-        For random sampling, we already have (graphs, sampled graphs)
-        In this function we shift the subgraphs2nodes idx with bias, so that the sampled graphs
-        aggregate to the correct nodes
-
-        :param data:
-        :return:
-        """
-        # assert isinstance(data, (tuple, list)), "Should be [Original graph, batch of sample graphs]"
-        # graph, sampled_graphs = data
-        # graph, sampled_graphs = graph.to(self.device), sampled_graphs.to(self.device)
-        #
-        # # the "subgraphs2nodes" is like (000 111 222) * ensemble, (0000 1111 2222) * ensemble
-        # bias = torch.repeat_interleave(graph.ptr[:-1], sampled_graphs.ptr[1:] - sampled_graphs.ptr[:-1])
-        # sampled_graphs.subgraphs2nodes += bias
-        #
-        # return graph, sampled_graphs, None
-        raise NotImplementedError
 
     def emb_model_graph_level_pred(self,
                                    graph: Data,

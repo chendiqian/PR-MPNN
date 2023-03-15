@@ -1,10 +1,11 @@
 from typing import Optional, List
-
+from copy import deepcopy
 import numpy as np
 import torch
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import shortest_path
 from torch_geometric.data import Data
+from torch_geometric.data.collate import collate
 from torch_geometric.utils import (is_undirected,
                                    to_undirected,
                                    add_remaining_self_loops,
@@ -214,3 +215,35 @@ class AugmentWithLaplace(GraphModification):
             max_freqs=self.max_freqs,
             eigvec_norm=self.eigvec_norm)
         return graph
+
+
+class AugmentWithRewiredGraphs(GraphModification):
+    def __init__(self, sample_k, include_original_graph, ensemble):
+        super(AugmentWithRewiredGraphs, self).__init__()
+        self.sample_k = sample_k
+        self.include_original_graph = include_original_graph
+        self.ensemble = ensemble
+
+    def __call__(self, graph: Data):
+        if self.sample_k >= graph.num_nodes:
+            new_graph = deepcopy(graph)
+            full_edge_index = np.vstack(np.triu_indices(graph.num_nodes, k=-graph.num_nodes,))
+            new_graph.edge_index = torch.from_numpy(full_edge_index)
+            graphs = [new_graph] * self.ensemble
+            if self.include_original_graph:
+                graphs.append(graph)
+        else:
+            sample_matrix = torch.rand(self.ensemble, graph.num_nodes, graph.num_nodes)
+            thresh = torch.topk(sample_matrix, self.sample_k, dim=2, largest=True, sorted=True).values[:, :, -1]
+            mask = sample_matrix >= thresh[:, :, None]
+            batch_idx, row_idx, col_idx = torch.where(mask)
+            graphs = [Data(x=graph.x, edge_index=graph.edge_index, edge_attr=graph.edge_attr)] if self.include_original_graph else []
+            for i in range(self.ensemble):
+                idx = batch_idx == i
+                rows = row_idx[idx]
+                cols = col_idx[idx]
+                g = Data(x=graph.x, edge_index=torch.vstack((rows, cols)), edge_attr=graph.edge_attr)
+                graphs.append(g)
+        graphs = collate(graph.__class__, graphs, increment=True, add_batch=False)[0]
+        graphs.y = graph.y
+        return graphs
