@@ -12,7 +12,7 @@ pip install sacred
 pip install PyYAML
 pip install setuptools==59.5.0
 
-conda install -y pytorch=1.13.1 pytorch-cuda=11.7 -c pytorch -c nvidia
+conda install -y pytorch=1.13.1 pytorch-cuda=11.6 -c pytorch -c nvidia
 pip install https://data.pyg.org/whl/torch-1.13.0%2Bcu116/pyg_lib-0.1.0%2Bpt113cu116-cp38-cp38-linux_x86_64.whl
 pip install https://data.pyg.org/whl/torch-1.13.0%2Bcu116/torch_scatter-2.1.1%2Bpt113cu116-cp38-cp38-linux_x86_64.whl
 pip install https://data.pyg.org/whl/torch-1.13.0%2Bcu116/torch_sparse-0.6.17%2Bpt113cu116-cp38-cp38-linux_x86_64.whl
