@@ -80,7 +80,7 @@ class Trainer:
             self.construct_duplicate_data = lambda x, *args: (x, None)
         elif imle_configs is not None:
             # N x N graph level pred, structure per node
-            if self.sample_policy == 'graph_topk':
+            if self.sample_policy in ['graph_topk', 'global_topk']:
                 self.construct_duplicate_data = self.emb_model_graph_level_pred
             else:
                 raise ValueError(f'{self.sample_policy} not supported')

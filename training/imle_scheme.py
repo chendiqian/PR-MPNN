@@ -74,5 +74,17 @@ class IMLEScheme:
             thresh = torch.topk(local_logits, self.sample_k, dim=2, largest=True, sorted=True).values[:, :, -1, :][:, :, None, :]
             mask = (local_logits >= thresh).to(torch.float)
             return mask, None
+        if self.imle_sample_policy == 'global_topk':
+            Batch, Nmax, _, ensemble = local_logits.shape
+            if self.sample_k >= Nmax ** 2:
+                return local_logits.new_ones(local_logits.shape)
+
+            local_logits[~self.real_node_node_mask] -= 1.e10
+            local_logits = local_logits.reshape(Batch, -1, ensemble)
+            thresh = torch.topk(local_logits, self.sample_k, dim=1, largest=True,
+                                sorted=True).values[:, -1, :][:, None, :]
+            mask = (local_logits >= thresh).to(torch.float)
+            mask = mask.reshape(Batch, Nmax, Nmax, ensemble)
+            return mask, None
         else:
             raise NotImplementedError
