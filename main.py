@@ -8,7 +8,6 @@ from datetime import datetime
 
 import torch
 torch.multiprocessing.set_sharing_strategy('file_system')
-from torch.utils.tensorboard import SummaryWriter
 from numpy import mean as np_mean
 from numpy import std as np_std
 
@@ -71,11 +70,10 @@ def naming(args) -> str:
     return name
 
 
-def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> Tuple[SummaryWriter, str]:
+def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> str:
     run_folder = os.path.join(folder_name, f'run{num_run}_fold{num_fold}_{"".join(str(datetime.now()).split(":"))}')
     os.mkdir(run_folder)
-    writer = SummaryWriter(run_folder)
-    return writer, run_folder
+    return run_folder
 
 
 @ex.automain
@@ -145,7 +143,7 @@ def run(fixed):
                                                              args.lr_steps,
                                                              gamma=args.lr_decay_rate if hasattr(args, 'lr_decay_rate')
                                                              else 0.1 ** 0.5)
-            writer, run_folder = prepare_exp(folder_name, _run, _fold)
+            run_folder = prepare_exp(folder_name, _run, _fold)
 
             best_epoch = 0
             epoch_timer = SyncMeanTimer()
@@ -173,13 +171,12 @@ def run(fixed):
                             f'training metric: {round(train_metric, 5)}, '
                             f'val metric: {round(val_metric, 5)}, '
                             f'lr: {round(scheduler.optimizer.param_groups[0]["lr"], 5)}')
-                writer.add_scalar('loss/training loss', train_loss, epoch)
-                writer.add_scalar('loss/val loss', val_loss, epoch)
-                writer.add_scalar('metric/training metric', train_metric, epoch)
-                writer.add_scalar('metric/val metric', val_metric, epoch)
-                writer.add_scalar('lr', scheduler.optimizer.param_groups[0]['lr'], epoch)
                 
-                wandb.log({"train_loss": train_loss, "val_loss": val_loss, "train_metric": train_metric, "val_metric": val_metric, "lr": scheduler.optimizer.param_groups[0]['lr']})
+                wandb.log({"train_loss": train_loss,
+                           "val_loss": val_loss,
+                           "train_metric": train_metric,
+                           "val_metric": val_metric,
+                           "lr": scheduler.optimizer.param_groups[0]['lr']})
 
                 if epoch % 50 == 0:
                     torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')
@@ -191,9 +188,6 @@ def run(fixed):
                     torch.save(model.state_dict(), f'{run_folder}/model_best.pt')
                     if emb_model is not None:
                         torch.save(emb_model.state_dict(), f'{run_folder}/embd_model_best.pt')
-
-            writer.flush()
-            writer.close()
 
             # rm cached model
             used_model = os.listdir(run_folder)

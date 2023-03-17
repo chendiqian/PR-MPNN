@@ -18,5 +18,4 @@ pip install https://data.pyg.org/whl/torch-1.13.0%2Bcu116/torch_scatter-2.1.1%2B
 pip install https://data.pyg.org/whl/torch-1.13.0%2Bcu116/torch_sparse-0.6.17%2Bpt113cu116-cp38-cp38-linux_x86_64.whl
 pip install torch-geometric
 
-pip install tensorboard
 pip install ogb
