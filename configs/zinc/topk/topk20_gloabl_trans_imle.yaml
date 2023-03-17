@@ -3,8 +3,8 @@ fixed:
   log_path: './logs'
 
   sample_configs:
-    sample_policy: graph_topk
-    sample_k: 5
+    sample_policy: global_topk
+    sample_k: 20
     ensemble: 1
     include_original_graph: True
 
