@@ -3,13 +3,15 @@ fixed:
   log_path: './logs'
 
   sample_configs:
-    sample_policy: graph_topk
-    sample_k: 5
+    sample_policy: global_topk
+    sample_k: 20
     ensemble: 1
     include_original_graph: True
 
   imle_configs:
-    sampler: imle
+    sampler: gumbel
+    tau: 0.1
+
     model: "transformer"
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51
     rwse:
@@ -39,8 +41,6 @@ fixed:
     layernorm: False
     batchnorm: True
     micro_batch_embd: 1
-    noise_scale: 0.3
-    beta: 10.
 
     aux_type: 'batch'   # batch or pair
     auxloss: 0.0

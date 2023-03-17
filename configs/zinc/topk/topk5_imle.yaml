@@ -8,6 +8,7 @@ fixed:
     ensemble: 1
 
   imle_configs:
+    sampler: imle
     model: "lin_inner"
     heads: 1    # for attention-like inner product
     emb_edge: False
