@@ -14,9 +14,10 @@ from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
 from training.imle_scheme import IMLEScheme
+from training.gumbel_scheme import GumbelSampler
 from training.aux_loss import get_pair_aux_loss, get_batch_aux_loss
 
-
+LARGE_NUMBER = 1.e10
 Optimizer = Union[torch.optim.Adam,
                   torch.optim.SGD]
 Scheduler = Union[torch.optim.lr_scheduler.ReduceLROnPlateau,
@@ -56,40 +57,39 @@ class Trainer:
 
         self.sample_policy = sample_configs.sample_policy
         self.include_original_graph = sample_configs.include_original_graph
-        self.imle_scheduler = None
         if imle_configs is not None:
             # upstream may have micro batching
             self.micro_batch_embd = imle_configs.micro_batch_embd
 
-            self.imle_scheduler = IMLEScheme(sample_configs.sample_policy,
-                                             None,
-                                             None,
-                                             None,
-                                             sample_configs.sample_k)
+            if imle_configs.sampler == 'imle':
+                imle_scheduler = IMLEScheme(sample_configs.sample_policy, sample_configs.sample_k)
 
-            @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
-                  noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
-                  input_noise_temperature=1.,
-                  target_noise_temperature=1.,)
-            def imle_sample_scheme(logits: torch.Tensor):
-                return self.imle_scheduler.torch_sample_scheme(logits)
-            self.imle_sample_scheme = imle_sample_scheme
+                @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
+                      noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
+                      input_noise_temperature=1.,
+                      target_noise_temperature=1.,)
+                def imle_sample_scheme(logits: torch.Tensor):
+                    return imle_scheduler.torch_sample_scheme(logits)
 
-        if sample_configs.sample_policy is None:
-            # normal training
+                # we perturb during training, but not validation
+                self.train_forward = imle_sample_scheme
+                self.val_forward = imle_scheduler.torch_sample_scheme
+
+            elif imle_configs.sampler == 'gumbel':
+                assert sample_configs.sample_policy == 'global_topk'
+                gumbel_sampler = GumbelSampler(sample_configs.sample_k, tau=imle_configs.tau)
+
+                self.train_forward = gumbel_sampler
+                self.val_forward = gumbel_sampler.validation
+
+            else:
+                raise NotImplementedError
+
+        if sample_configs.sample_policy is None or imle_configs is None:
             self.construct_duplicate_data = lambda x, *args: (x, None)
         elif imle_configs is not None:
-            # N x N graph level pred, structure per node
-            if self.sample_policy in ['graph_topk', 'global_topk']:
-                self.construct_duplicate_data = self.emb_model_graph_level_pred
-            else:
-                raise ValueError(f'{self.sample_policy} not supported')
-        else:
-            # N x N graph level pred, structure per node
-            if self.sample_policy in ['graph_topk', 'global_topk']:
-                self.construct_duplicate_data = lambda x, *args: (x, None)
-            else:
-                raise ValueError(f'{self.sample_policy} not supported')
+            self.construct_duplicate_data = self.emb_model_graph_level_pred
+
 
     def emb_model_graph_level_pred(self,
                                    dat_batch: Union[Batch, Data],
@@ -98,15 +98,9 @@ class Trainer:
         train = emb_model.training
         logits, real_node_node_mask = emb_model(dat_batch)
 
-        # self.imle_scheduler.ptr = tuple((graph.nnodes ** 2).cpu().tolist())  # per node has a subg
-        self.imle_scheduler.graphs = None
-        self.imle_scheduler.ptr = None
-        self.imle_scheduler.real_node_node_mask = real_node_node_mask
-
-        if train:
-            node_mask, _ = self.imle_sample_scheme(logits)
-        else:
-            node_mask, _ = self.imle_scheduler.torch_sample_scheme(logits)
+        padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
+        logits = logits - padding_bias
+        node_mask, _ = self.train_forward(logits) if train else self.val_forward(logits)
 
         if self.auxloss > 0 and train:
             assert logits.shape[-1] == 1, "Add KLDiv between ensembles"
@@ -216,10 +210,6 @@ class Trainer:
             train_metric = train_loss
         self.curves['train_metric'].append(train_metric)
 
-        if self.imle_scheduler is not None:
-            del self.imle_scheduler.graphs
-            del self.imle_scheduler.ptr
-
         return train_loss, train_metric
 
     @torch.no_grad()
@@ -293,11 +283,6 @@ class Trainer:
                 self.patience += 1
                 if self.patience > self.max_patience:
                     early_stop = True
-
-        if self.imle_scheduler is not None:
-            del self.imle_scheduler.graphs
-            del self.imle_scheduler.ptr
-
         return val_loss, val_metric, early_stop
 
     def save_curve(self, path):
