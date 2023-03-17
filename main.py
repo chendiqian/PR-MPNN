@@ -49,8 +49,11 @@ def naming(args) -> str:
         elif args.imle_configs.model == 'transformer':
             name += f'L{args.imle_configs.tf_layer}'
         name += f'DP{args.imle_configs.dropout}'
-        name += f'noise{args.imle_configs.noise_scale}'
-        name += f'Beta{args.imle_configs.beta}'
+        if args.imle_configs.sampler == 'imle':
+            name += f'noise{args.imle_configs.noise_scale}'
+            name += f'Beta{args.imle_configs.beta}'
+        elif args.imle_configs.sampler == 'gumbel':
+            name += f'tau{args.imle_configs.tau}'
         name += f'upreg{args.imle_configs.reg_embd}'
         name += f'aux{args.imle_configs.auxloss}'
 
