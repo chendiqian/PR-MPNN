@@ -20,7 +20,7 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPerNodeRewiredGraphs,
                               AugmentWithGlobalRewiredGraphs)
 from .data_utils import AttributedDataLoader
-NUM_WORKERS = 8
+NUM_WORKERS = 0
 
 DATASET = (PygGraphPropPredDataset, ZINC)
 
