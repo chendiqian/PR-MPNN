@@ -6,6 +6,7 @@ fixed:
     sample_policy: graph_topk
     sample_k: 5
     ensemble: 1
+    include_original_graph: True
 
   imle_configs:
     model: "transformer"
@@ -50,9 +51,9 @@ fixed:
   patience: 100
   reg: 0.
   num_convlayers: 4
-  batch_size: 128
+  batch_size: 2
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
-  debug: False
+  debug: True
   num_runs: 5

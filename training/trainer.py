@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import Union, Optional, Any
 from ml_collections import ConfigDict
 
+import numpy as np
 import torch
 from torch_geometric.data import Batch, Data
 
@@ -54,6 +55,7 @@ class Trainer:
         self.curves = defaultdict(list)
 
         self.sample_policy = sample_configs.sample_policy
+        self.include_original_graph = sample_configs.include_original_graph
         self.imle_scheduler = None
         if imle_configs is not None:
             # upstream may have micro batching
@@ -90,13 +92,12 @@ class Trainer:
                 raise ValueError(f'{self.sample_policy} not supported')
 
     def emb_model_graph_level_pred(self,
-                                   graph: Data,
+                                   dat_batch: Union[Batch, Data],
                                    emb_model: Emb_model,):
 
         train = emb_model.training
-        logits, real_node_node_mask = emb_model(graph)
+        logits, real_node_node_mask = emb_model(dat_batch)
 
-        # self.imle_scheduler.graphs = Batch.to_data_list(graph)
         # self.imle_scheduler.ptr = tuple((graph.nnodes ** 2).cpu().tolist())  # per node has a subg
         self.imle_scheduler.graphs = None
         self.imle_scheduler.ptr = None
@@ -112,21 +113,39 @@ class Trainer:
             if self.aux_type == 'batch':
                 auxloss = get_batch_aux_loss(node_mask * real_node_node_mask[..., None].to(torch.float), self.auxloss)
             elif self.aux_type == 'pair':
-                auxloss = get_pair_aux_loss(node_mask, graph.nnodes, self.auxloss)
+                auxloss = get_pair_aux_loss(node_mask, dat_batch.nnodes, self.auxloss)
             else:
                 raise ValueError
         else:
             auxloss = None
 
-        assert node_mask.shape[-1] == 1
-        graph.edge_weight = node_mask[real_node_node_mask].squeeze()
-        row = torch.hstack([torch.repeat_interleave(torch.arange(n, device=self.device), n) for n in graph.nnodes])
-        col = torch.hstack([torch.arange(n, device=self.device).repeat(n) for n in graph.nnodes])
-        edge_index = torch.vstack([row, col])
-        edge_index += torch.repeat_interleave(graph._inc_dict['edge_index'].to(self.device), graph.nnodes ** 2)
-        graph.edge_index = edge_index
+        if self.include_original_graph or logits.shape[-1] > 1:
+            # need to split the graphs and make duplicates
+            graphs = Batch.to_data_list(dat_batch)
+            for g in graphs:
+                g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
+            graphs = graphs * logits.shape[-1]
+            if self.include_original_graph:
+                original_graphs = Batch.to_data_list(dat_batch)
+                graphs += original_graphs
 
-        return graph, auxloss
+            edge_weight = node_mask[real_node_node_mask].T.reshape(-1)
+            if self.include_original_graph:
+                edge_weight = torch.cat([edge_weight, edge_weight.new_ones(dat_batch.num_edges)], dim=0)
+            new_batch = Batch.from_data_list(graphs)
+            new_batch.edge_weight = edge_weight
+            new_batch.batch = dat_batch.batch.repeat(logits.shape[-1] + int(self.include_original_graph))
+            new_batch.y = dat_batch.y
+        else:
+            dat_batch.edge_weight = node_mask[real_node_node_mask].squeeze()
+            row = torch.hstack([torch.repeat_interleave(torch.arange(n, device=self.device), n) for n in dat_batch.nnodes])
+            col = torch.hstack([torch.arange(n, device=self.device).repeat(n) for n in dat_batch.nnodes])
+            edge_index = torch.vstack([row, col])
+            edge_index += torch.repeat_interleave(dat_batch._inc_dict['edge_index'].to(self.device), dat_batch.nnodes ** 2)
+            dat_batch.edge_index = edge_index
+            new_batch = dat_batch
+
+        return new_batch, auxloss
 
     def train(self,
               dataloader: AttributedDataLoader,
