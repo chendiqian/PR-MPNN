@@ -68,7 +68,7 @@ class IMLEScheme:
             # local_logits: (Batch, Nmax, Nmax, ensemble)
             Nmax = local_logits.shape[1]
             if self.sample_k >= Nmax:
-                return local_logits.new_zeros(local_logits.shape)
+                return local_logits.new_ones(local_logits.shape)
 
             local_logits[~self.real_node_node_mask] -= 1.e10
             thresh = torch.topk(local_logits, self.sample_k, dim=2, largest=True, sorted=True).values[:, :, -1, :][:, :, None, :]
