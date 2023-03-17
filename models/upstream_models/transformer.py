@@ -166,41 +166,13 @@ class TransformerLayer(nn.Module):
         return self.ff_dropout2(self.ff_linear2(x))
 
     def reset_parameters(self):
-        # cannot reset MultiheadAttention params
-        # Todo: change this ugly way
-        self.self_attn = torch.nn.MultiheadAttention(self.dim_h, self.num_heads, dropout=self.attn_dropout, batch_first=True).to(self.ff_linear1.weight.device)
+        self.self_attn._reset_parameters()
         if self.layer_norm or self.batch_norm:
             self.norm1_local.reset_parameters()
             self.norm1_attn.reset_parameters()
             self.norm2.reset_parameters()
         self.ff_linear1.reset_parameters()
         self.ff_linear2.reset_parameters()
-
-
-class AttentionLayer(torch.nn.Module):
-    def __init__(self, in_dim, hidden, head):
-        super(AttentionLayer, self).__init__()
-
-        self.head_dim = hidden // head
-        assert self.head_dim * head == hidden
-        self.head = head
-
-        self.w_q = torch.nn.Linear(in_dim, hidden, bias=False)
-        self.w_k = torch.nn.Linear(in_dim, hidden, bias=False)
-
-    def forward(self, x):
-        # x: batch, Nmax, F
-        bsz, Nmax, feature = x.shape
-        k = self.w_k(x).reshape(bsz, Nmax, self.head_dim, self.head)
-        q = self.w_q(x).reshape(bsz, Nmax, self.head_dim, self.head)
-
-        attention_score = torch.einsum('bnfh,bmfh->bnmh', k, q) / (self.head_dim ** 0.5)
-
-        return attention_score
-
-    def reset_parameters(self):
-        self.w_q.reset_parameters()
-        self.w_k.reset_parameters()
 
 
 class Transformer(torch.nn.Module):
@@ -229,14 +201,19 @@ class Transformer(torch.nn.Module):
                                                    layer_norm,
                                                    batch_norm))
 
-        self.self_attn = AttentionLayer(hidden, hidden, ensemble)
+        self.self_attn = torch.nn.MultiheadAttention(hidden, ensemble, dropout=0., batch_first=True)
 
     def forward(self, batch):
         x = self.encoder(batch)
         for l in self.tf_layers:
             x = l(x, batch)
         x, mask = to_dense_batch(x, batch.batch)
-        attention_score = self.self_attn(x)
+        # batchsize, head, Nmax, Nmax
+        attention_score = self.self_attn(x, x, x,
+                                         attn_mask=None,
+                                         key_padding_mask=~mask,
+                                         need_weights=True,
+                                         average_attn_weights=False)[1].permute((0, 2, 3, 1))
         real_node_node_mask = torch.einsum('bn,bm->bnm', mask, mask)
         return attention_score, real_node_node_mask
 
@@ -244,4 +221,4 @@ class Transformer(torch.nn.Module):
         self.encoder.reset_parameters()
         for l in self.tf_layers:
             l.reset_parameters()
-        self.self_attn.reset_parameters()
+        self.self_attn._reset_parameters()
