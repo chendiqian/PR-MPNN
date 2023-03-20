@@ -15,16 +15,16 @@ fixed:
     rwse:
       kernel: 'range(1, 21)'
       model: 'Linear'
-      dim_pe: 24
+      dim_pe: 16
       raw_norm_type: 'BatchNorm'
 
     lap:
       eigen:
         laplacian_norm: null
         eigvec_norm: 'L2'
-        max_freqs: 1
+        max_freqs: 4
       model: 'DeepSet'
-      dim_pe: 4
+      dim_pe: 16
       layers: 2
       n_heads: 4
       post_layers: 0
