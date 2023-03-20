@@ -15,6 +15,7 @@ from imle.target import TargetDistribution
 from imle.wrapper import imle
 from training.imle_scheme import IMLEScheme
 from training.gumbel_scheme import GumbelSampler
+from training.simple_scheme import EdgeSIMPLEBatched
 from training.aux_loss import get_pair_aux_loss, get_batch_aux_loss
 
 LARGE_NUMBER = 1.e10
@@ -82,8 +83,13 @@ class Trainer:
                 self.train_forward = gumbel_sampler
                 self.val_forward = gumbel_sampler.validation
 
+            elif imle_configs.sampler == 'simple':
+                assert sample_configs.sample_policy == 'global_topk'
+                simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k, device)
+                self.train_forward = simple_sampler
+                self.val_forward = simple_sampler.validation
             else:
-                raise NotImplementedError
+                raise ValueError
 
         if sample_configs.sample_policy is None or imle_configs is None:
             self.construct_duplicate_data = lambda x, *args: (x, None)
