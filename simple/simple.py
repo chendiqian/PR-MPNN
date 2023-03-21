@@ -7,8 +7,10 @@ import torch
 
 from simple.create_simple_constraint import create_and_save
 
+DISABLE = False
 
-@torch.compile(fullgraph=True, mode='reduce-overhead')
+
+@torch.compile(fullgraph=True, mode='reduce-overhead', disable=DISABLE)
 def levelwiseSL(levels: List[torch.Tensor], idx2primesub: torch.Tensor,
                 data: torch.Tensor, theta: torch.Tensor):
     for level in levels:
@@ -18,7 +20,7 @@ def levelwiseSL(levels: List[torch.Tensor], idx2primesub: torch.Tensor,
     return data[levels[-1]]
 
 
-@torch.compile(fullgraph=True, mode='reduce-overhead')
+@torch.compile(fullgraph=True, mode='reduce-overhead', disable=DISABLE)
 def levelwiseMars(levels: List[torch.Tensor], idx2primesub: torch.Tensor,
                   data: torch.Tensor, theta: torch.Tensor, parents: torch.Tensor):
     for level in reversed(levels):
@@ -26,7 +28,7 @@ def levelwiseMars(levels: List[torch.Tensor], idx2primesub: torch.Tensor,
             parents[level].unbind(-1)[0]]).logsumexp(-2)
 
 
-@torch.compile(fullgraph=True, mode='reduce-overhead')
+@torch.compile(fullgraph=True, mode='reduce-overhead', disable=DISABLE)
 def log1mexp(x):
     # Source: https://github.com/wouterkool/estimating-gradients-without-replacement/blob/9d8bf8b/bernoulli/gumbel.py#L7-L11
     # Computes log(1-exp(-|x|))
@@ -72,7 +74,7 @@ def levelOrder(beta):
     return result[:-1]
 
 
-@torch.compile(fullgraph=True, mode='reduce-overhead')
+@torch.compile(fullgraph=True, mode='reduce-overhead', disable=DISABLE)
 def gumbel_keys(w):
     # sample some gumbels
     uniform = torch.rand(w.shape, device=w.device)  # .to(device)
@@ -81,7 +83,7 @@ def gumbel_keys(w):
     return w
 
 
-@torch.compile(fullgraph=True, mode='reduce-overhead')
+@torch.compile(fullgraph=True, mode='reduce-overhead', disable=DISABLE)
 def sample_subset(w, k):
     '''
     Args:
@@ -175,7 +177,7 @@ class Layer:
         marginals = self.log_pr(log_probs).exp().permute(1, 0)
         return (samples - marginals).detach() + marginals
 
-    @torch.compile(fullgraph=True, mode='reduce-overhead')
+    @torch.compile(fullgraph=True, mode='reduce-overhead', disable=DISABLE)
     def log_pr(self, log_probs):
         lit_weights = torch.stack((log1mexp(-log_probs.detach()), log_probs), dim=-1).permute(1, 2, 0)
 
@@ -193,7 +195,7 @@ class Layer:
 
         return data[self.pos_literals]
 
-    @torch.compile(fullgraph=True, mode='reduce-overhead')
+    @torch.compile(fullgraph=True, mode='reduce-overhead', disable=DISABLE)
     def sample(self, lit_weights, k):
         with torch.no_grad():
             samples = sample_subset(lit_weights, k)
