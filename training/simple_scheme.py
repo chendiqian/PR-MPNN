@@ -17,14 +17,21 @@ class EdgeSIMPLEBatched(nn.Module):
         super(EdgeSIMPLEBatched, self).__init__()
         self.k = k
         self.device = device
+        self.layer_configs = dict()
 
     def forward(self, scores):
         bsz, Nmax, _, ensemble = scores.shape
         local_k = min(self.k, Nmax ** 2)
 
         scores = scores.permute((0, 3, 1, 2)).reshape(bsz * ensemble, Nmax ** 2)
+
+        # need to create or load some pkl files, which takes some time, so I cache them here
         N = 2 ** math.ceil(math.log2(Nmax ** 2))
-        layer = Layer(N, local_k, self.device)
+        if (N, local_k) in self.layer_configs:
+            layer = self.layer_configs[(N, local_k)]
+        else:
+            layer = Layer(N, local_k, self.device)
+            self.layer_configs[(N, local_k)] = layer
 
         # padding
         scores = torch.cat([scores, torch.full((scores.shape[0],  N - scores.shape[1]), fill_value=-LARGE_NUMBER, dtype=scores.dtype, device=scores.device)], dim=1)
