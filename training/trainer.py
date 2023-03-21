@@ -119,6 +119,7 @@ class Trainer:
         else:
             auxloss = None
 
+        # construct a batch of new graphs
         if self.include_original_graph or logits.shape[-1] > 1:
             # need to split the graphs and make duplicates
             graphs = Batch.to_data_list(dat_batch)
@@ -133,16 +134,25 @@ class Trainer:
             if self.include_original_graph:
                 edge_weight = torch.cat([edge_weight, edge_weight.new_ones(dat_batch.num_edges)], dim=0)
             new_batch = Batch.from_data_list(graphs)
-            new_batch.edge_weight = edge_weight
+            if train:
+                new_batch.edge_weight = edge_weight
+            else:
+                new_batch.edge_index = new_batch.edge_index[:, edge_weight.to(torch.bool)]
+                new_batch.edge_weight = None
             new_batch.batch = dat_batch.batch.repeat(logits.shape[-1] + int(self.include_original_graph))
             new_batch.y = dat_batch.y
         else:
-            dat_batch.edge_weight = node_mask[real_node_node_mask].squeeze()
+            edge_weight = node_mask[real_node_node_mask].squeeze()
             row = torch.hstack([torch.repeat_interleave(torch.arange(n, device=self.device), n) for n in dat_batch.nnodes])
             col = torch.hstack([torch.arange(n, device=self.device).repeat(n) for n in dat_batch.nnodes])
             edge_index = torch.vstack([row, col])
             edge_index += torch.repeat_interleave(dat_batch._inc_dict['edge_index'].to(self.device), dat_batch.nnodes ** 2)
-            dat_batch.edge_index = edge_index
+            if train:
+                dat_batch.edge_weight = edge_weight
+                dat_batch.edge_index = edge_index
+            else:
+                dat_batch.edge_weight = None
+                dat_batch.edge_index = edge_index[:, edge_weight.to(torch.bool)]
             new_batch = dat_batch
 
         return new_batch, auxloss
