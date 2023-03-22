@@ -1,8 +1,11 @@
+import torch.nn
+
 from data.const import DATASET_FEATURE_STAT_DICT
 from models.downstream_models.ogb_mol_gnn import OGBGNN
 from models.downstream_models.zinc_gin import ZINC_GIN
 from models.upstream_models.linear_embed import LinearEmbed
 from models.upstream_models.transformer import FeatureEncoder, Transformer
+from models.upstream_models.graphormer import BiasEncoder, NodeEncoder, Graphormer
 
 
 def get_model(args, device, *_args):
@@ -62,6 +65,29 @@ def get_model(args, device, *_args):
                                     attn_dropout=args.imle_configs.attn_dropout,
                                     layer_norm=args.imle_configs.layernorm,
                                     batch_norm=args.imle_configs.batchnorm)
+        elif args.imle_configs.model == 'graphormer':
+            if args.dataset.lower() in ['zinc']:
+                encoder = torch.nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                                          args.imle_configs.emb_hid_size)
+            else:
+                raise ValueError
+            bias_encoder = BiasEncoder(num_heads=args.imle_configs.heads,
+                                       num_spatial_types=args.imle_configs.attenbias.num_spatial_types,
+                                       num_edge_types=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],)
+            node_encoder = NodeEncoder(embed_dim=args.imle_configs.emb_hid_size,
+                                       num_in_degree=args.imle_configs.attenbias.num_in_degrees,
+                                       num_out_degree=args.imle_configs.attenbias.num_in_degrees,
+                                       input_dropout=args.imle_configs.input_dropout,)
+            emb_model = Graphormer(encoder=encoder,
+                                   bias_conder=bias_encoder,
+                                   node_encoder=node_encoder,
+                                   hidden=args.imle_configs.emb_hid_size,
+                                   layers=args.imle_configs.tf_layer,
+                                   num_heads=args.imle_configs.heads,
+                                   ensemble=args.sample_configs.ensemble,
+                                   dropout=args.imle_configs.dropout,
+                                   attn_dropout=args.imle_configs.attn_dropout,
+                                   mlp_dropout=args.imle_configs.mlp_dropout)
         else:
             raise NotImplementedError
     else:
