@@ -18,7 +18,8 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPPR,
                               AugmentWithRandomWalkProbs, AugmentWithLaplace,
                               AugmentWithPerNodeRewiredGraphs,
-                              AugmentWithGlobalRewiredGraphs)
+                              AugmentWithGlobalRewiredGraphs,
+                              AugmentWithSpatialInfo)
 from .data_utils import AttributedDataLoader
 NUM_WORKERS = 0
 
@@ -37,6 +38,7 @@ PRETRANSFORM_PRIORITY = {
     AugmentWithPPR: 98,
     AugmentWithRandomWalkProbs: 98,
     AugmentWithLaplace: 98,
+    AugmentWithSpatialInfo: 98,
 }
 
 
@@ -50,6 +52,8 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
         extra_path += 'rwse_'
     if hasattr(args.imle_configs, 'lap'):
         extra_path += 'lap_'
+    if hasattr(args.imle_configs, 'attenbias'):
+        extra_path += 'attenbias_'
     return extra_path if len(extra_path) else None
 
 
@@ -91,6 +95,11 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
         pretransform.append(AugmentWithLaplace(args.imle_configs.lap.eigen.laplacian_norm,
                                                args.imle_configs.lap.eigen.max_freqs,
                                                args.imle_configs.lap.eigen.eigvec_norm))
+
+    if hasattr(args.imle_configs, 'attenbias'):
+        pretransform.append(AugmentWithSpatialInfo(args.imle_configs.attenbias.num_spatial_types,
+                                                   args.imle_configs.attenbias.num_in_degrees,
+                                                   args.imle_configs.attenbias.num_out_degrees))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)
