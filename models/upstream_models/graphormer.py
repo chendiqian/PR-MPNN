@@ -1,3 +1,5 @@
+import pdb
+
 import torch
 from torch_geometric.utils import to_dense_batch, to_dense_adj
 
@@ -242,7 +244,7 @@ class Graphormer(torch.nn.Module):
                                                   attn_dropout,
                                                   mlp_dropout))
 
-        self.self_attn = AttentionLayer(hidden, hidden, num_heads, 0.)
+        self.self_attn = AttentionLayer(hidden, hidden, ensemble, 0.)
         self.head2ensemble = torch.nn.Linear(num_heads, ensemble, bias=False)
 
     def forward(self, batch):
@@ -254,8 +256,7 @@ class Graphormer(torch.nn.Module):
         for l in self.tf_layers:
             x = l(x, atten_bias, batch)
         x, mask = to_dense_batch(x, batch.batch)
-        attention_score = self.self_attn(x, None, atten_bias)[1]
-        attention_score = self.head2ensemble(attention_score)
+        attention_score = self.self_attn(x, None, self.head2ensemble(atten_bias))[1]
         real_node_node_mask = torch.einsum('bn,bm->bnm', mask, mask)
         return attention_score, real_node_node_mask
 
