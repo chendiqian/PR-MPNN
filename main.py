@@ -116,7 +116,9 @@ def run(fixed):
                       imle_configs=args.imle_configs,
                       sample_configs=args.sample_configs,
                       aux_type=args.imle_configs.aux_type if hasattr(args.imle_configs, 'aux_type') else None,
-                      auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else 0.)
+                      auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else 0.,
+                      wandb=wandb,
+                      extra_args=args)
 
     best_val_losses = [[] for _ in range(args.num_runs)]
     test_losses = [[] for _ in range(args.num_runs)]
@@ -150,6 +152,7 @@ def run(fixed):
             best_epoch = 0
             epoch_timer = SyncMeanTimer()
             for epoch in range(args.max_epochs):
+                trainer.epoch = epoch
                 train_loss, train_metric = trainer.train(train_loader,
                                                          emb_model,
                                                          model,

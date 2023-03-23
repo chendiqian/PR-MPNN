@@ -1,22 +1,25 @@
 import os
 import pickle
 from collections import defaultdict
-from typing import Union, Optional, Any
-from ml_collections import ConfigDict
+from typing import Any, Optional, Union
 
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import torch
-from torch_geometric.data import Batch, Data
+import torch_geometric.utils as pyg_utils
 
-from data.data_utils import scale_grad, AttributedDataLoader, IsBetter
-from data.metrics import eval_rocauc, eval_acc, eval_rmse
+from data.data_utils import AttributedDataLoader, IsBetter, scale_grad
+from data.metrics import eval_acc, eval_rmse, eval_rocauc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from training.imle_scheme import IMLEScheme
+from ml_collections import ConfigDict
+from torch_geometric.data import Batch, Data
+from training.aux_loss import get_batch_aux_loss, get_pair_aux_loss
 from training.gumbel_scheme import GumbelSampler
+from training.imle_scheme import IMLEScheme
 from training.simple_scheme import EdgeSIMPLEBatched
-from training.aux_loss import get_pair_aux_loss, get_batch_aux_loss
 
 LARGE_NUMBER = 1.e10
 Optimizer = Union[torch.optim.Adam,
@@ -38,7 +41,9 @@ class Trainer:
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
                  aux_type: str,
-                 auxloss: float = 0.):
+                 auxloss: float = 0.,
+                 wandb: Optional[Any] = None,
+                 extra_args: Optional[ConfigDict] = None):
         super(Trainer, self).__init__()
 
         self.dataset = dataset
@@ -54,7 +59,13 @@ class Trainer:
         self.aux_type = aux_type
         self.auxloss = auxloss
 
+        self.wandb = wandb
+        self.extra_args = extra_args
+
         self.curves = defaultdict(list)
+
+        self.epoch = None
+        self.batch_id = None
 
         self.sample_policy = sample_configs.sample_policy
         self.include_original_graph = sample_configs.include_original_graph
@@ -139,6 +150,11 @@ class Trainer:
             else:
                 new_batch.edge_index = new_batch.edge_index[:, edge_weight.to(torch.bool)]
                 new_batch.edge_weight = None
+
+            if self.extra_args is not None and hasattr(self.extra_args, 'plot_graphs'):
+                if self.batch_id == self.extra_args.plot_graphs.batch_id:
+                    self.plot(new_batch)
+
             new_batch.batch = dat_batch.batch.repeat(logits.shape[-1] + int(self.include_original_graph))
             new_batch.y = dat_batch.y
         else:
@@ -156,6 +172,58 @@ class Trainer:
             new_batch = dat_batch
 
         return new_batch, auxloss
+
+    def plot(self, new_batch: Batch):
+        """Plot graphs and edge weights.
+        Currently works with version in which you also include the original graph.
+        
+        Inputs: Batch of graphs from list.
+        Outputs: None"""
+
+        new_batch_plot = new_batch.to_data_list()
+        src, dst = new_batch.edge_index
+        sections = pyg_utils.degree(new_batch.batch[src], dtype=torch.long).tolist()
+        weights_split = torch.split(new_batch.edge_weight, split_size_or_sections=sections)
+
+        for i, (g, weights) in enumerate(zip(new_batch_plot, weights_split)):
+            # Check if graph is original or rewired
+            graph_id = i%(len(new_batch_plot)//2)
+            graph_version = i//(len(new_batch_plot)//2)
+
+            if graph_id >= self.extra_args.plot_graphs.n_graphs:
+                continue
+            
+            plt.figure()
+            weights = weights.detach().cpu().numpy()
+            g_nx = pyg_utils.convert.to_networkx(g)
+            # Plot g_nx and with edge weights based on "weights". No edge is entry is 0, edge if entry is 1
+            edges = [e for e, w in zip(g_nx.edges, weights) if w == 1]
+            # Plot graph only with the edges that are sampled
+            pos = nx.spring_layout(g_nx)
+            nx.draw_networkx_nodes(g_nx, pos, node_size=100, node_color='r')
+            nx.draw_networkx_edges(g_nx, pos, edgelist=edges, width=2, edge_color='b')
+            nx.draw_networkx_labels(g_nx, pos, font_size=10, font_family='sans-serif')
+            plt.axis('off')
+            plt.title(f'Graph {i}, Epoch {self.epoch}')
+
+            if hasattr(self.extra_args.plot_graphs, 'plot_folder'):
+                plot_folder = self.extra_args.plot_graphs.plot_folder
+                if not os.path.exists(plot_folder):
+                    os.makedirs(plot_folder)
+
+                graph_version = 'rewired' if graph_version == 0 else 'original'
+
+                plt.savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}_{graph_version}_.png'))
+            
+            if self.wandb is not None and hasattr(self.extra_args.plot_graphs, 'use_wandb'):
+                if self.extra_args.plot_graphs.use_wandb:
+                    self.wandb.log({f"graph_{graph_id}_{graph_version}": self.wandb.Image(plt)}, step=self.epoch)
+
+            plt.close()
+
+
+
+
 
     def train(self,
               dataloader: AttributedDataLoader,
@@ -178,6 +246,8 @@ class Trainer:
         num_graphs = 0
 
         for batch_id, data in enumerate(dataloader.loader):
+            self.batch_id = batch_id
+
             optimizer.zero_grad()
             data = data.to(self.device)
             data, auxloss = self.construct_duplicate_data(data, emb_model)
