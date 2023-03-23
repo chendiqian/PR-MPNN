@@ -2,6 +2,7 @@
 .idea
 .DS_Store
 wandb/
+plots/
 simple_configs/
 __pycache__
 datasets
