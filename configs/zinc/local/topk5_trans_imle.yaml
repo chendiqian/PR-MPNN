@@ -2,6 +2,8 @@ fixed:
   dataset: zinc
   log_path: './logs'
 
+  use_wandb: True
+
   sample_configs:
     sample_policy: graph_topk
     sample_k: 5
