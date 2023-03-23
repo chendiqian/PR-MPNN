@@ -9,6 +9,7 @@ pip install ml-collections
 pip install sacred
 pip install PyYAML
 pip install wandb
+pip install matplotlib
 
 conda install -y pytorch=2.0.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 pip install git+https://github.com/pyg-team/pyg-lib.git
