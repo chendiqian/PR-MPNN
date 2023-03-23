@@ -94,7 +94,7 @@ def run(fixed):
 
     logger = get_logger(folder_name)
 
-    wandb.init(project="imle_ablate", mode="online" if not args.use_wandb else "disabled",
+    wandb.init(project="imle_ablate", mode="online" if args.use_wandb else "disabled",
                config=args.to_dict(),
                name=hparams,
                entity="mls-stuttgart")
