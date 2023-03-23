@@ -165,7 +165,8 @@ class Layer:
         self.literal_indices = literal_indices
         self.literal_mask = literal_mask
 
-        self.pos_literals = self.literal_indices[self.literal_mask[1].bool()]
+        order = self.literal_mask[0][self.literal_mask[1].bool()].sort().indices
+        self.pos_literals = self.literal_indices[self.literal_mask[1].bool()][order]
 
         # Map nodes to their primes/subs
         idx2primesub = torch.zeros((id, max_elements, 2), dtype=torch.int, device=device)
@@ -180,6 +181,9 @@ class Layer:
     def __call__(self, log_probs, k):
         samples = self.sample(log_probs, k)
         marginals = self.log_pr(log_probs).exp().permute(1, 0)
+
+        print(marginals)
+
         return (samples - marginals).detach() + marginals
 
     @torch.compile(fullgraph=True, mode=MODE, disable=DISABLE)
