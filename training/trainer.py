@@ -43,7 +43,8 @@ class Trainer:
                  aux_type: str,
                  auxloss: float = 0.,
                  wandb: Optional[Any] = None,
-                 extra_args: Optional[ConfigDict] = None):
+                 use_wandb: bool = False,
+                 plot_args: Optional[ConfigDict] = None):
         super(Trainer, self).__init__()
 
         self.dataset = dataset
@@ -60,7 +61,8 @@ class Trainer:
         self.auxloss = auxloss
 
         self.wandb = wandb
-        self.extra_args = extra_args
+        self.use_wandb = use_wandb
+        self.plot_args = plot_args
 
         self.curves = defaultdict(list)
 
@@ -151,8 +153,8 @@ class Trainer:
                 new_batch.edge_index = new_batch.edge_index[:, edge_weight.to(torch.bool)]
                 new_batch.edge_weight = None
 
-            if self.extra_args is not None and hasattr(self.extra_args, 'plot_graphs'):
-                if self.batch_id == self.extra_args.plot_graphs.batch_id:
+            if train and self.plot_args is not None:
+                if self.batch_id == self.plot_args.batch_id:
                     self.plot(new_batch)
 
             new_batch.batch = dat_batch.batch.repeat(logits.shape[-1] + int(self.include_original_graph))
@@ -190,9 +192,9 @@ class Trainer:
             graph_id = i%(len(new_batch_plot)//2)
             graph_version = i//(len(new_batch_plot)//2)
 
-            if graph_id >= self.extra_args.plot_graphs.n_graphs:
+            if graph_id >= self.plot_args.n_graphs:
                 continue
-            
+
             plt.figure()
             weights = weights.detach().cpu().numpy()
             g_nx = pyg_utils.convert.to_networkx(g)
@@ -206,24 +208,18 @@ class Trainer:
             plt.axis('off')
             plt.title(f'Graph {i}, Epoch {self.epoch}')
 
-            if hasattr(self.extra_args.plot_graphs, 'plot_folder'):
-                plot_folder = self.extra_args.plot_graphs.plot_folder
-                if not os.path.exists(plot_folder):
-                    os.makedirs(plot_folder)
+            plot_folder = self.plot_args.plot_folder
+            if not os.path.exists(plot_folder):
+                os.makedirs(plot_folder)
 
-                graph_version = 'rewired' if graph_version == 0 else 'original'
+            graph_version = 'rewired' if graph_version == 0 else 'original'
 
-                plt.savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}_{graph_version}_.png'))
-            
-            if self.wandb is not None and hasattr(self.extra_args.plot_graphs, 'use_wandb'):
-                if self.extra_args.plot_graphs.use_wandb:
-                    self.wandb.log({f"graph_{graph_id}_{graph_version}": self.wandb.Image(plt)}, step=self.epoch)
+            plt.savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}_{graph_version}_.png'))
+
+            if self.wandb is not None and self.use_wandb:
+                self.wandb.log({f"graph_{graph_id}_{graph_version}": self.wandb.Image(plt)}, step=self.epoch)
 
             plt.close()
-
-
-
-
 
     def train(self,
               dataloader: AttributedDataLoader,
@@ -247,7 +243,6 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             self.batch_id = batch_id
-
             optimizer.zero_grad()
             data = data.to(self.device)
             data, auxloss = self.construct_duplicate_data(data, emb_model)

@@ -94,7 +94,10 @@ def run(fixed):
 
     logger = get_logger(folder_name)
 
-    wandb.init(project="imle_ablate", mode="online" if not args.debug else "disabled", config=args.to_dict(), name=hparams, entity="mls-stuttgart")
+    wandb.init(project="imle_ablate", mode="online" if not args.use_wandb else "disabled",
+               config=args.to_dict(),
+               name=hparams,
+               entity="mls-stuttgart")
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_loaders, val_loaders, test_loaders = get_data(args, device)
@@ -118,7 +121,8 @@ def run(fixed):
                       aux_type=args.imle_configs.aux_type if hasattr(args.imle_configs, 'aux_type') else None,
                       auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else 0.,
                       wandb=wandb,
-                      extra_args=args)
+                      use_wandb=args.use_wandb,
+                      plot_args=args.plot_graphs if hasattr(args, 'plot_graphs') else None)
 
     best_val_losses = [[] for _ in range(args.num_runs)]
     test_losses = [[] for _ in range(args.num_runs)]
