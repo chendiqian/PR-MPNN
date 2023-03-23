@@ -2,16 +2,24 @@ from ml_collections import ConfigDict
 
 import torch
 import torch.nn as nn
+from torch.nn.utils import spectral_norm
 import torch_geometric.nn as pygnn
 from torch_geometric.utils import to_dense_batch
 
 from .kernel_encoder import RWSENodeEncoder
 from .lap_encoder import LapPENodeEncoder
+from .my_attention_layer import AttentionLayer
 
 
 class FeatureEncoder(torch.nn.Module):
 
-    def __init__(self, dim_in, hidden, type_encoder: str, lap_encoder: ConfigDict = None, rw_encoder: ConfigDict = None):
+    def __init__(self,
+                 dim_in,
+                 hidden,
+                 type_encoder: str,
+                 lap_encoder: ConfigDict = None,
+                 rw_encoder: ConfigDict = None,
+                 use_spectral_norm: bool = False):
         super(FeatureEncoder, self).__init__()
 
         if type_encoder == 'linear':
@@ -28,31 +36,17 @@ class FeatureEncoder(torch.nn.Module):
             raise ValueError
 
         if lap_encoder is not None:
-            self.lap_encoder = LapPENodeEncoder(hidden, hidden - rw_encoder.dim_pe, lap_encoder, expand_x=False)
+            self.lap_encoder = LapPENodeEncoder(hidden,
+                                                hidden - rw_encoder.dim_pe,
+                                                lap_encoder,
+                                                expand_x=False,
+                                                use_spectral_norm=use_spectral_norm)
 
         if rw_encoder is not None:
-            self.rw_encoder = RWSENodeEncoder(hidden, hidden, rw_encoder, expand_x=False)
+            self.rw_encoder = RWSENodeEncoder(hidden, hidden, rw_encoder, expand_x=False, use_spectral_norm=use_spectral_norm)
 
-        # if cfg.dataset.node_encoder_bn:
-        #     self.node_encoder_bn = BatchNorm1dNode(
-        #         new_layer_config(cfg.gnn.dim_inner, -1, -1, has_act=False,
-        #                          has_bias=False, cfg=cfg))
-        # # Update dim_in to reflect the new dimension of the node features
-        # self.dim_in = cfg.gnn.dim_inner
-        # if cfg.dataset.edge_encoder:
-        #     # Hard-limit max edge dim for PNA.
-        #     if 'PNA' in cfg.gt.layer_type:
-        #         cfg.gnn.dim_edge = min(128, cfg.gnn.dim_inner)
-        #     else:
-        #         cfg.gnn.dim_edge = cfg.gnn.dim_inner
-        #     # Encode integer edge features via nn.Embeddings
-        #     EdgeEncoder = register.edge_encoder_dict[
-        #         cfg.dataset.edge_encoder_name]
-        #     self.edge_encoder = EdgeEncoder(cfg.gnn.dim_edge)
-        #     if cfg.dataset.edge_encoder_bn:
-        #         self.edge_encoder_bn = BatchNorm1dNode(
-        #             new_layer_config(cfg.gnn.dim_edge, -1, -1, has_act=False,
-        #                              has_bias=False, cfg=cfg))
+        if use_spectral_norm:
+            self.linear_embed = spectral_norm(self.linear_embed)
 
     def forward(self, batch):
         x = self.linear_embed(batch.x)
@@ -77,7 +71,8 @@ class TransformerLayer(nn.Module):
                  dropout=0.0,
                  attn_dropout=0.0,
                  layer_norm=False,
-                 batch_norm=True,):
+                 batch_norm=True,
+                 use_spectral_norm=False,):
         super().__init__()
 
         self.dim_h = dim_h
@@ -90,7 +85,11 @@ class TransformerLayer(nn.Module):
         self.local_model = None
 
         # Global attention transformer-style model.
-        self.self_attn = torch.nn.MultiheadAttention(dim_h, num_heads, dropout=self.attn_dropout, batch_first=True)
+        self.self_attn = AttentionLayer(dim_h,
+                                        dim_h,
+                                        num_heads,
+                                        attention_dropout=self.attn_dropout,
+                                        use_spectral_norm=use_spectral_norm)
 
         if self.layer_norm and self.batch_norm:
             raise ValueError("Cannot apply two types of normalization together")
@@ -108,6 +107,9 @@ class TransformerLayer(nn.Module):
         # Feed Forward block.
         self.ff_linear1 = nn.Linear(dim_h, dim_h * 2)
         self.ff_linear2 = nn.Linear(dim_h * 2, dim_h)
+        if use_spectral_norm:
+            self.ff_linear1 = spectral_norm(self.ff_linear1)
+            self.ff_linear2 = spectral_norm(self.ff_linear2)
         self.act_fn_ff = getattr(torch, act)
         if self.layer_norm:
             self.norm2 = pygnn.norm.LayerNorm(dim_h)
@@ -128,7 +130,7 @@ class TransformerLayer(nn.Module):
         # Multi-head attention.
         if self.self_attn is not None:
             h_dense, mask = to_dense_batch(h, batch.batch)
-            h_attn = self._sa_block(h_dense, None, ~mask)[mask]
+            h_attn = self.self_attn(h_dense, key_pad=~mask)[0][mask]
             h_attn = self.dropout_attn(h_attn)
             h_attn = h_in1 + h_attn  # Residual connection.
             if self.layer_norm:
@@ -150,15 +152,6 @@ class TransformerLayer(nn.Module):
 
         return h
 
-    def _sa_block(self, x, attn_mask, key_padding_mask):
-        """Self-attention block.
-        """
-        x = self.self_attn(x, x, x,
-                           attn_mask=attn_mask,
-                           key_padding_mask=key_padding_mask,
-                           need_weights=False)[0]
-        return x
-
     def _ff_block(self, x):
         """Feed Forward block.
         """
@@ -175,32 +168,6 @@ class TransformerLayer(nn.Module):
         self.ff_linear2.reset_parameters()
 
 
-class AttentionLayer(torch.nn.Module):
-    def __init__(self, in_dim, hidden, head):
-        super(AttentionLayer, self).__init__()
-
-        self.head_dim = hidden // head
-        assert self.head_dim * head == hidden
-        self.head = head
-
-        self.w_q = torch.nn.Linear(in_dim, hidden, bias=False)
-        self.w_k = torch.nn.Linear(in_dim, hidden, bias=False)
-
-    def forward(self, x):
-        # x: batch, Nmax, F
-        bsz, Nmax, feature = x.shape
-        k = self.w_k(x).reshape(bsz, Nmax, self.head_dim, self.head)
-        q = self.w_q(x).reshape(bsz, Nmax, self.head_dim, self.head)
-
-        attention_score = torch.einsum('bnfh,bmfh->bnmh', k, q) / (self.head_dim ** 0.5)
-
-        return attention_score
-
-    def reset_parameters(self):
-        self.w_q.reset_parameters()
-        self.w_k.reset_parameters()
-
-
 class Transformer(torch.nn.Module):
 
     def __init__(self,
@@ -213,7 +180,8 @@ class Transformer(torch.nn.Module):
                  dropout,
                  attn_dropout,
                  layer_norm,
-                 batch_norm):
+                 batch_norm,
+                 use_spectral_norm):
         super(Transformer, self).__init__()
 
         self.encoder = encoder
@@ -225,9 +193,10 @@ class Transformer(torch.nn.Module):
                                                    dropout,
                                                    attn_dropout,
                                                    layer_norm,
-                                                   batch_norm))
+                                                   batch_norm,
+                                                   use_spectral_norm))
 
-        self.self_attn = AttentionLayer(hidden, hidden, ensemble)
+        self.self_attn = AttentionLayer(hidden, hidden, ensemble, 0., use_spectral_norm)
 
     def forward(self, batch):
         x = self.encoder(batch)
@@ -235,7 +204,7 @@ class Transformer(torch.nn.Module):
             x = l(x, batch)
         x, mask = to_dense_batch(x, batch.batch)
         # batchsize, head, Nmax, Nmax
-        attention_score = self.self_attn(x)
+        attention_score = self.self_attn(x)[1]
         real_node_node_mask = torch.einsum('bn,bm->bnm', mask, mask)
         return attention_score, real_node_node_mask
 

@@ -28,6 +28,7 @@ def get_model(args, device, *_args):
 
     if args.imle_configs is not None:
         ensemble = 1 if not hasattr(args.sample_configs, 'ensemble') else args.sample_configs.ensemble
+        spectral_norm = True if hasattr(args.imle_configs, 'spectral_norm') and args.imle_configs.spectral_norm else False
         if args.imle_configs.model.startswith('lin'):
             emb_model = LinearEmbed(
                 tuple_type=args.imle_configs.model.split('_')[-1],
@@ -54,7 +55,8 @@ def get_model(args, device, *_args):
                                      hidden=args.imle_configs.emb_hid_size,
                                      type_encoder=type_encoder,
                                      lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
-                                     rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
+                                     rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None,
+                                     use_spectral_norm=spectral_norm)
             emb_model = Transformer(encoder=encoder,
                                     hidden=args.imle_configs.emb_hid_size,
                                     layers=args.imle_configs.tf_layer,
@@ -64,7 +66,8 @@ def get_model(args, device, *_args):
                                     dropout=args.imle_configs.dropout,
                                     attn_dropout=args.imle_configs.attn_dropout,
                                     layer_norm=args.imle_configs.layernorm,
-                                    batch_norm=args.imle_configs.batchnorm)
+                                    batch_norm=args.imle_configs.batchnorm,
+                                    use_spectral_norm=spectral_norm)
         elif args.imle_configs.model == 'graphormer':
             if args.dataset.lower() in ['zinc']:
                 encoder = torch.nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
