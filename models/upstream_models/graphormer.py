@@ -1,15 +1,13 @@
-import pdb
-
 import torch
 from torch_geometric.utils import to_dense_batch, to_dense_adj
 
 from models.nn_utils import reset_sequential_parameters
+from models.upstream_models.my_attention_layer import AttentionLayer
 
 # Permutes from (batch, node, node, head) to (batch, head, node, node)
 BATCH_HEAD_NODE_NODE = (0, 3, 1, 2)
 # Inserts a leading 0 row and a leading 0 column with F.pad
 INSERT_GRAPH_TOKEN = (1, 0, 1, 0)
-LARGE_NUMBER = 1.e10
 
 
 class BiasEncoder(torch.nn.Module):
@@ -175,46 +173,6 @@ class GraphormerLayer(torch.nn.Module):
         self.attention.reset_parameters()
         self.input_norm.reset_parameters()
         reset_sequential_parameters(self.mlp)
-
-
-class AttentionLayer(torch.nn.Module):
-    def __init__(self, in_dim, hidden, head, attention_dropout):
-        super(AttentionLayer, self).__init__()
-
-        self.head_dim = hidden // head
-        assert self.head_dim * head == hidden
-        self.head = head
-        self.attention_dropout = attention_dropout
-
-        self.w_q = torch.nn.Linear(in_dim, hidden)
-        self.w_k = torch.nn.Linear(in_dim, hidden)
-        self.w_v = torch.nn.Linear(in_dim, hidden)
-        self.w_o = torch.nn.Linear(hidden, hidden)
-
-    def forward(self, x, key_pad: torch.BoolTensor = None, attn_mask: torch.FloatTensor = None):
-        # x: batch, Nmax, F
-        bsz, Nmax, feature = x.shape
-        k = self.w_k(x).reshape(bsz, Nmax, self.head_dim, self.head)
-        q = self.w_q(x).reshape(bsz, Nmax, self.head_dim, self.head)
-        v = self.w_v(x).reshape(bsz, Nmax, self.head_dim, self.head)
-
-        attention_score = torch.einsum('bnfh,bmfh->bnmh', k, q) / (self.head_dim ** 0.5)
-        if attn_mask is not None:
-            attention_score += attn_mask
-        if key_pad is not None:
-            attention_score -= key_pad[:, None, :, None].to(torch.float) * LARGE_NUMBER
-
-        softmax_attn_score = torch.softmax(attention_score, dim=2)
-
-        softmax_attn_score = torch.nn.functional.dropout(softmax_attn_score, p=self.attention_dropout, training=self.training)
-        v = torch.einsum('bnmh,bmfh->bnfh', softmax_attn_score, v).reshape(bsz, Nmax, self.head * self.head_dim)
-        out = self.w_o(v)
-
-        return out, attention_score
-
-    def reset_parameters(self):
-        self.w_q.reset_parameters()
-        self.w_k.reset_parameters()
 
 
 class Graphormer(torch.nn.Module):
