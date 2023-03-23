@@ -181,9 +181,6 @@ class Layer:
     def __call__(self, log_probs, k):
         samples = self.sample(log_probs, k)
         marginals = self.log_pr(log_probs).exp().permute(1, 0)
-
-        print(marginals)
-
         return (samples - marginals).detach() + marginals
 
     @torch.compile(fullgraph=True, mode=MODE, disable=DISABLE)
