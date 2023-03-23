@@ -1,4 +1,3 @@
-from typing import Tuple
 import logging
 import os
 import yaml
@@ -129,7 +128,7 @@ def run(fixed):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(zip(train_loaders, val_loaders, test_loaders)):
             if emb_model is not None:
                 emb_model.reset_parameters()
-                optimizer_embd = torch.optim.Adam(emb_model.parameters(),
+                optimizer_embd = torch.optim.AdamW(emb_model.parameters(),
                                                   lr=args.imle_configs.embd_lr,
                                                   weight_decay=args.imle_configs.reg_embd)
                 scheduler_embd = torch.optim.lr_scheduler.MultiStepLR(optimizer_embd,
