@@ -195,24 +195,31 @@ class Trainer:
             if graph_id >= self.plot_args.n_graphs:
                 continue
 
+            graph_version = 'rewired' if graph_version == 0 else 'original'
+
             plt.figure()
             weights = weights.detach().cpu().numpy()
-            g_nx = pyg_utils.convert.to_networkx(g)
+
+            if graph_version == 'rewired':
+                g_nx = pyg_utils.convert.to_networkx(g)
+            else:
+                g_nx = pyg_utils.convert.to_networkx(g, to_undirected=True, remove_self_loops=True)
+
             # Plot g_nx and with edge weights based on "weights". No edge is entry is 0, edge if entry is 1
             edges = [e for e, w in zip(g_nx.edges, weights) if w == 1]
+            node_colors = g.x.detach().cpu().argmax(dim=1).unsqueeze(-1)
             # Plot graph only with the edges that are sampled
-            pos = nx.spring_layout(g_nx)
-            nx.draw_networkx_nodes(g_nx, pos, node_size=100, node_color='r')
-            nx.draw_networkx_edges(g_nx, pos, edgelist=edges, width=2, edge_color='b')
-            nx.draw_networkx_labels(g_nx, pos, font_size=10, font_family='sans-serif')
+            pos = nx.kamada_kawai_layout(g_nx)
+            nx.draw_networkx_nodes(g_nx, pos, node_size=200, node_color=node_colors)
+            nx.draw_networkx_edges(g_nx, pos, edgelist=edges, width=1, edge_color='k')
+            nx.draw_networkx_labels(g_nx, pos=pos, labels={i: node_colors[i].item() for i in range(len(node_colors))})
+
             plt.axis('off')
             plt.title(f'Graph {i}, Epoch {self.epoch}')
 
             plot_folder = self.plot_args.plot_folder
             if not os.path.exists(plot_folder):
                 os.makedirs(plot_folder)
-
-            graph_version = 'rewired' if graph_version == 0 else 'original'
 
             plt.savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}_{graph_version}_.png'))
 
