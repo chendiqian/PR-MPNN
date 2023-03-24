@@ -132,8 +132,8 @@ def run(fixed):
 
     for _run in range(args.num_runs):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(zip(train_loaders, val_loaders, test_loaders)):
+            model, emb_model = get_model(args, device)
             if emb_model is not None:
-                emb_model.reset_parameters()
                 optimizer_embd = torch.optim.AdamW(emb_model.parameters(),
                                                   lr=args.imle_configs.embd_lr,
                                                   weight_decay=args.imle_configs.reg_embd)
@@ -144,7 +144,6 @@ def run(fixed):
             else:
                 optimizer_embd = None
                 scheduler_embd = None
-            model.reset_parameters()
             optimizer = torch.optim.Adam(model.parameters(),
                                          lr=args.lr, weight_decay=args.reg)
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
