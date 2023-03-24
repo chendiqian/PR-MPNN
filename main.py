@@ -105,12 +105,6 @@ def run(fixed):
     task_type = TASK_TYPE_DICT[args.dataset.lower()]
     criterion = CRITERION_DICT[args.dataset.lower()]
 
-    model, emb_model = get_model(args, device)
-
-    wandb.watch(model, log="all")
-    if emb_model is not None:
-        wandb.watch(emb_model, log="all")
-
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=task_type,
                       max_patience=args.patience,
@@ -133,7 +127,9 @@ def run(fixed):
     for _run in range(args.num_runs):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(zip(train_loaders, val_loaders, test_loaders)):
             model, emb_model = get_model(args, device)
+            wandb.watch(model, log="all", log_freq=10)
             if emb_model is not None:
+                wandb.watch(emb_model, log="all", log_freq=10)
                 optimizer_embd = torch.optim.AdamW(emb_model.parameters(),
                                                   lr=args.imle_configs.embd_lr,
                                                   weight_decay=args.imle_configs.reg_embd)
