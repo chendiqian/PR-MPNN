@@ -12,9 +12,8 @@ pip install wandb
 pip install matplotlib
 
 conda install -y pytorch=2.0.0 pytorch-cuda=11.8 -c pytorch -c nvidia
-pip install git+https://github.com/pyg-team/pyg-lib.git
-pip install git+https://github.com/rusty1s/pytorch_scatter.git
+pip install https://data.pyg.org/whl/torch-2.0.0%2Bcu118/torch_scatter-2.1.1%2Bpt20cu118-cp310-cp310-linux_x86_64.whl
 pip install https://data.pyg.org/whl/torch-2.0.0%2Bcu118/torch_sparse-0.6.17%2Bpt20cu118-cp310-cp310-linux_x86_64.whl
-pip install torch-geometric
+conda install -y pyg -c pyg
 
 pip install ogb
