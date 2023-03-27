@@ -177,7 +177,7 @@ def run(fixed):
                            "train_metric": train_metric,
                            "val_metric": val_metric,
                            "down_lr": scheduler.get_last_lr()[-1],
-                           "up_lr": scheduler_embd.get_last_lr()[-1]})
+                           "up_lr": scheduler_embd.get_last_lr()[-1] if emb_model is not None else 0.})
 
                 if epoch % 50 == 0:
                     torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')
