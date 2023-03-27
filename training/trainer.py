@@ -206,15 +206,16 @@ class Trainer:
             for ax in axs:
                 ax.set_axis_off()
 
-        original_graphs_networkx = [
-            pyg_utils.convert.to_networkx(
-                g, 
-                to_undirected=True, 
-                remove_self_loops=True
-            ) for g in new_batch_plot[(unique_graphs * n_ensemble):(unique_graphs * n_ensemble) + total_plotted_graphs]
-        ]
+        if self.include_original_graph:
+            original_graphs_networkx = [
+                pyg_utils.convert.to_networkx(
+                    g, 
+                    to_undirected=True, 
+                    remove_self_loops=True
+                ) for g in new_batch_plot[(unique_graphs * n_ensemble):(unique_graphs * n_ensemble) + total_plotted_graphs]
+            ]
         
-        original_graphs_pos = [nx.kamada_kawai_layout(g) for g in original_graphs_networkx]
+            original_graphs_pos = [nx.kamada_kawai_layout(g) for g in original_graphs_networkx]
 
         for i, (g, weights) in enumerate(zip(new_batch_plot, weights_split)):
             graph_id = i % unique_graphs
@@ -229,13 +230,20 @@ class Trainer:
             if graph_version == 'rewired':
                 g_nx = pyg_utils.convert.to_networkx(g)
             else:
-                g_nx = original_graphs_networkx[graph_id]
+                if self.include_original_graph:
+                    g_nx = original_graphs_networkx[graph_id]
+                else:
+                    g_nx = pyg_utils.convert.to_networkx(g)
 
             # Plot g_nx and with edge weights based on "weights". No edge is entry is 0, edge if entry is 1
             edges = [e for e, w in zip(g_nx.edges, weights) if w == 1]
 
             node_colors = g.x.detach().cpu().argmax(dim=1).unsqueeze(-1)
-            pos = original_graphs_pos[graph_id]
+
+            if self.include_original_graph:
+                pos = original_graphs_pos[graph_id]
+            else:
+                pos = nx.kamada_kawai_layout(g_nx)
 
             ax = plots[graph_id]['axs'][plots[graph_id]['subgraph_cnt']]
 
