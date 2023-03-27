@@ -24,7 +24,7 @@ class GumbelSampler(torch.nn.Module):
         khot = scores.new_zeros(scores.shape)
         onehot_approx = scores.new_zeros(scores.shape)
         for i in range(local_k):
-            khot_mask = torch.max(1.0 - onehot_approx, torch.tensor([EPSILON]).cuda())
+            khot_mask = torch.max(1.0 - onehot_approx, torch.tensor([EPSILON], device=scores.device))
             scores = scores + torch.log(khot_mask)
             onehot_approx = torch.nn.functional.softmax(scores / self.tau, dim=1)
             khot = khot + onehot_approx
