@@ -13,7 +13,6 @@ from torch_geometric.utils import (is_undirected,
                                    coalesce,
                                    to_scipy_sparse_matrix,
                                    get_laplacian,
-                                   to_dense_adj,
                                    to_networkx)
 from torch_sparse import SparseTensor
 
@@ -269,10 +268,10 @@ class AugmentWithGlobalRewiredGraphs(GraphModification):
                 graphs.append(graph)
         else:
             full_edge_index = torch.from_numpy(np.vstack(np.triu_indices(graph.num_nodes, k=-graph.num_nodes, )))
-            graphs = [Data(x=graph.x, edge_index=graph.edge_index, edge_attr=graph.edge_attr)] if self.include_original_graph else []
+            graphs = [Data(x=graph.x, edge_index=graph.edge_index, edge_attr=graph.edge_attr, nx_layout=graph.nx_layout)] if self.include_original_graph else []
             for i in range(self.ensemble):
                 idx = np.sort(np.random.choice(graph.num_nodes ** 2, size=self.sample_k, replace=False))
-                g = Data(x=graph.x, edge_index=full_edge_index[:, idx], edge_attr=graph.edge_attr)
+                g = Data(x=graph.x, edge_index=full_edge_index[:, idx], edge_attr=graph.edge_attr, nx_layout=graph.nx_layout)
                 graphs.append(g)
         graphs = collate(graph.__class__, graphs, increment=True, add_batch=False)[0]
         graphs.y = graph.y
@@ -355,4 +354,20 @@ class AugmentWithSpatialInfo(GraphModification):
 
         if data_edge_attr is not None:
             data.shortest_path_types = shortest_path_types
+        return data
+
+
+class AugmentWithPlotCoordinates(GraphModification):
+    """
+    for networkx plots, save the positions of the original graphs
+    """
+    def __init__(self, layout = nx.kamada_kawai_layout):
+        super(AugmentWithPlotCoordinates, self).__init__()
+        self.layout = layout
+
+    def __call__(self, data: Data):
+        nx_graph = to_networkx(data)
+        pos = self.layout(nx_graph)  # return a dict
+        pos = np.vstack([pos[n] for n in range(data.num_nodes)])
+        data.nx_layout = torch.from_numpy(pos)
         return data

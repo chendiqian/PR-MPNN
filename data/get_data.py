@@ -19,7 +19,8 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithRandomWalkProbs, AugmentWithLaplace,
                               AugmentWithPerNodeRewiredGraphs,
                               AugmentWithGlobalRewiredGraphs,
-                              AugmentWithSpatialInfo)
+                              AugmentWithSpatialInfo,
+                              AugmentWithPlotCoordinates)
 from .data_utils import AttributedDataLoader
 NUM_WORKERS = 0
 
@@ -39,6 +40,7 @@ PRETRANSFORM_PRIORITY = {
     AugmentWithRandomWalkProbs: 98,
     AugmentWithLaplace: 98,
     AugmentWithSpatialInfo: 98,
+    AugmentWithPlotCoordinates: 98,
 }
 
 
@@ -78,7 +80,7 @@ def get_transform(args: Union[Namespace, ConfigDict]):
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):
-    pretransform = [GraphToUndirected(), AugmentwithNNodes(), GraphAddRemainSelfLoop()]
+    pretransform = [GraphToUndirected(), AugmentwithNNodes(), GraphAddRemainSelfLoop(), AugmentWithPlotCoordinates()]
     if extra_pretransforms is not None:
         pretransform = pretransform + extra_pretransforms
 
