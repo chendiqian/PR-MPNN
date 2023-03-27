@@ -1,6 +1,7 @@
 import os
 import pickle
 from collections import defaultdict
+from math import ceil, sqrt
 from typing import Any, Optional, Union
 
 import matplotlib.pyplot as plt
@@ -8,14 +9,14 @@ import networkx as nx
 import numpy as np
 import torch
 import torch_geometric.utils as pyg_utils
+from ml_collections import ConfigDict
+from torch_geometric.data import Batch, Data
 
 from data.data_utils import AttributedDataLoader, IsBetter, scale_grad
 from data.metrics import eval_acc, eval_rmse, eval_rocauc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from ml_collections import ConfigDict
-from torch_geometric.data import Batch, Data
 from training.aux_loss import get_batch_aux_loss, get_pair_aux_loss
 from training.gumbel_scheme import GumbelSampler
 from training.imle_scheme import IMLEScheme
@@ -52,6 +53,8 @@ class Trainer:
         self.metric_comparator = IsBetter(self.task_type)
         self.criterion = criterion
         self.device = device
+
+        self.sample_configs = sample_configs
 
         self.best_val_loss = 1e5
         self.best_val_metric = None
@@ -176,9 +179,7 @@ class Trainer:
         return new_batch, auxloss
 
     def plot(self, new_batch: Batch):
-        """Plot graphs and edge weights.
-        Currently works with version in which you also include the original graph.
-        
+        """Plot graphs and edge weights.        
         Inputs: Batch of graphs from list.
         Outputs: None"""
 
@@ -187,46 +188,81 @@ class Trainer:
         sections = pyg_utils.degree(new_batch.batch[src], dtype=torch.long).tolist()
         weights_split = torch.split(new_batch.edge_weight, split_size_or_sections=sections)
 
-        for i, (g, weights) in enumerate(zip(new_batch_plot, weights_split)):
-            # Check if graph is original or rewired
-            graph_id = i%(len(new_batch_plot)//2)
-            graph_version = i//(len(new_batch_plot)//2)
+        plots = []
+        total_plotted_graphs = self.plot_args.n_graphs
+        n_ensemble = self.sample_configs.ensemble
+        total_graphs = len(new_batch_plot)
+        unique_graphs = total_graphs//(n_ensemble+1) if self.include_original_graph else total_graphs//n_ensemble
 
-            if graph_id >= self.plot_args.n_graphs:
+        nrows = round(sqrt(n_ensemble+1)) if self.include_original_graph else round(sqrt(n_ensemble))
+        ncols = ceil(sqrt(n_ensemble+1)) if self.include_original_graph else ceil(sqrt(n_ensemble))
+
+        for graph_id in range(total_plotted_graphs):
+
+            fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*7, nrows*7), gridspec_kw={'wspace': 0, 'hspace': 0.05})
+            axs = axs.flatten()
+            plots.append({'fig': fig, 'axs': axs, 'subgraph_cnt': 0})
+
+            for ax in axs:
+                ax.set_axis_off()
+
+        original_graphs_networkx = [
+            pyg_utils.convert.to_networkx(
+                g, 
+                to_undirected=True, 
+                remove_self_loops=True
+            ) for g in new_batch_plot[(unique_graphs * n_ensemble):(unique_graphs * n_ensemble) + total_plotted_graphs]
+        ]
+        
+        original_graphs_pos = [nx.kamada_kawai_layout(g) for g in original_graphs_networkx]
+
+        for i, (g, weights) in enumerate(zip(new_batch_plot, weights_split)):
+            graph_id = i % unique_graphs
+
+            if graph_id >= total_plotted_graphs:
                 continue
 
-            graph_version = 'rewired' if graph_version == 0 else 'original'
+            graph_version = 'original' if i >= (unique_graphs * n_ensemble) - 1 else 'rewired'
 
-            plt.figure()
             weights = weights.detach().cpu().numpy()
 
             if graph_version == 'rewired':
                 g_nx = pyg_utils.convert.to_networkx(g)
             else:
-                g_nx = pyg_utils.convert.to_networkx(g, to_undirected=True, remove_self_loops=True)
+                g_nx = original_graphs_networkx[graph_id]
 
             # Plot g_nx and with edge weights based on "weights". No edge is entry is 0, edge if entry is 1
             edges = [e for e, w in zip(g_nx.edges, weights) if w == 1]
-            node_colors = g.x.detach().cpu().argmax(dim=1).unsqueeze(-1)
-            # Plot graph only with the edges that are sampled
-            pos = nx.kamada_kawai_layout(g_nx)
-            nx.draw_networkx_nodes(g_nx, pos, node_size=200, node_color=node_colors)
-            nx.draw_networkx_edges(g_nx, pos, edgelist=edges, width=1, edge_color='k')
-            nx.draw_networkx_labels(g_nx, pos=pos, labels={i: node_colors[i].item() for i in range(len(node_colors))})
 
-            plt.axis('off')
-            plt.title(f'Graph {i}, Epoch {self.epoch}')
+            node_colors = g.x.detach().cpu().argmax(dim=1).unsqueeze(-1)
+            pos = original_graphs_pos[graph_id]
+
+            ax = plots[graph_id]['axs'][plots[graph_id]['subgraph_cnt']]
+
+            nx.draw_networkx_nodes(g_nx, pos, node_size=200, node_color=node_colors, alpha=0.7, ax=ax)
+            nx.draw_networkx_edges(g_nx, pos, edgelist=edges, width=1, edge_color='k', ax=ax)
+            # labels wrt node id
+            nx.draw_networkx_labels(g_nx, pos=pos, labels={i: i for i in range(len(node_colors))}, ax=ax)
+            # labels wrt node colors
+            # nx.draw_networkx_labels(g_nx, pos=pos, labels={i: node_colors[i].item() for i in range(len(node_colors))}, ax=plots[graph_id]['axs'][plots['graph_id']['subgraph_cnt']])
+
+            plots[graph_id]['subgraph_cnt'] += 1
+
+            ax.set_title(f'Graph {graph_id}, Epoch {self.epoch}, Version: {graph_version}')
 
             plot_folder = self.plot_args.plot_folder
+
             if not os.path.exists(plot_folder):
                 os.makedirs(plot_folder)
 
-            plt.savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}_{graph_version}_.png'))
+        for graph_id, plot in enumerate(plots):
+            plot['fig'].savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}.png'), bbox_inches='tight')
 
             if self.wandb is not None and self.use_wandb:
-                self.wandb.log({f"graph_{graph_id}_{graph_version}": self.wandb.Image(plt)}, step=self.epoch)
+                self.wandb.log({f"graph_{graph_id}": self.wandb.Image(plot['fig'])}, step=self.epoch)
 
-            plt.close()
+            plt.close(plot['fig'])
+
 
     def train(self,
               dataloader: AttributedDataLoader,
