@@ -2,7 +2,6 @@
 
 import torch
 import torch.nn as nn
-from torch.nn.utils import spectral_norm
 
 
 class KernelPENodeEncoder(torch.nn.Module):
@@ -22,7 +21,7 @@ class KernelPENodeEncoder(torch.nn.Module):
 
     kernel_type = None  # Instantiated type of the KernelPE, e.g. RWSE
 
-    def __init__(self, dim_in, dim_emb, pecfg, expand_x=True, use_spectral_norm=False):
+    def __init__(self, dim_in, dim_emb, pecfg, expand_x=True):
         super().__init__()
         if self.kernel_type is None:
             raise ValueError(f"{self.__class__.__name__} has to be "
@@ -40,8 +39,6 @@ class KernelPENodeEncoder(torch.nn.Module):
 
         if expand_x and dim_emb - dim_pe > 0:
             self.linear_x = nn.Linear(dim_in, dim_emb - dim_pe)
-            if use_spectral_norm:
-                self.linear_x = spectral_norm(self.linear_x)
         self.expand_x = expand_x and dim_emb - dim_pe > 0
 
         if norm_type == 'batchnorm':
@@ -68,8 +65,6 @@ class KernelPENodeEncoder(torch.nn.Module):
             raise NotImplementedError
         elif model_type == 'linear':
             self.pe_encoder = nn.Linear(num_rw_steps, dim_pe)
-            if use_spectral_norm:
-                self.pe_encoder = spectral_norm(self.pe_encoder)
         else:
             raise ValueError
 

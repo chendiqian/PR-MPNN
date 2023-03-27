@@ -3,7 +3,6 @@
 import torch
 import torch.nn as nn
 from models.nn_utils import reset_sequential_parameters
-from torch.nn.utils import spectral_norm
 
 
 class LapPENodeEncoder(torch.nn.Module):
@@ -16,7 +15,7 @@ class LapPENodeEncoder(torch.nn.Module):
         expand_x: Expand node features `x` from dim_in to (dim_emb - dim_pe)
     """
 
-    def __init__(self, dim_in, dim_emb, pecfg, expand_x=True, use_spectral_norm=False):
+    def __init__(self, dim_in, dim_emb, pecfg, expand_x=True):
         super().__init__()
 
         dim_pe = pecfg.dim_pe  # Size of Laplace PE embedding
@@ -35,14 +34,10 @@ class LapPENodeEncoder(torch.nn.Module):
 
         if expand_x and dim_emb - dim_pe > 0:
             self.linear_x = nn.Linear(dim_in, dim_emb - dim_pe)
-            if use_spectral_norm:
-                self.linear_x = spectral_norm(self.linear_x)
         self.expand_x = expand_x and dim_emb - dim_pe > 0
 
         # Initial projection of eigenvalue and the node's eigenvector value
         self.linear_A = nn.Linear(2, dim_pe)
-        if use_spectral_norm:
-            self.linear_A = spectral_norm(self.linear_A)
         if pecfg.raw_norm_type is None:
             self.raw_norm = None
         elif pecfg.raw_norm_type.lower() == 'batchnorm':
@@ -66,15 +61,11 @@ class LapPENodeEncoder(torch.nn.Module):
                 layers.append(activation())
             else:
                 self.linear_A = nn.Linear(2, 2 * dim_pe)
-                if use_spectral_norm:
-                    self.linear_A = spectral_norm(self.linear_A)
                 layers.append(activation())
                 for _ in range(n_layers - 2):
-                    layers.append(spectral_norm(nn.Linear(2 * dim_pe, 2 * dim_pe)) if use_spectral_norm else
-                                  nn.Linear(2 * dim_pe, 2 * dim_pe))
+                    layers.append(nn.Linear(2 * dim_pe, 2 * dim_pe))
                     layers.append(activation())
-                layers.append(spectral_norm(nn.Linear(2 * dim_pe, dim_pe)) if use_spectral_norm else
-                              nn.Linear(2 * dim_pe, dim_pe))
+                layers.append(nn.Linear(2 * dim_pe, dim_pe))
                 layers.append(activation())
             self.pe_encoder = nn.Sequential(*layers)
 
