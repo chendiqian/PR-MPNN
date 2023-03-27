@@ -60,3 +60,8 @@ fixed:
   data_path: './datasets'
   debug: False
   num_runs: 5
+
+  plot_graphs:
+    batch_id: 0
+    n_graphs: 10
+    plot_folder: './plots'
