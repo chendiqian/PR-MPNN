@@ -1,9 +1,11 @@
+import math
+import time
 from collections import namedtuple
 from typing import Union, Optional
-import time
 
 import torch
-
+import torch.optim as optim
+from torch.optim import Optimizer
 
 AttributedDataLoader = namedtuple(
     'AttributedDataLoader', [
@@ -11,6 +13,35 @@ AttributedDataLoader = namedtuple(
         'mean',
         'std'
     ])
+
+
+def get_cosine_schedule_with_warmup(
+        optimizer: Optimizer,
+        num_warmup_steps: int,
+        num_training_steps: int,
+        num_cycles: float = 0.5,
+        last_epoch: int = -1):
+    """
+    https://github.com/rampasek/GraphGPS/blob/95a17d57767b34387907f42a43f91a0354feac05/graphgps/optimizer/extra_optimizers.py#L158
+
+    Args:
+        optimizer:
+        num_warmup_steps:
+        num_training_steps:
+        num_cycles:
+        last_epoch:
+
+    Returns:
+
+    """
+
+    def lr_lambda(current_step):
+        if current_step < num_warmup_steps:
+            return max(1e-6, float(current_step) / float(max(1, num_warmup_steps)))
+        progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
+        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
+
+    return optim.lr_scheduler.LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
 def scale_grad(model: torch.nn.Module, scalar: Union[int, float]) -> torch.nn.Module:
