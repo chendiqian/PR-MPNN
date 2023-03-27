@@ -70,7 +70,6 @@ class Trainer:
         self.curves = defaultdict(list)
 
         self.epoch = None
-        self.batch_id = None
 
         self.sample_policy = sample_configs.sample_policy
         self.include_original_graph = sample_configs.include_original_graph
@@ -135,87 +134,88 @@ class Trainer:
         else:
             auxloss = None
 
-        # construct a batch of new graphs
-        if self.include_original_graph or logits.shape[-1] > 1:
-            # need to split the graphs and make duplicates
-            graphs = Batch.to_data_list(dat_batch)
-            for g in graphs:
-                g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
-            graphs = graphs * logits.shape[-1]
-            if self.include_original_graph:
-                original_graphs = Batch.to_data_list(dat_batch)
-                graphs += original_graphs
+        graphs = Batch.to_data_list(dat_batch)
+        for g in graphs:
+            g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
+        graphs = graphs * logits.shape[-1]
+        if self.include_original_graph:
+            original_graphs = Batch.to_data_list(dat_batch)
+            graphs += original_graphs
 
-            edge_weight = node_mask[real_node_node_mask].T.reshape(-1)
-            if self.include_original_graph:
-                edge_weight = torch.cat([edge_weight, edge_weight.new_ones(dat_batch.num_edges)], dim=0)
-            new_batch = Batch.from_data_list(graphs)
-            if train:
-                new_batch.edge_weight = edge_weight
-            else:
-                new_batch.edge_index = new_batch.edge_index[:, edge_weight.to(torch.bool)]
-                new_batch.edge_weight = None
-
-            if train and self.plot_args is not None:
-                if self.batch_id == self.plot_args.batch_id:
-                    self.plot(new_batch)
-
-            new_batch.batch = dat_batch.batch.repeat(logits.shape[-1] + int(self.include_original_graph))
-            new_batch.y = dat_batch.y
+        edge_weight = node_mask[real_node_node_mask].T.reshape(-1)
+        if self.include_original_graph:
+            edge_weight = torch.cat([edge_weight, edge_weight.new_ones(dat_batch.num_edges)], dim=0)
+        new_batch = Batch.from_data_list(graphs)
+        if train:
+            new_batch.edge_weight = edge_weight
         else:
-            edge_weight = node_mask[real_node_node_mask].squeeze()
-            row = torch.hstack([torch.repeat_interleave(torch.arange(n, device=self.device), n) for n in dat_batch.nnodes])
-            col = torch.hstack([torch.arange(n, device=self.device).repeat(n) for n in dat_batch.nnodes])
-            edge_index = torch.vstack([row, col])
-            edge_index += torch.repeat_interleave(dat_batch._inc_dict['edge_index'].to(self.device), dat_batch.nnodes ** 2)
-            if train:
-                dat_batch.edge_weight = edge_weight
-                dat_batch.edge_index = edge_index
-            else:
-                dat_batch.edge_weight = None
-                dat_batch.edge_index = edge_index[:, edge_weight.to(torch.bool)]
-            new_batch = dat_batch
+            new_batch.edge_index = new_batch.edge_index[:, edge_weight.to(torch.bool)]
+            new_batch.edge_weight = None
 
+        new_batch.original_batch = new_batch.batch
+        new_batch.batch = dat_batch.batch.repeat(logits.shape[-1] + int(self.include_original_graph))
+        new_batch.y = dat_batch.y
         return new_batch, auxloss
 
     def plot(self, new_batch: Batch):
+        # Todo: add this for random rewiring
+
         """Plot graphs and edge weights.        
         Inputs: Batch of graphs from list.
         Outputs: None"""
 
-        new_batch_plot = new_batch.to_data_list()
-        src, dst = new_batch.edge_index
-        sections = pyg_utils.degree(new_batch.batch[src], dtype=torch.long).tolist()
-        weights_split = torch.split(new_batch.edge_weight, split_size_or_sections=sections)
+        # in this case, the batch indices are already modified for inter-subgraph graph pooling,
+        # use the original batch instead for compatibility of `to_data_list`
+        del new_batch.y  # without repitition, so might be incompatible
+        if hasattr(new_batch, 'original_batch'):
+            new_batch.batch = new_batch.original_batch
 
-        plots = []
-        total_plotted_graphs = self.plot_args.n_graphs
+        new_batch_plot = new_batch.to_data_list()
+        if hasattr(new_batch, 'edge_weight') and new_batch.edge_weight is not None:
+            src, dst = new_batch.edge_index
+            sections = pyg_utils.degree(new_batch.batch[src], dtype=torch.long).tolist()
+            weights_split = torch.split(new_batch.edge_weight, split_size_or_sections=sections)
+        else:
+            weights_split = [None] * len(new_batch_plot)
+
         n_ensemble = self.sample_configs.ensemble
         total_graphs = len(new_batch_plot)
-        unique_graphs = total_graphs//(n_ensemble+1) if self.include_original_graph else total_graphs//n_ensemble
+        unique_graphs = total_graphs // (n_ensemble + int(self.include_original_graph))
+        total_plotted_graphs = min(self.plot_args.n_graphs, unique_graphs)
 
-        nrows = round(sqrt(n_ensemble+1)) if self.include_original_graph else round(sqrt(n_ensemble))
-        ncols = ceil(sqrt(n_ensemble+1)) if self.include_original_graph else ceil(sqrt(n_ensemble))
+        nrows = round(sqrt(n_ensemble + int(self.include_original_graph)))
+        ncols = ceil(sqrt(n_ensemble + int(self.include_original_graph)))
+        is_only_one_plot = ncols * nrows == 1
 
+        plots = []
         for graph_id in range(total_plotted_graphs):
 
             fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*7, nrows*7), gridspec_kw={'wspace': 0, 'hspace': 0.05})
-            axs = axs.flatten()
+            if not is_only_one_plot:
+                axs = axs.flatten()
+                for ax in axs:
+                    ax.set_axis_off()
+            else:
+                axs.set_axis_off()
             plots.append({'fig': fig, 'axs': axs, 'subgraph_cnt': 0})
 
-            for ax in axs:
-                ax.set_axis_off()
+        # actually these may not be original graphs, if original graphs not included
+        original_graphs_pyg = new_batch_plot[-unique_graphs:]
+        original_graphs_pos_dict = []
+        for g in original_graphs_pyg:
+            original_graphs_pos_np = g.nx_layout.cpu().numpy()
+            original_graphs_pos_dict.append({i: pos for i, pos in enumerate(original_graphs_pos_np)})
 
         if self.include_original_graph:
             original_graphs_networkx = [
                 pyg_utils.convert.to_networkx(
-                    g, 
-                    to_undirected=True, 
+                    g,
+                    to_undirected=True,
                     remove_self_loops=True
-                ) for g in new_batch_plot[(unique_graphs * n_ensemble):(unique_graphs * n_ensemble) + total_plotted_graphs]
+                ) for g in original_graphs_pyg
             ]
-        
-            original_graphs_pos = [nx.kamada_kawai_layout(g) for g in original_graphs_networkx]
+        else:
+            original_graphs_networkx = None
 
         for i, (g, weights) in enumerate(zip(new_batch_plot, weights_split)):
             graph_id = i % unique_graphs
@@ -223,45 +223,37 @@ class Trainer:
             if graph_id >= total_plotted_graphs:
                 continue
 
-            graph_version = 'original' if i >= (unique_graphs * n_ensemble) - 1 else 'rewired'
-
-            weights = weights.detach().cpu().numpy()
-
+            graph_version = 'original' if i >= (unique_graphs * n_ensemble) else 'rewired'
             if graph_version == 'rewired':
                 g_nx = pyg_utils.convert.to_networkx(g)
             else:
-                if self.include_original_graph:
-                    g_nx = original_graphs_networkx[graph_id]
-                else:
-                    g_nx = pyg_utils.convert.to_networkx(g)
+                assert original_graphs_networkx is not None
+                g_nx = original_graphs_networkx[graph_id]
 
             # Plot g_nx and with edge weights based on "weights". No edge is entry is 0, edge if entry is 1
-            edges = [e for e, w in zip(g_nx.edges, weights) if w == 1]
+            if weights is not None:
+                edges = g.edge_index[:, torch.where(weights)[0]].T.tolist()
+            else:
+                edges = g.edge_index.T.tolist()
 
             node_colors = g.x.detach().cpu().argmax(dim=1).unsqueeze(-1)
 
-            if self.include_original_graph:
-                pos = original_graphs_pos[graph_id]
-            else:
-                pos = nx.kamada_kawai_layout(g_nx)
+            pos = original_graphs_pos_dict[graph_id]
 
-            ax = plots[graph_id]['axs'][plots[graph_id]['subgraph_cnt']]
+            if not is_only_one_plot:
+                ax = plots[graph_id]['axs'][plots[graph_id]['subgraph_cnt']]
+                plots[graph_id]['subgraph_cnt'] += 1
+            else:
+                ax = plots[graph_id]['axs']
 
             nx.draw_networkx_nodes(g_nx, pos, node_size=200, node_color=node_colors, alpha=0.7, ax=ax)
             nx.draw_networkx_edges(g_nx, pos, edgelist=edges, width=1, edge_color='k', ax=ax)
-            # labels wrt node id
             nx.draw_networkx_labels(g_nx, pos=pos, labels={i: i for i in range(len(node_colors))}, ax=ax)
-            # labels wrt node colors
-            # nx.draw_networkx_labels(g_nx, pos=pos, labels={i: node_colors[i].item() for i in range(len(node_colors))}, ax=plots[graph_id]['axs'][plots['graph_id']['subgraph_cnt']])
-
-            plots[graph_id]['subgraph_cnt'] += 1
-
             ax.set_title(f'Graph {graph_id}, Epoch {self.epoch}, Version: {graph_version}')
 
-            plot_folder = self.plot_args.plot_folder
-
-            if not os.path.exists(plot_folder):
-                os.makedirs(plot_folder)
+        plot_folder = self.plot_args.plot_folder
+        if not os.path.exists(plot_folder):
+            os.makedirs(plot_folder)
 
         for graph_id, plot in enumerate(plots):
             plot['fig'].savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}.png'), bbox_inches='tight')
@@ -293,10 +285,13 @@ class Trainer:
         num_graphs = 0
 
         for batch_id, data in enumerate(dataloader.loader):
-            self.batch_id = batch_id
             optimizer.zero_grad()
             data = data.to(self.device)
             data, auxloss = self.construct_duplicate_data(data, emb_model)
+
+            if self.plot_args is not None:
+                if batch_id == self.plot_args.batch_id:
+                    self.plot(data.clone())
 
             pred = model(data)
 
