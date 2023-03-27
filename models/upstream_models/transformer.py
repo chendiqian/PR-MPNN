@@ -18,8 +18,7 @@ class FeatureEncoder(torch.nn.Module):
                  hidden,
                  type_encoder: str,
                  lap_encoder: ConfigDict = None,
-                 rw_encoder: ConfigDict = None,
-                 use_spectral_norm: bool = False):
+                 rw_encoder: ConfigDict = None):
         super(FeatureEncoder, self).__init__()
 
         if type_encoder == 'linear':
@@ -39,14 +38,10 @@ class FeatureEncoder(torch.nn.Module):
             self.lap_encoder = LapPENodeEncoder(hidden,
                                                 hidden - rw_encoder.dim_pe,
                                                 lap_encoder,
-                                                expand_x=False,
-                                                use_spectral_norm=use_spectral_norm)
+                                                expand_x=False)
 
         if rw_encoder is not None:
-            self.rw_encoder = RWSENodeEncoder(hidden, hidden, rw_encoder, expand_x=False, use_spectral_norm=use_spectral_norm)
-
-        if use_spectral_norm:
-            self.linear_embed = spectral_norm(self.linear_embed)
+            self.rw_encoder = RWSENodeEncoder(hidden, hidden, rw_encoder, expand_x=False)
 
     def forward(self, batch):
         x = self.linear_embed(batch.x)
@@ -107,9 +102,6 @@ class TransformerLayer(nn.Module):
         # Feed Forward block.
         self.ff_linear1 = nn.Linear(dim_h, dim_h * 2)
         self.ff_linear2 = nn.Linear(dim_h * 2, dim_h)
-        if use_spectral_norm:
-            self.ff_linear1 = spectral_norm(self.ff_linear1)
-            self.ff_linear2 = spectral_norm(self.ff_linear2)
         self.act_fn_ff = getattr(torch, act)
         if self.layer_norm:
             self.norm2 = pygnn.norm.LayerNorm(dim_h)

@@ -55,8 +55,7 @@ def get_model(args, device, *_args):
                                      hidden=args.imle_configs.emb_hid_size,
                                      type_encoder=type_encoder,
                                      lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
-                                     rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None,
-                                     use_spectral_norm=spectral_norm)
+                                     rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
             emb_model = Transformer(encoder=encoder,
                                     hidden=args.imle_configs.emb_hid_size,
                                     layers=args.imle_configs.tf_layer,

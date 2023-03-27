@@ -1,34 +1,11 @@
-from collections import namedtuple, deque
-from typing import List, Union, Tuple, Optional
+import math
 import time
+from collections import namedtuple
+from typing import Union, Optional
 
-# import numba
-# import numpy as np
 import torch
-# from torch import Tensor
-# from torch import device as TorchDevice
-
-
-# class SubgraphSetBatch:
-#     def __init__(self, **kwargs):
-#         for k, v in kwargs.items():
-#             setattr(self, k, v)
-#
-#     def to(self, device: TorchDevice):
-#         for k, v in self.__dict__.items():
-#             if isinstance(v, Tensor):
-#                 setattr(self, k, v.to(device))
-#         return self
-#
-#     def __repr__(self):
-#         string = []
-#         for k, v in self.__dict__.items():
-#             if isinstance(v, Tensor):
-#                 string.append(k + f': Tensor {list(v.shape)}')
-#             else:
-#                 string.append(k + ': ' + type(v).__name__)
-#         return ' '.join(string)
-
+import torch.optim as optim
+from torch.optim import Optimizer
 
 AttributedDataLoader = namedtuple(
     'AttributedDataLoader', [
@@ -38,64 +15,33 @@ AttributedDataLoader = namedtuple(
     ])
 
 
-# @numba.njit(cache=True)
-# def edgeindex2neighbordict(edge_index: np.ndarray, num_nodes: int) -> List[np.ndarray]:
-#     """
-#
-#     :param edge_index: shape (2, E)
-#     :param num_nodes:
-#     :return:
-#     """
-#     neighbors = [[-1] for _ in range(num_nodes)]
-#     for i, node in enumerate(edge_index[0]):
-#         neighbors[node].append(edge_index[1][i])
-#
-#     for i, n in enumerate(neighbors):
-#         n.pop(0)
-#
-#     neighbors = [np.array(n, dtype=np.int64) for n in neighbors]
-#     return neighbors
-#
-#
-# def get_ptr(graph_idx: Tensor, device: torch.device = None) -> Tensor:
-#     """
-#     Given indices of graph, return ptr
-#     e.g. [1,1,2,2,2,3,3,4] -> [0, 2, 5, 7]
-#
-#     :param graph_idx:
-#     :param device:
-#     :return:
-#     """
-#     if device is None:
-#         device = graph_idx.device
-#     return torch.cat((torch.tensor([0], device=device),
-#                       (graph_idx[1:] > graph_idx[:-1]).nonzero().reshape(-1) + 1,
-#                       torch.tensor([len(graph_idx)], device=device)), dim=0)
-#
-#
-# def get_connected_components(subset, neighbor_dict):
-#     components = []
-#
-#     while subset:
-#         cur_node = subset.pop()
-#         q = deque()
-#         q.append(cur_node)
-#
-#         component = [cur_node]
-#         while q:
-#             cur_node = q.popleft()
-#             i = 0
-#             while i < len(subset):
-#                 candidate = subset[i]
-#                 if candidate in neighbor_dict[cur_node]:
-#                     subset.pop(i)
-#                     component.append(candidate)
-#                     q.append(candidate)
-#                 else:
-#                     i += 1
-#         components.append(component)
-#
-#     return components
+def get_cosine_schedule_with_warmup(
+        optimizer: Optimizer,
+        num_warmup_steps: int,
+        num_training_steps: int,
+        num_cycles: float = 0.5,
+        last_epoch: int = -1):
+    """
+    https://github.com/rampasek/GraphGPS/blob/95a17d57767b34387907f42a43f91a0354feac05/graphgps/optimizer/extra_optimizers.py#L158
+
+    Args:
+        optimizer:
+        num_warmup_steps:
+        num_training_steps:
+        num_cycles:
+        last_epoch:
+
+    Returns:
+
+    """
+
+    def lr_lambda(current_step):
+        if current_step < num_warmup_steps:
+            return max(1e-6, float(current_step) / float(max(1, num_warmup_steps)))
+        progress = float(current_step - num_warmup_steps) / float(max(1, num_training_steps - num_warmup_steps))
+        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
+
+    return optim.lr_scheduler.LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
 def scale_grad(model: torch.nn.Module, scalar: Union[int, float]) -> torch.nn.Module:
@@ -160,26 +106,3 @@ class SyncMeanTimer:
             self.mean_time = (self.mean_time * self.count + self.last_end_time - self.last_start_time) / (self.count + 1)
             self.count += 1
             return self.last_end_time
-
-
-# def edge_index2dense_adj(edge_index: Tensor,
-#                          num_nodes: Optional[int] = None,
-#                          max_nodes: Optional[int] = None,
-#                          default_dtype: torch.dtype = torch.int):
-#     """
-#
-#     @param edge_index:
-#     @param num_nodes:
-#     @param max_nodes:
-#     @param default_dtype:
-#     @return:
-#     """
-#     if num_nodes is None:
-#         num_nodes = edge_index.max()
-#
-#     if max_nodes is None:
-#         max_nodes = num_nodes
-#
-#     adj = torch.zeros(num_nodes, max_nodes, device=edge_index.device, dtype=default_dtype)
-#     adj[edge_index[0], edge_index[1]] = 1
-#     return adj

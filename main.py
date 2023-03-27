@@ -14,7 +14,7 @@ from models.get_model import get_model
 from training.trainer import Trainer
 from data.get_data import get_data
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
-from data.data_utils import SyncMeanTimer
+from data.data_utils import SyncMeanTimer, get_cosine_schedule_with_warmup
 
 import wandb
 
@@ -133,10 +133,7 @@ def run(fixed):
                 optimizer_embd = torch.optim.AdamW(emb_model.parameters(),
                                                   lr=args.imle_configs.embd_lr,
                                                   weight_decay=args.imle_configs.reg_embd)
-                scheduler_embd = torch.optim.lr_scheduler.MultiStepLR(optimizer_embd,
-                                                             args.lr_steps,
-                                                             gamma=args.lr_decay_rate if hasattr(args, 'lr_decay_rate')
-                                                             else 0.1 ** 0.5)
+                scheduler_embd = get_cosine_schedule_with_warmup(optimizer_embd, 50, args.max_epochs)
             else:
                 optimizer_embd = None
                 scheduler_embd = None
@@ -173,14 +170,14 @@ def run(fixed):
                             f'val loss: {round(val_loss, 5)}, '
                             f'patience: {trainer.patience}, '
                             f'training metric: {round(train_metric, 5)}, '
-                            f'val metric: {round(val_metric, 5)}, '
-                            f'lr: {round(scheduler.optimizer.param_groups[0]["lr"], 5)}')
+                            f'val metric: {round(val_metric, 5)}')
                 
                 wandb.log({"train_loss": train_loss,
                            "val_loss": val_loss,
                            "train_metric": train_metric,
                            "val_metric": val_metric,
-                           "lr": scheduler.optimizer.param_groups[0]['lr']})
+                           "down_lr": scheduler.get_last_lr()[-1],
+                           "up_lr": scheduler_embd.get_last_lr()[-1]})
 
                 if epoch % 50 == 0:
                     torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')
