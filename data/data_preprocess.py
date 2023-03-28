@@ -377,6 +377,7 @@ class AugmentWithPlotCoordinates(GraphModification):
         data.nx_layout = torch.from_numpy(pos)
         return data
 
+
 def my_collate_fn(graphs: List[List]):
     """
 
@@ -390,9 +391,6 @@ def my_collate_fn(graphs: List[List]):
     new_batch = Batch.from_data_list(ordered_graphs)
     repeats = len(graphs[0])
     batchsize = len(graphs)
-    nnodes = torch.cat([g[0].nnodes for g in graphs], dim=0)
-    unique_batch = torch.repeat_interleave(torch.arange(batchsize), nnodes).repeat(repeats)
-    new_batch.original_batch = new_batch.batch
-    new_batch.batch = unique_batch
+    new_batch.inter_graph_idx = torch.arange(batchsize).repeat(repeats)
     new_batch.y = torch.cat([g[0].y for g in graphs], dim=0)
     return new_batch

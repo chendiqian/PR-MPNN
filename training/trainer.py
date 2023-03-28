@@ -135,6 +135,7 @@ class Trainer:
             auxloss = None
 
         graphs = Batch.to_data_list(dat_batch)
+        batchsize = len(graphs)
         for g in graphs:
             g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
         graphs = graphs * logits.shape[-1]
@@ -152,14 +153,11 @@ class Trainer:
             new_batch.edge_index = new_batch.edge_index[:, edge_weight.to(torch.bool)]
             new_batch.edge_weight = None
 
-        new_batch.original_batch = new_batch.batch
-        new_batch.batch = dat_batch.batch.repeat(logits.shape[-1] + int(self.include_original_graph))
         new_batch.y = dat_batch.y
+        new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat(logits.shape[-1] + int(self.include_original_graph))
         return new_batch, auxloss
 
     def plot(self, new_batch: Batch):
-        # Todo: add this for random rewiring
-
         """Plot graphs and edge weights.        
         Inputs: Batch of graphs from list.
         Outputs: None"""
@@ -167,8 +165,6 @@ class Trainer:
         # in this case, the batch indices are already modified for inter-subgraph graph pooling,
         # use the original batch instead for compatibility of `to_data_list`
         del new_batch.y  # without repitition, so might be incompatible
-        if hasattr(new_batch, 'original_batch'):
-            new_batch.batch = new_batch.original_batch
 
         new_batch_plot = new_batch.to_data_list()
         if hasattr(new_batch, 'edge_weight') and new_batch.edge_weight is not None:
@@ -289,10 +285,6 @@ class Trainer:
             data = data.to(self.device)
             data, auxloss = self.construct_duplicate_data(data, emb_model)
 
-            if self.plot_args is not None:
-                if batch_id == self.plot_args.batch_id:
-                    self.plot(data.clone())
-
             pred = model(data)
 
             is_labeled = data.y == data.y
@@ -315,6 +307,10 @@ class Trainer:
             if isinstance(preds, list):
                 preds.append(pred)
                 labels.append(data.y)
+
+            if self.plot_args is not None:
+                if batch_id == self.plot_args.batch_id:
+                    self.plot(data)
 
         train_loss = train_losses.item() / num_graphs
         self.curves['train_loss'].append(train_loss)
