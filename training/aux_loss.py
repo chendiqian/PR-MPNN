@@ -23,6 +23,8 @@ def get_kl_aux_loss(logits: torch.Tensor, auxloss: float,):
 
 def get_norm_aux_loss(logits: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
     B, N, _, E = logits.shape
+    if E == 1:
+        return 0.
     logits = logits / torch.linalg.norm(logits.detach(), dim=(1, 2), keepdim=True)  # detach so that the virtual nodes don't play a role
     logits = logits * real_node_node_mask.to(torch.float)[..., None]  # so that the virtual nodes don't play a role
     logits = torch.permute(logits, (0, 3, 1, 2)).reshape(B, E, N * N)
