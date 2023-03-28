@@ -32,7 +32,7 @@ fixed:
     reg_embd: 0.
     micro_batch_embd: 1
 
-    aux_type: 'batch'   # batch or pair
+    aux_type: 'norm'
     auxloss: 0.0
 
   model: zinc_gin
