@@ -54,7 +54,14 @@ class BaseGIN(torch.nn.Module):
 
 
 class ZINC_GIN(torch.nn.Module):
-    def __init__(self, in_features, num_layers, hidden, num_classes, graph_pooling='mean'):
+    def __init__(self,
+                 in_features,
+                 num_layers,
+                 hidden,
+                 num_classes,
+                 mlp_layers_intragraph,
+                 mlp_layers_intergraph,
+                 graph_pooling='mean', ):
         super(ZINC_GIN, self).__init__()
 
         if num_layers > 0:
@@ -69,14 +76,37 @@ class ZINC_GIN(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        self.mlp = MLP([hidden, hidden, hidden, num_classes], dropout=0.)
+        assert mlp_layers_intragraph > 0
+        if mlp_layers_intergraph > 0:
+            self.mlp1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
+            self.mlp2 = MLP([hidden] * mlp_layers_intergraph + [num_classes], dropout=0.)
+        else:
+            self.mlp1 = MLP([hidden] * mlp_layers_intragraph + [num_classes], dropout=0.)
+            self.mlp2 = None
 
     def reset_parameters(self):
         self.gnn.reset_parameters()
-        self.mlp.reset_parameters()
+        self.mlp1.reset_parameters()
+        if self.mlp2 is not None:
+            self.mlp2.reset_parameters()
 
     def forward(self, data):
         h_node = self.gnn(data)
-        h_graph = self.pool(h_node, data.batch)
-        h_graph = self.mlp(h_graph)
+
+        if self.mlp2 is None:
+            # intra graph pooling
+            h_graph = self.pool(h_node, data.batch)
+            # inter graph pooling
+            if hasattr(data, 'inter_graph_idx'):
+                h_graph = self.pool(h_graph, data.inter_graph_idx)
+            h_graph = self.mlp1(h_graph)
+        else:
+            # intra graph pooling
+            h_graph = self.pool(h_node, data.batch)
+            h_graph = self.mlp1(h_graph)
+            # inter graph pooling
+            if hasattr(data, 'inter_graph_idx'):
+                h_graph = self.pool(h_graph, data.inter_graph_idx)
+            h_graph = self.mlp2(h_graph)
+
         return h_graph

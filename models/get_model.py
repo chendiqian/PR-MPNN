@@ -22,7 +22,9 @@ def get_model(args, device, *_args):
         model = ZINC_GIN(in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
                          num_layers=args.num_convlayers,
                          hidden=args.hid_size,
-                         num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'])
+                         num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                         mlp_layers_intragraph=args.mlp_layers_intragraph,
+                         mlp_layers_intergraph=args.mlp_layers_intergraph)
     else:
         raise NotImplementedError
 
