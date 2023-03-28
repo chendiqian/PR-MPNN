@@ -17,7 +17,7 @@ from data.metrics import eval_acc, eval_rmse, eval_rocauc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from training.aux_loss import get_batch_aux_loss, get_pair_aux_loss
+from training.aux_loss import get_kl_aux_loss, get_norm_aux_loss
 from training.gumbel_scheme import GumbelSampler
 from training.imle_scheme import IMLEScheme
 from training.simple_scheme import EdgeSIMPLEBatched
@@ -124,11 +124,10 @@ class Trainer:
         node_mask, _ = self.train_forward(logits) if train else self.val_forward(logits)
 
         if self.auxloss > 0 and train:
-            assert logits.shape[-1] == 1, "Add KLDiv between ensembles"
-            if self.aux_type == 'batch':
-                auxloss = get_batch_aux_loss(node_mask * real_node_node_mask[..., None].to(torch.float), self.auxloss)
-            elif self.aux_type == 'pair':
-                auxloss = get_pair_aux_loss(node_mask, dat_batch.nnodes, self.auxloss)
+            if self.aux_type == 'entropy':
+                auxloss = get_kl_aux_loss(node_mask * real_node_node_mask[..., None].to(torch.float), self.auxloss)
+            elif self.aux_type == 'norm':
+                auxloss = get_norm_aux_loss(logits, self.auxloss, real_node_node_mask)
             else:
                 raise ValueError
         else:
