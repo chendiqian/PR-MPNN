@@ -1,11 +1,13 @@
 import os
 from argparse import Namespace
+from functools import partial
 from typing import Tuple, Union, List, Optional
 
 from ml_collections import ConfigDict
 from ogb.graphproppred import PygGraphPropPredDataset
+from torch.utils.data import DataLoader as PTDataLoader
 from torch_geometric.datasets import ZINC
-from torch_geometric.loader import DataLoader
+from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose
 
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
@@ -20,11 +22,14 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPerNodeRewiredGraphs,
                               AugmentWithGlobalRewiredGraphs,
                               AugmentWithSpatialInfo,
-                              AugmentWithPlotCoordinates)
+                              AugmentWithPlotCoordinates,
+                              my_collate_fn)
 from .data_utils import AttributedDataLoader
+
 NUM_WORKERS = 0
 
 DATASET = (PygGraphPropPredDataset, ZINC)
+SAMPLED_EMBED_LISTS = [AugmentWithPerNodeRewiredGraphs, AugmentWithGlobalRewiredGraphs]
 
 NAME_DICT = {'zinc_full': "ZINC_full",}
 
@@ -126,20 +131,28 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     else:
         raise ValueError
 
+    if type(train_set.transform) in SAMPLED_EMBED_LISTS:
+        # write my own collate
+        dataloader = partial(PTDataLoader,
+                             batch_size=args.batch_size,
+                             shuffle=not args.debug,
+                             num_workers=NUM_WORKERS,
+                             collate_fn=my_collate_fn)
+    else:
+        # PyG removes the collate function passed in
+        dataloader = partial(PyGDataLoader,
+                             batch_size=args.batch_size,
+                             shuffle=not args.debug,
+                             num_workers=NUM_WORKERS)
+
     if isinstance(train_set, list):
         train_loaders = [AttributedDataLoader(
-            loader=DataLoader(t,
-                              batch_size=args.batch_size,
-                              shuffle=not args.debug,
-                              num_workers=NUM_WORKERS),
+            loader=dataloader(t),
             mean=mean,
             std=std) for t in train_set]
     elif isinstance(train_set, DATASET):
         train_loaders = [AttributedDataLoader(
-            loader=DataLoader(train_set,
-                              batch_size=args.batch_size,
-                              shuffle=not args.debug,
-                              num_workers=NUM_WORKERS),
+            loader=dataloader(train_set),
             mean=mean,
             std=std)]
     else:
@@ -147,18 +160,12 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
     if isinstance(val_set, list):
         val_loaders = [AttributedDataLoader(
-            loader=DataLoader(t,
-                              batch_size=args.batch_size,
-                              shuffle=False,
-                              num_workers=NUM_WORKERS),
+            loader=dataloader(t),
             mean=mean,
             std=std) for t in val_set]
     elif isinstance(val_set, DATASET):
         val_loaders = [AttributedDataLoader(
-            loader=DataLoader(val_set,
-                              batch_size=args.batch_size,
-                              shuffle=False,
-                              num_workers=NUM_WORKERS),
+            loader=dataloader(val_set),
             mean=mean,
             std=std)]
     else:
@@ -166,18 +173,12 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
     if isinstance(test_set, list):
         test_loaders = [AttributedDataLoader(
-            loader=DataLoader(t,
-                              batch_size=args.batch_size,
-                              shuffle=False,
-                              num_workers=NUM_WORKERS),
+            loader=dataloader(t),
             mean=mean,
             std=std) for t in test_set]
     elif isinstance(test_set, DATASET):
         test_loaders = [AttributedDataLoader(
-            loader=DataLoader(test_set,
-                              batch_size=args.batch_size,
-                              shuffle=False,
-                              num_workers=NUM_WORKERS),
+            loader=dataloader(test_set),
             mean=mean,
             std=std)]
     else:

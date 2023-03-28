@@ -1,11 +1,13 @@
-from typing import Optional, List
 from copy import deepcopy
+from functools import reduce
+from typing import Optional, List
+
+import networkx as nx
 import numpy as np
 import torch
-import networkx as nx
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import shortest_path
-from torch_geometric.data import Data
+from torch_geometric.data import Data, Batch
 from torch_geometric.data.collate import collate
 from torch_geometric.utils import (is_undirected,
                                    to_undirected,
@@ -268,13 +270,16 @@ class AugmentWithGlobalRewiredGraphs(GraphModification):
                 graphs.append(graph)
         else:
             full_edge_index = torch.from_numpy(np.vstack(np.triu_indices(graph.num_nodes, k=-graph.num_nodes, )))
-            graphs = [Data(x=graph.x, edge_index=graph.edge_index, edge_attr=graph.edge_attr, nx_layout=graph.nx_layout)] if self.include_original_graph else []
+            graphs = []
             for i in range(self.ensemble):
                 idx = np.sort(np.random.choice(graph.num_nodes ** 2, size=self.sample_k, replace=False))
-                g = Data(x=graph.x, edge_index=full_edge_index[:, idx], edge_attr=graph.edge_attr, nx_layout=graph.nx_layout)
+                g = graph.clone()
+                g.edge_index = full_edge_index[:, idx]
                 graphs.append(g)
-        graphs = collate(graph.__class__, graphs, increment=True, add_batch=False)[0]
-        graphs.y = graph.y
+            if self.include_original_graph:
+                graphs.append(graph)
+        # graphs = collate(graph.__class__, graphs, increment=True, add_batch=False)[0]
+        # graphs.y = graph.y
         return graphs
 
 
@@ -371,3 +376,23 @@ class AugmentWithPlotCoordinates(GraphModification):
         pos = np.vstack([pos[n] for n in range(data.num_nodes)])
         data.nx_layout = torch.from_numpy(pos)
         return data
+
+def my_collate_fn(graphs: List[List]):
+    """
+
+    Args:
+        graphs: graphs are like [[g1_ensemble1, g1_ensemble2, ..., original g1], [], [], ...]
+
+    Returns:
+
+    """
+    ordered_graphs = reduce(lambda a, b: a+b, [g for g in zip(*graphs)])
+    new_batch = Batch.from_data_list(ordered_graphs)
+    repeats = len(graphs[0])
+    batchsize = len(graphs)
+    nnodes = torch.cat([g[0].nnodes for g in graphs], dim=0)
+    unique_batch = torch.repeat_interleave(torch.arange(batchsize), nnodes).repeat(repeats)
+    new_batch.original_batch = new_batch.batch
+    new_batch.batch = unique_batch
+    new_batch.y = torch.cat([g[0].y for g in graphs], dim=0)
+    return new_batch
