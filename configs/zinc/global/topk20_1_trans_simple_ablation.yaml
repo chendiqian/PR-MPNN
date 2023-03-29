@@ -16,7 +16,7 @@ fixed:
     model: "transformer"
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51
     rwse:
-      kernel: 'range(1, 21)'
+      kernel: 20
       model: 'Linear'
       dim_pe: 16
       raw_norm_type: 'BatchNorm'
