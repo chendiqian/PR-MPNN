@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-from models.nn_utils import reset_sequential_parameters
+from models.nn_utils import MLP
 
 
 class LapPENodeEncoder(torch.nn.Module):
@@ -19,14 +19,8 @@ class LapPENodeEncoder(torch.nn.Module):
         super().__init__()
 
         dim_pe = pecfg.dim_pe  # Size of Laplace PE embedding
-        model_type = pecfg.model  # Encoder NN model type for PEs
-        if model_type not in ['Transformer', 'DeepSet']:
-            raise ValueError(f"Unexpected PE model {model_type}")
-        self.model_type = model_type
         n_layers = pecfg.layers  # Num. layers in PE encoder model
-        n_heads = pecfg.n_heads  # Num. attention heads in Trf PE encoder
-        post_n_layers = pecfg.post_layers  # Num. layers to apply after pooling
-        max_freqs = pecfg.eigen.max_freqs  # Num. eigenvectors (frequencies)
+        max_freqs = pecfg.max_freqs  # Num. eigenvectors (frequencies)
 
         if dim_emb - dim_pe < 0: # formerly 1, but you could have zero feature size
             raise ValueError(f"LapPE size {dim_pe} is too large for "
@@ -36,8 +30,6 @@ class LapPENodeEncoder(torch.nn.Module):
             self.linear_x = nn.Linear(dim_in, dim_emb - dim_pe)
         self.expand_x = expand_x and dim_emb - dim_pe > 0
 
-        # Initial projection of eigenvalue and the node's eigenvector value
-        self.linear_A = nn.Linear(2, dim_pe)
         if pecfg.raw_norm_type is None:
             self.raw_norm = None
         elif pecfg.raw_norm_type.lower() == 'batchnorm':
@@ -45,88 +37,28 @@ class LapPENodeEncoder(torch.nn.Module):
         else:
             raise ValueError
 
-        activation = nn.ReLU  # register.act_dict[cfg.gnn.act]
-        if model_type == 'Transformer':
-            # Transformer model for LapPE
-            # encoder_layer = nn.TransformerEncoderLayer(d_model=dim_pe,
-            #                                            nhead=n_heads,
-            #                                            batch_first=True)
-            # self.pe_encoder = nn.TransformerEncoder(encoder_layer,
-            #                                         num_layers=n_layers)
-            raise NotImplementedError
-        else:
-            # DeepSet model for LapPE
-            layers = []
-            if n_layers == 1:
-                layers.append(activation())
-            else:
-                self.linear_A = nn.Linear(2, 2 * dim_pe)
-                layers.append(activation())
-                for _ in range(n_layers - 2):
-                    layers.append(nn.Linear(2 * dim_pe, 2 * dim_pe))
-                    layers.append(activation())
-                layers.append(nn.Linear(2 * dim_pe, dim_pe))
-                layers.append(activation())
-            self.pe_encoder = nn.Sequential(*layers)
-
-        self.post_mlp = None
-        if post_n_layers > 0:
-            # MLP to apply post pooling
-            # layers = []
-            # if post_n_layers == 1:
-            #     layers.append(nn.Linear(dim_pe, dim_pe))
-            #     layers.append(activation())
-            # else:
-            #     layers.append(nn.Linear(dim_pe, 2 * dim_pe))
-            #     layers.append(activation())
-            #     for _ in range(post_n_layers - 2):
-            #         layers.append(nn.Linear(2 * dim_pe, 2 * dim_pe))
-            #         layers.append(activation())
-            #     layers.append(nn.Linear(2 * dim_pe, dim_pe))
-            #     layers.append(activation())
-            # self.post_mlp = nn.Sequential(*layers)
-            raise NotImplementedError
+        self.pe_encoder = MLP([max_freqs] + (n_layers - 1) * [2 * dim_pe] + [dim_pe], dropout=0.)
 
 
     def forward(self, x, batch):
-        if not (hasattr(batch, 'EigVals') and hasattr(batch, 'EigVecs')):
+        if not hasattr(batch, 'EigVecs'):
             raise ValueError("Precomputed eigen values and vectors are "
                              f"required for {self.__class__.__name__}; "
                              "set config 'posenc_LapPE.enable' to True")
-        EigVals = batch.EigVals
-        EigVecs = batch.EigVecs
+        pos_enc = batch.EigVecs
 
         if self.training:
-            sign_flip = torch.rand(EigVecs.size(1), device=EigVecs.device)
+            sign_flip = torch.rand(pos_enc.size(1), device=pos_enc.device)
             sign_flip[sign_flip >= 0.5] = 1.0
             sign_flip[sign_flip < 0.5] = -1.0
-            EigVecs = EigVecs * sign_flip.unsqueeze(0)
+            pos_enc = pos_enc * sign_flip.unsqueeze(0)
 
-        pos_enc = torch.cat((EigVecs.unsqueeze(2), EigVals), dim=2) # (Num nodes) x (Num Eigenvectors) x 2
-        empty_mask = torch.isnan(pos_enc)  # (Num nodes) x (Num Eigenvectors) x 2
+        empty_mask = torch.isnan(pos_enc)  # (Num nodes) x (Num Eigenvectors)
 
-        pos_enc[empty_mask] = 0  # (Num nodes) x (Num Eigenvectors) x 2
+        pos_enc[empty_mask] = 0  # (Num nodes) x (Num Eigenvectors)
         if self.raw_norm:
             pos_enc = self.raw_norm(pos_enc)
-        pos_enc = self.linear_A(pos_enc)  # (Num nodes) x (Num Eigenvectors) x dim_pe
-
-        # PE encoder: a Transformer or DeepSet model
-        if self.model_type == 'Transformer':
-            pos_enc = self.pe_encoder(src=pos_enc,
-                                      src_key_padding_mask=empty_mask[:, :, 0])
-        else:
-            pos_enc = self.pe_encoder(pos_enc)
-
-        # Remove masked sequences; must clone before overwriting masked elements
-        pos_enc = pos_enc.clone().masked_fill_(empty_mask[:, :, 0].unsqueeze(2),
-                                               0.)
-
-        # Sum pooling
-        pos_enc = torch.sum(pos_enc, 1, keepdim=False)  # (Num nodes) x dim_pe
-
-        # MLP post pooling
-        if self.post_mlp is not None:
-            pos_enc = self.post_mlp(pos_enc)  # (Num nodes) x dim_pe
+        pos_enc = self.pe_encoder(pos_enc)  # (Num nodes) x dim_pe
 
         # Expand node features if needed
         if self.expand_x:
@@ -139,11 +71,8 @@ class LapPENodeEncoder(torch.nn.Module):
         return x
 
     def reset_parameters(self):
-        self.linear_A.reset_parameters()
         if self.expand_x:
             self.linear_x.reset_parameters()
         if self.raw_norm:
             self.raw_norm.reset_parameters()
-        if self.post_mlp is not None:
-            reset_sequential_parameters(self.post_mlp)
-        reset_sequential_parameters(self.pe_encoder)
+        self.pe_encoder.reset_parameters()

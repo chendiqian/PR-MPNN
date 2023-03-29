@@ -2,6 +2,7 @@
 
 import torch
 import torch.nn as nn
+from models.nn_utils import MLP
 
 
 class KernelPENodeEncoder(torch.nn.Module):
@@ -30,8 +31,8 @@ class KernelPENodeEncoder(torch.nn.Module):
 
         dim_pe = pecfg.dim_pe  # Size of the kernel-based PE embedding
         num_rw_steps = pecfg.kernel
-        model_type = pecfg.model.lower()  # Encoder NN model type for PEs
         norm_type = pecfg.raw_norm_type.lower()  # Raw PE normalization layer type
+        n_layers = pecfg.layers
 
         if dim_emb - dim_pe < 0: # formerly 1, but you could have zero feature size
             raise ValueError(f"PE dim size {dim_pe} is too large for "
@@ -46,27 +47,7 @@ class KernelPENodeEncoder(torch.nn.Module):
         else:
             self.raw_norm = None
 
-        if model_type == 'mlp':
-            # layers = []
-            # activation = nn.ReLU  # register.act_dict[cfg.gnn.act]
-            # n_layers = pecfg.layers  # Num. layers in PE encoder model
-            # if n_layers == 1:
-            #     layers.append(nn.Linear(num_rw_steps, dim_pe))
-            #     layers.append(activation())
-            # else:
-            #     layers.append(nn.Linear(num_rw_steps, 2 * dim_pe))
-            #     layers.append(activation())
-            #     for _ in range(n_layers - 2):
-            #         layers.append(nn.Linear(2 * dim_pe, 2 * dim_pe))
-            #         layers.append(activation())
-            #     layers.append(nn.Linear(2 * dim_pe, dim_pe))
-            #     layers.append(activation())
-            # self.pe_encoder = nn.Sequential(*layers)
-            raise NotImplementedError
-        elif model_type == 'linear':
-            self.pe_encoder = nn.Linear(num_rw_steps, dim_pe)
-        else:
-            raise ValueError
+        self.pe_encoder = MLP([num_rw_steps] + (n_layers - 1) * [2 * dim_pe] + [dim_pe], dropout=0.)
 
     def forward(self, x, batch):
         pestat_var = f"pestat_{self.kernel_type}"
