@@ -5,6 +5,7 @@ from math import ceil, sqrt
 from typing import Any, Optional, Union
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 import networkx as nx
 import numpy as np
 import torch
@@ -107,7 +108,7 @@ class Trainer:
                 raise ValueError
 
         if sample_configs.sample_policy is None or imle_configs is None:
-            self.construct_duplicate_data = lambda x, *args: (x, None)
+            self.construct_duplicate_data = lambda x, *args: (x, None, None)
         elif imle_configs is not None:
             self.construct_duplicate_data = self.emb_model_graph_level_pred
 
@@ -117,10 +118,10 @@ class Trainer:
                                    emb_model: Emb_model,):
 
         train = emb_model.training
-        logits, real_node_node_mask = emb_model(dat_batch)
+        output_logits, real_node_node_mask = emb_model(dat_batch)
 
         padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
-        logits = logits - padding_bias
+        logits = output_logits - padding_bias
         node_mask, _ = self.train_forward(logits) if train else self.val_forward(logits)
 
         if self.auxloss > 0 and train:
@@ -154,7 +155,7 @@ class Trainer:
 
         new_batch.y = dat_batch.y
         new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat(logits.shape[-1] + int(self.include_original_graph))
-        return new_batch, auxloss
+        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
     def plot(self, new_batch: Batch):
         """Plot graphs and edge weights.        
@@ -258,6 +259,41 @@ class Trainer:
 
             plt.close(plot['fig'])
 
+    def plot_score(self, scores: torch.Tensor):
+        scores = scores.cpu().numpy()
+        n_ensemble = scores.shape[-1]
+        unique_graphs = scores.shape[0]
+        total_plotted_graphs = min(self.plot_args.n_graphs, unique_graphs)
+
+        nrows = round(sqrt(n_ensemble))
+        ncols = ceil(sqrt(n_ensemble))
+        is_only_one_plot = ncols * nrows == 1
+
+        plot_folder = self.plot_args.plot_folder
+        if not os.path.exists(plot_folder):
+            os.makedirs(plot_folder)
+
+        for graph_id in range(total_plotted_graphs):
+            fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*7, nrows*7), gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
+            if not is_only_one_plot:
+                axs = axs.flatten()
+                for ax in axs:
+                    ax.set_axis_off()
+            else:
+                axs.set_axis_off()
+
+            atten_scores = scores[graph_id, ...]
+            for e in range(n_ensemble):
+                sns.heatmap(atten_scores[..., e], ax=axs[e] if not is_only_one_plot else axs)
+
+            fig.savefig(os.path.join(plot_folder,
+                                     f'scores_epoch_{self.epoch}_graph_{graph_id}.png'),
+                        bbox_inches='tight')
+
+            if self.wandb is not None and self.use_wandb:
+                self.wandb.log({f"scores_{graph_id}": self.wandb.Image(fig)}, step=self.epoch)
+
+            plt.close(fig)
 
     def train(self,
               dataloader: AttributedDataLoader,
@@ -282,7 +318,7 @@ class Trainer:
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
             data = data.to(self.device)
-            data, auxloss = self.construct_duplicate_data(data, emb_model)
+            data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
 
@@ -310,6 +346,7 @@ class Trainer:
             if self.plot_args is not None:
                 if batch_id == self.plot_args.batch_id and self.epoch % self.plot_args.plot_every == 0:
                     self.plot(data)
+                    self.plot_score(scores)
 
         train_loss = train_losses.item() / num_graphs
         self.curves['train_loss'].append(train_loss)
@@ -352,7 +389,7 @@ class Trainer:
 
         for data in dataloader.loader:
             data = data.to(self.device)
-            data, _ = self.construct_duplicate_data(data, emb_model)
+            data, _, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
 
