@@ -136,16 +136,12 @@ class NodeEncoder(torch.nn.Module):
 
 class GraphormerLayer(torch.nn.Module):
     def __init__(self, embed_dim: int, num_heads: int, dropout: float,
-                 attention_dropout: float, mlp_dropout: float):
+                 attention_dropout: float, mlp_dropout: float, use_spectral_norm: bool):
         """
         https://github.com/rampasek/GraphGPS/blob/28015707cbab7f8ad72bed0ee872d068ea59c94b/graphgps/layer/graphormer_layer.py#L5
         """
         super().__init__()
-        # self.attention = torch.nn.MultiheadAttention(embed_dim,
-        #                                              num_heads,
-        #                                              attention_dropout,
-        #                                              batch_first=True)
-        self.attention = AttentionLayer(embed_dim, embed_dim, num_heads, attention_dropout)
+        self.attention = AttentionLayer(embed_dim, embed_dim, num_heads, attention_dropout, use_spectral_norm=use_spectral_norm)
         self.input_norm = torch.nn.LayerNorm(embed_dim)
         self.dropout = torch.nn.Dropout(dropout)
 
@@ -187,7 +183,8 @@ class Graphormer(torch.nn.Module):
                  ensemble,
                  dropout,
                  attn_dropout,
-                 mlp_dropout):
+                 mlp_dropout,
+                 use_spectral_norm):
         super(Graphormer, self).__init__()
 
         self.encoder = encoder
@@ -200,9 +197,10 @@ class Graphormer(torch.nn.Module):
                                                   num_heads,
                                                   dropout,
                                                   attn_dropout,
-                                                  mlp_dropout))
+                                                  mlp_dropout,
+                                                  use_spectral_norm))
 
-        self.self_attn = AttentionLayer(hidden, hidden, ensemble, 0.)
+        self.self_attn = AttentionLayer(hidden, hidden, ensemble, 0., use_spectral_norm=use_spectral_norm)
         self.head2ensemble = torch.nn.Linear(num_heads, ensemble, bias=False)
 
     def forward(self, batch):

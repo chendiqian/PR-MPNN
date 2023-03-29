@@ -91,7 +91,8 @@ def get_model(args, device, *_args):
                                    ensemble=args.sample_configs.ensemble,
                                    dropout=args.imle_configs.dropout,
                                    attn_dropout=args.imle_configs.attn_dropout,
-                                   mlp_dropout=args.imle_configs.mlp_dropout)
+                                   mlp_dropout=args.imle_configs.mlp_dropout,
+                                   use_spectral_norm=spectral_norm)
         else:
             raise NotImplementedError
     else:
