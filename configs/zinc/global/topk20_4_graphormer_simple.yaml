@@ -49,3 +49,8 @@ fixed:
   data_path: './datasets'
   debug: False
   num_runs: 2
+
+  plot_graphs:
+    batch_id: 0
+    n_graphs: 4
+    plot_folder: './plots_graphormer'
