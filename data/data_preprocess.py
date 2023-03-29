@@ -165,30 +165,6 @@ class AugmentWithPPR(GraphModification):
         return graph
 
 
-class RandomSampleTopkperNode(GraphModification):
-    def __init__(self, k: int, ensemble: int):
-        super(RandomSampleTopkperNode, self).__init__()
-        self.k = k
-        self.ensemble = ensemble
-
-    def __call__(self, graph: Data):
-        # if isinstance(self.k, float):
-        #     k = int(ceil(self.k * graph.num_nodes))
-        if isinstance(self.k, int):
-            k = self.k
-        else:
-            raise TypeError
-
-        if k >= graph.num_nodes:
-            graph.node_mask = torch.ones(graph.num_nodes ** 2, self.ensemble, dtype=torch.bool)
-        else:
-            logit = torch.rand(graph.num_nodes, graph.num_nodes, self.ensemble)
-            thresh = torch.topk(logit, k, dim=1, largest=True, sorted=True).values[:, -1, :]
-            mask = (logit >= thresh[:, None, :])
-            graph.node_mask = mask.reshape(graph.num_nodes ** 2, self.ensemble)
-        return graph
-
-
 class AugmentWithRandomWalkProbs(GraphModification):
     def __init__(self, ksteps: List):
         super(AugmentWithRandomWalkProbs, self).__init__()
@@ -224,33 +200,10 @@ class AugmentWithLaplace(GraphModification):
 class AugmentWithPerNodeRewiredGraphs(GraphModification):
     def __init__(self, sample_k, include_original_graph, ensemble):
         super(AugmentWithPerNodeRewiredGraphs, self).__init__()
-        self.sample_k = sample_k
-        self.include_original_graph = include_original_graph
-        self.ensemble = ensemble
+        raise DeprecationWarning
 
     def __call__(self, graph: Data):
-        if self.sample_k >= graph.num_nodes:
-            new_graph = deepcopy(graph)
-            full_edge_index = np.vstack(np.triu_indices(graph.num_nodes, k=-graph.num_nodes,))
-            new_graph.edge_index = torch.from_numpy(full_edge_index)
-            graphs = [new_graph] * self.ensemble
-            if self.include_original_graph:
-                graphs.append(graph)
-        else:
-            sample_matrix = torch.rand(self.ensemble, graph.num_nodes, graph.num_nodes)
-            thresh = torch.topk(sample_matrix, self.sample_k, dim=2, largest=True, sorted=True).values[:, :, -1]
-            mask = sample_matrix >= thresh[:, :, None]
-            batch_idx, row_idx, col_idx = torch.where(mask)
-            graphs = [Data(x=graph.x, edge_index=graph.edge_index, edge_attr=graph.edge_attr)] if self.include_original_graph else []
-            for i in range(self.ensemble):
-                idx = batch_idx == i
-                rows = row_idx[idx]
-                cols = col_idx[idx]
-                g = Data(x=graph.x, edge_index=torch.vstack((rows, cols)), edge_attr=graph.edge_attr)
-                graphs.append(g)
-        graphs = collate(graph.__class__, graphs, increment=True, add_batch=False)[0]
-        graphs.y = graph.y
-        return graphs
+        pass
 
 
 class AugmentWithGlobalRewiredGraphs(GraphModification):
