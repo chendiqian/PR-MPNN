@@ -65,5 +65,6 @@ fixed:
 
   plot_graphs:
     batch_id: 0
+    plot_every: 10
     n_graphs: 20
     plot_folder: './plots'

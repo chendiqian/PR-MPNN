@@ -308,7 +308,7 @@ class Trainer:
                 labels.append(data.y)
 
             if self.plot_args is not None:
-                if batch_id == self.plot_args.batch_id:
+                if batch_id == self.plot_args.batch_id and self.epoch % self.plot_args.plot_every == 0:
                     self.plot(data)
 
         train_loss = train_losses.item() / num_graphs
