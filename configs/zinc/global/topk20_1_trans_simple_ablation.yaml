@@ -17,20 +17,14 @@ fixed:
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51
     rwse:
       kernel: 20
-      model: 'Linear'
+      layers: 2
       dim_pe: 16
       raw_norm_type: 'BatchNorm'
 
     lap:
-      eigen:
-        laplacian_norm: null
-        eigvec_norm: 'L2'
-        max_freqs: 4
-      model: 'DeepSet'
+      max_freqs: 4
       dim_pe: 16
       layers: 2
-      n_heads: 4
-      post_layers: 0
       raw_norm_type: null
 
     emb_hid_size: 64
