@@ -8,7 +8,7 @@ from ogb.graphproppred import PygGraphPropPredDataset
 from torch.utils.data import DataLoader as PTDataLoader
 from torch_geometric.datasets import ZINC
 from torch_geometric.loader import DataLoader as PyGDataLoader
-from torch_geometric.transforms import Compose
+from torch_geometric.transforms import Compose, AddRandomWalkPE
 
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
@@ -18,7 +18,7 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAddRemainSelfLoop,
                               AugmentWithShortedPathDistance,
                               AugmentWithPPR,
-                              AugmentWithRandomWalkProbs, AugmentWithLaplace,
+                              AugmentWithLaplace,
                               AugmentWithPerNodeRewiredGraphs,
                               AugmentWithGlobalRewiredGraphs,
                               AugmentWithSpatialInfo,
@@ -42,7 +42,7 @@ PRETRANSFORM_PRIORITY = {
     GraphAttrToOneHot: 0,  # low
     AugmentWithShortedPathDistance: 98,
     AugmentWithPPR: 98,
-    AugmentWithRandomWalkProbs: 98,
+    AddRandomWalkPE: 98,
     AugmentWithLaplace: 98,
     AugmentWithSpatialInfo: 98,
     AugmentWithPlotCoordinates: 98,
@@ -96,7 +96,7 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
         pretransform.append(AugmentWithPPR(MAX_NUM_NODE_DICT[args.dataset.lower()]))
 
     if hasattr(args.imle_configs, 'rwse'):
-        pretransform.append(AugmentWithRandomWalkProbs(eval(args.imle_configs.rwse.kernel)))
+        pretransform.append(AddRandomWalkPE(args.imle_configs.rwse.kernel, 'pestat_RWSE'))
 
     if hasattr(args.imle_configs, 'lap'):
         pretransform.append(AugmentWithLaplace(args.imle_configs.lap.eigen.laplacian_norm,

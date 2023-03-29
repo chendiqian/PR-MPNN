@@ -8,7 +8,6 @@ import torch
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import shortest_path
 from torch_geometric.data import Data, Batch
-from torch_geometric.data.collate import collate
 from torch_geometric.utils import (is_undirected,
                                    to_undirected,
                                    add_remaining_self_loops,
@@ -18,7 +17,7 @@ from torch_geometric.utils import (is_undirected,
                                    to_networkx)
 from torch_sparse import SparseTensor
 
-from data.encoding import get_rw_landing_probs, get_lap_decomp_stats
+from data.encoding import get_lap_decomp_stats
 
 
 class GraphModification:
@@ -162,16 +161,6 @@ class AugmentWithPPR(GraphModification):
         ppr_mat = torch.zeros(graph.num_nodes, self.max_num_nodes, dtype=torch.float)
         ppr_mat[:, :graph.num_nodes] = r
         graph.ppr_mat = ppr_mat
-        return graph
-
-
-class AugmentWithRandomWalkProbs(GraphModification):
-    def __init__(self, ksteps: List):
-        super(AugmentWithRandomWalkProbs, self).__init__()
-        self.ksteps = ksteps
-
-    def __call__(self, graph: Data):
-        graph.pestat_RWSE = get_rw_landing_probs(self.ksteps, graph.edge_index, graph.num_nodes)
         return graph
 
 

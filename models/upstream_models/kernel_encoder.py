@@ -29,7 +29,7 @@ class KernelPENodeEncoder(torch.nn.Module):
                              f"variable before calling the constructor.")
 
         dim_pe = pecfg.dim_pe  # Size of the kernel-based PE embedding
-        num_rw_steps = len(eval(pecfg.kernel))
+        num_rw_steps = pecfg.kernel
         model_type = pecfg.model.lower()  # Encoder NN model type for PEs
         norm_type = pecfg.raw_norm_type.lower()  # Raw PE normalization layer type
 
