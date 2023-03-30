@@ -76,4 +76,4 @@ class EdgeSIMPLEBatched(nn.Module):
             mask = rewire_global_undirected(scores, self.k)
         else:
             raise NotImplementedError
-        return mask
+        return mask, None
