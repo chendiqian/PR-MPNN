@@ -37,6 +37,7 @@ fixed:
     reg_embd: 0.
     layernorm: False
     batchnorm: True
+    spectral_norm: True   # spectral normalization
     micro_batch_embd: 1
 
     aux_type: 'norm'
