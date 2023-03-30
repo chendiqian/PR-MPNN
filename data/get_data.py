@@ -30,8 +30,6 @@ NUM_WORKERS = 0
 DATASET = (PygGraphPropPredDataset, ZINC)
 SAMPLED_EMBED_LISTS = [AugmentWithUndirectedGlobalRewiredGraphs, AugmentWithDirectedGlobalRewiredGraphs]
 
-NAME_DICT = {'zinc_full': "ZINC_full",}
-
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
     GraphExpandDim: 0,  # low
@@ -70,17 +68,14 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     # normal training
     if args.sample_configs.sample_policy is None:
         return None
-    elif args.sample_configs.sample_policy == 'graph_topk':
-        raise DeprecationWarning
-    elif args.sample_configs.sample_policy == 'global_topk':
-        if args.sample_configs.directed:
-            transform = AugmentWithDirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
-                                                               args.sample_configs.include_original_graph,
-                                                               args.sample_configs.ensemble)
-        else:
-            transform = AugmentWithUndirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
-                                                                 args.sample_configs.include_original_graph,
-                                                                 args.sample_configs.ensemble)
+    elif args.sample_configs.sample_policy == 'global_topk_directed':
+        transform = AugmentWithDirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
+                                                           args.sample_configs.include_original_graph,
+                                                           args.sample_configs.ensemble)
+    elif args.sample_configs.sample_policy == 'global_topk_undirected':
+        transform = AugmentWithUndirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
+                                                             args.sample_configs.include_original_graph,
+                                                             args.sample_configs.ensemble)
     else:
         raise ValueError
     return transform
