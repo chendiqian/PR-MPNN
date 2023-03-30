@@ -1,4 +1,5 @@
 import torch
+from training.deterministic_scheme import rewire_global_directed, rewire_global_undirected
 
 
 class IMLEScheme:
@@ -10,25 +11,13 @@ class IMLEScheme:
     def torch_sample_scheme(self, logits: torch.Tensor):
 
         local_logits = logits.detach()
-        if self.imle_sample_policy == 'graph_topk':
-            # local_logits: (Batch, Nmax, Nmax, ensemble)
-            Nmax = local_logits.shape[1]
-            if self.sample_k >= Nmax:
-                return local_logits.new_ones(local_logits.shape)
-
-            thresh = torch.topk(local_logits, self.sample_k, dim=2, largest=True, sorted=True).values[:, :, -1, :][:, :, None, :]
-            mask = (local_logits >= thresh).to(torch.float)
+        if self.imle_sample_policy == 'global_topk_directed':
+            mask = rewire_global_directed(local_logits, self.sample_k)
             return mask, None
-        if self.imle_sample_policy == 'global_topk':
-            Batch, Nmax, _, ensemble = local_logits.shape
-            if self.sample_k >= Nmax ** 2:
-                return local_logits.new_ones(local_logits.shape)
-
-            local_logits = local_logits.reshape(Batch, -1, ensemble)
-            thresh = torch.topk(local_logits, self.sample_k, dim=1, largest=True,
-                                sorted=True).values[:, -1, :][:, None, :]
-            mask = (local_logits >= thresh).to(torch.float)
-            mask = mask.reshape(Batch, Nmax, Nmax, ensemble)
+        elif self.imle_sample_policy == 'global_topk_undirected':
+            # make symmetric
+            local_logits = local_logits + local_logits.transpose(1, 2)
+            mask = rewire_global_undirected(local_logits, self.sample_k)
             return mask, None
         else:
             raise NotImplementedError

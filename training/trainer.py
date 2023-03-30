@@ -93,15 +93,12 @@ class Trainer:
                 self.val_forward = imle_scheduler.torch_sample_scheme
 
             elif imle_configs.sampler == 'gumbel':
-                assert sample_configs.sample_policy == 'global_topk'
-                gumbel_sampler = GumbelSampler(sample_configs.sample_k, tau=imle_configs.tau)
-
+                gumbel_sampler = GumbelSampler(sample_configs.sample_k, tau=imle_configs.tau, policy=sample_configs.sample_policy)
                 self.train_forward = gumbel_sampler
                 self.val_forward = gumbel_sampler.validation
 
             elif imle_configs.sampler == 'simple':
-                assert sample_configs.sample_policy == 'global_topk'
-                simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k, device)
+                simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k, device, policy=sample_configs.sample_policy)
                 self.train_forward = simple_sampler
                 self.val_forward = simple_sampler.validation
             else:
@@ -110,12 +107,10 @@ class Trainer:
         if sample_configs.sample_policy is None or imle_configs is None:
             self.construct_duplicate_data = lambda x, *args: (x, None, None)
         elif imle_configs is not None:
-            self.construct_duplicate_data = self.emb_model_graph_level_pred
+            self.construct_duplicate_data = self.diffable_rewire
 
 
-    def emb_model_graph_level_pred(self,
-                                   dat_batch: Union[Batch, Data],
-                                   emb_model: Emb_model,):
+    def diffable_rewire(self, dat_batch: Union[Batch, Data], emb_model: Emb_model, ):
 
         train = emb_model.training
         output_logits, real_node_node_mask = emb_model(dat_batch)
