@@ -341,7 +341,8 @@ class Trainer:
             if self.plot_args is not None:
                 if batch_id == self.plot_args.batch_id and self.epoch % self.plot_args.plot_every == 0:
                     self.plot(data)
-                    self.plot_score(scores)
+                    if scores is not None:
+                        self.plot_score(scores)
 
         train_loss = train_losses.item() / num_graphs
         self.curves['train_loss'].append(train_loss)
