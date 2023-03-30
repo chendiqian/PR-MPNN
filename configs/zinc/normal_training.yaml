@@ -21,6 +21,7 @@ fixed:
   num_convlayers: 4
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 0
+  inter_graph_pooling: null
   batch_size: 128
   min_epochs: 700
   max_epochs: 1000
