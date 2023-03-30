@@ -8,6 +8,7 @@ fixed:
     sample_policy: global_topk
     sample_k: 20
     ensemble: 1
+    directed: True
     include_original_graph: False
 
   imle_configs: null
