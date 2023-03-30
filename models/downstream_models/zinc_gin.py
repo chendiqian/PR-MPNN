@@ -3,7 +3,7 @@ from torch.nn import Linear, Sequential, ReLU, BatchNorm1d as BN
 from torch_geometric.nn import global_mean_pool, global_add_pool
 
 from models.my_convs import GINConv, GNN_Placeholder
-from models.nn_utils import residual, MLP
+from models.nn_utils import residual, MLP, cat_pooling
 
 
 class BaseGIN(torch.nn.Module):
@@ -55,13 +55,15 @@ class BaseGIN(torch.nn.Module):
 
 class ZINC_GIN(torch.nn.Module):
     def __init__(self,
+                 ensemble,
                  in_features,
                  num_layers,
                  hidden,
                  num_classes,
                  mlp_layers_intragraph,
                  mlp_layers_intergraph,
-                 graph_pooling='mean', ):
+                 graph_pooling='mean',
+                 inter_graph_pooling=None):
         super(ZINC_GIN, self).__init__()
 
         if num_layers > 0:
@@ -69,6 +71,7 @@ class ZINC_GIN(torch.nn.Module):
         else:
             self.gnn = GNN_Placeholder()
 
+        # intra-graph pooling
         if graph_pooling == "sum":
             self.pool = global_add_pool
         elif graph_pooling == "mean":
@@ -76,13 +79,24 @@ class ZINC_GIN(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        assert mlp_layers_intragraph > 0
-        if mlp_layers_intergraph > 0:
-            self.mlp1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
-            self.mlp2 = MLP([hidden] * mlp_layers_intergraph + [num_classes], dropout=0.)
-        else:
+        self.inter_graph_pooling = inter_graph_pooling
+        # inter-graph pooling
+        if inter_graph_pooling is None:
             self.mlp1 = MLP([hidden] * mlp_layers_intragraph + [num_classes], dropout=0.)
+            self.inter_pool = None
             self.mlp2 = None
+        elif inter_graph_pooling == 'mean':
+            assert mlp_layers_intergraph > 0
+            self.mlp1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
+            self.inter_pool = global_mean_pool
+            self.mlp2 = MLP([hidden] * mlp_layers_intergraph + [num_classes], dropout=0.)
+        elif inter_graph_pooling == 'cat':
+            assert mlp_layers_intergraph > 0
+            self.mlp1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
+            self.inter_pool = cat_pooling
+            self.mlp2 = MLP([hidden * ensemble] + [hidden] * (mlp_layers_intergraph - 1) + [num_classes], dropout=0.)
+        else:
+            raise NotImplementedError
 
     def reset_parameters(self):
         self.gnn.reset_parameters()
@@ -93,20 +107,19 @@ class ZINC_GIN(torch.nn.Module):
     def forward(self, data):
         h_node = self.gnn(data)
 
-        if self.mlp2 is None:
-            # intra graph pooling
+        if self.inter_graph_pooling is None:
             h_graph = self.pool(h_node, data.batch)
-            # inter graph pooling
             if hasattr(data, 'inter_graph_idx'):
-                h_graph = self.pool(h_graph, data.inter_graph_idx)
+                h_graph = global_mean_pool(h_graph, data.inter_graph_idx)
             h_graph = self.mlp1(h_graph)
-        else:
-            # intra graph pooling
+        elif self.inter_graph_pooling in ['mean', 'cat']:
             h_graph = self.pool(h_node, data.batch)
             h_graph = self.mlp1(h_graph)
             # inter graph pooling
             if hasattr(data, 'inter_graph_idx'):
-                h_graph = self.pool(h_graph, data.inter_graph_idx)
+                h_graph = self.inter_pool(h_graph, data.inter_graph_idx)
             h_graph = self.mlp2(h_graph)
+        else:
+            raise NotImplementedError
 
         return h_graph

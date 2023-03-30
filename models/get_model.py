@@ -19,17 +19,19 @@ def get_model(args, device, *_args):
             drop_ratio=args.dropout,
         )
     elif args.model.lower() == 'zinc_gin':
-        model = ZINC_GIN(in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
-                         num_layers=args.num_convlayers,
-                         hidden=args.hid_size,
-                         num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                         mlp_layers_intragraph=args.mlp_layers_intragraph,
-                         mlp_layers_intergraph=args.mlp_layers_intergraph)
+        model = ZINC_GIN(
+            ensemble=args.sample_configs.ensemble + int(args.sample_configs.include_original_graph),
+            in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
+            num_layers=args.num_convlayers,
+            hidden=args.hid_size,
+            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+            mlp_layers_intragraph=args.mlp_layers_intragraph,
+            mlp_layers_intergraph=args.mlp_layers_intergraph,
+            inter_graph_pooling=args.inter_graph_pooling)
     else:
         raise NotImplementedError
 
     if args.imle_configs is not None:
-        ensemble = 1 if not hasattr(args.sample_configs, 'ensemble') else args.sample_configs.ensemble
         spectral_norm = True if hasattr(args.imle_configs, 'spectral_norm') and args.imle_configs.spectral_norm else False
         if args.imle_configs.model.startswith('lin'):
             emb_model = LinearEmbed(
@@ -44,7 +46,7 @@ def get_model(args, device, *_args):
                 emb_edge=args.imle_configs.emb_edge,
                 emb_spd=args.imle_configs.emb_spd,
                 emb_ppr=args.imle_configs.emb_ppr,
-                ensemble=ensemble,
+                ensemble=args.sample_configs.ensemble,
                 use_bn=args.imle_configs.bn,
                 use_ogb_encoder=args.dataset.lower().startswith('ogb')
             )
