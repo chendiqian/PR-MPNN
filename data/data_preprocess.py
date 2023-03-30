@@ -169,9 +169,9 @@ class AugmentWithPerNodeRewiredGraphs(GraphModification):
         pass
 
 
-class AugmentWithGlobalRewiredGraphs(GraphModification):
+class AugmentWithDirectedGlobalRewiredGraphs(GraphModification):
     def __init__(self, sample_k, include_original_graph, ensemble):
-        super(AugmentWithGlobalRewiredGraphs, self).__init__()
+        super(AugmentWithDirectedGlobalRewiredGraphs, self).__init__()
         self.sample_k = sample_k
         self.include_original_graph = include_original_graph
         self.ensemble = ensemble
@@ -196,6 +196,38 @@ class AugmentWithGlobalRewiredGraphs(GraphModification):
                 graphs.append(graph)
         # graphs = collate(graph.__class__, graphs, increment=True, add_batch=False)[0]
         # graphs.y = graph.y
+        return graphs
+
+
+class AugmentWithUndirectedGlobalRewiredGraphs(GraphModification):
+    def __init__(self, sample_k, include_original_graph, ensemble):
+        super(AugmentWithUndirectedGlobalRewiredGraphs, self).__init__()
+        self.sample_k = sample_k
+        self.include_original_graph = include_original_graph
+        self.ensemble = ensemble
+
+    def __call__(self, graph: Data):
+        if self.sample_k >= (graph.num_nodes * (graph.num_nodes - 1)) // 2:
+            new_graph = deepcopy(graph)
+            full_edge_index = np.vstack(np.triu_indices(graph.num_nodes, k=-graph.num_nodes,))
+            self_loop_idx = full_edge_index[0] == full_edge_index[1]
+            full_edge_index = full_edge_index[:, ~self_loop_idx]
+            new_graph.edge_index = torch.from_numpy(full_edge_index)
+            graphs = [new_graph] * self.ensemble
+            if self.include_original_graph:
+                graphs.append(graph)
+        else:
+            full_edge_index = torch.from_numpy(np.vstack(np.triu_indices(graph.num_nodes, k=1)))
+            graphs = []
+            for i in range(self.ensemble):
+                idx = np.sort(np.random.choice(full_edge_index.shape[1], size=self.sample_k, replace=False))
+                directed_edge_index = full_edge_index[:, idx]
+                undirec_edge_index = to_undirected(directed_edge_index, num_nodes=graph.num_nodes)
+                g = graph.clone()
+                g.edge_index = undirec_edge_index
+                graphs.append(g)
+            if self.include_original_graph:
+                graphs.append(graph)
         return graphs
 
 
