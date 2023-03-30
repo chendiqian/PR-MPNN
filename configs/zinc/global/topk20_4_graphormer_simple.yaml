@@ -5,10 +5,9 @@ fixed:
   use_wandb: True
 
   sample_configs:
-    sample_policy: global_topk
+    sample_policy: global_topk_directed
     sample_k: 20
     ensemble: 4
-    directed: True
     include_original_graph: False
 
   imle_configs:

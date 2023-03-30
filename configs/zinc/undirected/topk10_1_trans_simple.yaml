@@ -5,14 +5,13 @@ fixed:
   use_wandb: True
 
   sample_configs:
-    sample_policy: global_topk_directed
+    sample_policy: global_topk_undirected
     sample_k: 20
     ensemble: 1
     include_original_graph: True
 
   imle_configs:
-    sampler: gumbel
-    tau: 0.1
+    sampler: simple
 
     model: "transformer"
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51
@@ -56,11 +55,5 @@ fixed:
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
-  debug: True
+  debug: False
   num_runs: 5
-
-  plot_graphs:
-    batch_id: 0
-    plot_every: 10
-    n_graphs: 20
-    plot_folder: './plots'
