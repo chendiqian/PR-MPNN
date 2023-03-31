@@ -142,8 +142,9 @@ class Trainer:
         if train:
             new_batch.edge_weight = edge_weight
         else:
-            new_batch.edge_index = new_batch.edge_index[:, edge_weight.to(torch.bool)]
-            new_batch.edge_weight = None
+            nonzero_idx = torch.where(edge_weight)[0]
+            new_batch.edge_index = new_batch.edge_index[:, nonzero_idx]
+            new_batch.edge_weight = edge_weight[nonzero_idx]
 
         new_batch.y = dat_batch.y
         new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat(logits.shape[-1] + int(self.include_original_graph))
