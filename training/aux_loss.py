@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch_geometric.data import Data
-
+import numpy as np
 SMALL_EPS = 1.e-10
 
 
@@ -47,7 +47,9 @@ def get_original_bias(data: Data, logits: torch.Tensor, auxloss: float, real_nod
     edge_index_rel = torch.repeat_interleave(data._inc_dict['edge_index'].to(logits.device), num_edges)
     local_edge_index = data.edge_index - edge_index_rel
     adj = logits.new_zeros(B, N, N, 1)
+    diag_idx = np.diag_indices(N)
     adj[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = 1
+    adj[:, diag_idx[0], diag_idx[1]] = 0.   # remove self loops
     logits = F.softmax(logits, dim=2)  # make sure positive
     loss = adj * torch.log(logits + SMALL_EPS)   # try to max this
     loss = loss * real_node_node_mask.to(torch.float)[..., None]  # so that the virtual nodes don't play a role
