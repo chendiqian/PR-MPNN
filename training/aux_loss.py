@@ -2,26 +2,29 @@ import torch
 import torch.nn.functional as F
 
 
-kl_loss = torch.nn.KLDivLoss(reduction="batchmean", log_target=True)
-
-def get_kl_aux_loss(logits: torch.Tensor, auxloss: float,):
+def entropy(scores, dim):
     """
-    A KL divergence version
+    if scores are uniform, entropy maximized
     """
-    # Only when the input is flattened
-    B, N, _, E = logits.shape
-    logits = torch.permute(logits, (0, 3, 1, 2)).reshape(B, E, N * N)
-
-    logits = logits.sum(1, keepdims=False)
-    targets = logits.new_ones(logits.shape)
-
-    log_softmax_logits = F.log_softmax(logits, dim=-1)
-    log_softmax_target = F.log_softmax(targets, dim=-1)
-    loss = kl_loss(log_softmax_logits, log_softmax_target)
-    return loss * auxloss  # care the sign
+    return - (scores * torch.log2(scores + 1.e-10)).sum(dim=dim)
 
 
-def get_norm_aux_loss(logits: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
+def get_degree_regularization(mask: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
+    mask = mask * real_node_node_mask.to(torch.float)[..., None]
+
+    mask1 = mask.sum(1, keepdims=False)   # B x N x E
+    mask1 = F.softmax(mask1, dim=1)
+    loss1 = entropy(mask1, 1).mean()
+
+    mask2 = mask.sum(2, keepdims=False)  # B x N x E
+    mask2 = F.softmax(mask2, dim=1)
+    loss2 = entropy(mask2, 1).mean()
+
+    # we try to maximize the entropy, i.e., make mask uniform
+    return - (loss1 + loss2) * auxloss
+
+
+def get_variance_regularization(logits: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
     B, N, _, E = logits.shape
     if E == 1:
         return 0.
