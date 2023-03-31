@@ -38,8 +38,10 @@ fixed:
     spectral_norm: True   # spectral normalization
     micro_batch_embd: 1
 
-    aux_type: 'norm'
-    auxloss: 0.0
+    auxloss:
+      variance: 0.
+      degree: 0.
+      origin_bias: 0.1
 
   model: zinc_gin
   hid_size: 256

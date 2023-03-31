@@ -1,12 +1,15 @@
 import torch
 import torch.nn.functional as F
+from torch_geometric.data import Data
+
+SMALL_EPS = 1.e-10
 
 
 def entropy(scores, dim):
     """
     if scores are uniform, entropy maximized
     """
-    return - (scores * torch.log2(scores + 1.e-10)).sum(dim=dim)
+    return - (scores * torch.log2(scores + SMALL_EPS)).sum(dim=dim)
 
 
 def get_degree_regularization(mask: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
@@ -35,3 +38,18 @@ def get_variance_regularization(logits: torch.Tensor, auxloss: float, real_node_
     eye = torch.eye(E, dtype=torch.float, device=logits.device)[None]
     loss = ((dot - eye) ** 2).mean()
     return loss * auxloss
+
+
+def get_original_bias(data: Data, logits: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
+    B, N, _, E = logits.shape
+    num_edges = (data._slice_dict['edge_attr'][1:] - data._slice_dict['edge_attr'][:-1]).to(logits.device)
+    graph_idx_mask = torch.repeat_interleave(torch.arange(B, device=logits.device), num_edges)  # [0, 0, 0, 1, 1, 1, 2, 2, 2, ... batchsize - 1, ..]
+    edge_index_rel = torch.repeat_interleave(data._inc_dict['edge_index'].to(logits.device), num_edges)
+    local_edge_index = data.edge_index - edge_index_rel
+    adj = logits.new_zeros(B, N, N, 1)
+    adj[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = 1
+    logits = F.softmax(logits, dim=2)  # make sure positive
+    loss = adj * torch.log(logits + SMALL_EPS)   # try to max this
+    loss = loss * real_node_node_mask.to(torch.float)[..., None]  # so that the virtual nodes don't play a role
+    loss = loss.sum() / adj.sum()
+    return - loss * auxloss

@@ -2,7 +2,7 @@ fixed:
   dataset: zinc
   log_path: './logs'
 
-  use_wandb: False
+  use_wandb: True
 
   sample_configs:
     sample_policy: global_topk_directed
@@ -38,8 +38,10 @@ fixed:
     spectral_norm: True   # spectral normalization
     micro_batch_embd: 1
 
-    auxloss_variance: 0.
-    auxloss_degree: 0.01
+    auxloss:
+      variance: 0.
+      degree: 0.
+      origin_bias: 0.1
 
   model: zinc_gin
   hid_size: 256
@@ -55,5 +57,5 @@ fixed:
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
-  debug: True
+  debug: False
   num_runs: 5

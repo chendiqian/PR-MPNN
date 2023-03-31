@@ -18,7 +18,7 @@ from data.metrics import eval_acc, eval_rmse, eval_rocauc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from training.aux_loss import get_degree_regularization, get_variance_regularization
+from training.aux_loss import get_degree_regularization, get_variance_regularization, get_original_bias
 from training.gumbel_scheme import GumbelSampler
 from training.imle_scheme import IMLEScheme
 from training.simple_scheme import EdgeSIMPLEBatched
@@ -42,8 +42,7 @@ class Trainer:
                  device: Union[str, torch.device],
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
-                 auxloss_variance: float = 0.,
-                 auxloss_degree: float = 0.,
+                 auxloss: ConfigDict,
                  wandb: Optional[Any] = None,
                  use_wandb: bool = False,
                  plot_args: Optional[ConfigDict] = None):
@@ -61,8 +60,7 @@ class Trainer:
         self.best_val_metric = None
         self.patience = 0
         self.max_patience = max_patience
-        self.auxloss_variance = auxloss_variance
-        self.auxloss_degree = auxloss_degree
+        self.auxloss = auxloss
 
         self.wandb = wandb
         self.use_wandb = use_wandb
@@ -120,11 +118,13 @@ class Trainer:
         node_mask, _ = self.train_forward(logits) if train else self.val_forward(logits)
 
         auxloss = 0.
-        if train:
-            if self.auxloss_degree > 0:
-                auxloss = auxloss + get_degree_regularization(node_mask, self.auxloss_degree, real_node_node_mask)
-            if self.auxloss_variance > 0:
-                auxloss = auxloss + get_variance_regularization(logits, self.auxloss_variance, real_node_node_mask)
+        if train and self.auxloss is not None:
+            if self.auxloss.degree > 0:
+                auxloss = auxloss + get_degree_regularization(node_mask, self.auxloss.degree, real_node_node_mask)
+            if self.auxloss.variance > 0:
+                auxloss = auxloss + get_variance_regularization(logits, self.auxloss.variance, real_node_node_mask)
+            if self.auxloss.origin_bias > 0.:
+                auxloss = auxloss + get_original_bias(dat_batch, logits, self.auxloss.origin_bias, real_node_node_mask)
 
         graphs = Batch.to_data_list(dat_batch)
         batchsize = len(graphs)
