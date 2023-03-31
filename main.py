@@ -54,7 +54,6 @@ def naming(args) -> str:
         elif args.imle_configs.sampler == 'gumbel':
             name += f'tau{args.imle_configs.tau}'
         name += f'upreg{args.imle_configs.reg_embd}'
-        name += f'aux{args.imle_configs.auxloss_variance}_{args.imle_configs.auxloss_degree}'
 
         name += 'encoding_'
         if hasattr(args.imle_configs, 'emb_edge') and args.imle_configs.emb_edge:
@@ -112,8 +111,7 @@ def run(fixed):
                       device=device,
                       imle_configs=args.imle_configs,
                       sample_configs=args.sample_configs,
-                      auxloss_variance=args.imle_configs.auxloss_variance if hasattr(args.imle_configs, 'auxloss_variance') else 0.,
-                      auxloss_degree=args.imle_configs.auxloss_degree if hasattr(args.imle_configs, 'auxloss_degree') else 0.,
+                      auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else None,
                       wandb=wandb,
                       use_wandb=args.use_wandb,
                       plot_args=args.plot_graphs if hasattr(args, 'plot_graphs') else None)
