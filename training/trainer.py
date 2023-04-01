@@ -240,17 +240,21 @@ class Trainer:
             nx.draw_networkx_labels(g_nx, pos=pos, labels={i: i for i in range(len(node_colors))}, ax=ax)
             ax.set_title(f'Graph {graph_id}, Epoch {self.epoch}, Version: {graph_version}')
 
-        plot_folder = self.plot_args.plot_folder
-        if not os.path.exists(plot_folder):
-            os.makedirs(plot_folder)
+        if hasattr(self.plot_args, 'plot_folder'):
+            plot_folder = self.plot_args.plot_folder
+            if not os.path.exists(plot_folder):
+                os.makedirs(plot_folder)
 
         for graph_id, plot in enumerate(plots):
-            plot['fig'].savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}.png'), bbox_inches='tight')
+            if hasattr(self.plot_args, 'plot_folder'):
+                plot['fig'].savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}.png'), bbox_inches='tight')
 
             if self.wandb is not None and self.use_wandb:
                 self.wandb.log({f"graph_{graph_id}": self.wandb.Image(plot['fig'])}, step=self.epoch)
 
             plt.close(plot['fig'])
+
+
 
     def plot_score(self, scores: torch.Tensor):
         scores = scores.cpu().numpy()
