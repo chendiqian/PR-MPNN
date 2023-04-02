@@ -13,23 +13,31 @@ fixed:
   imle_configs:
     sampler: simple
 
-    model: "lin_inner"
+    model: "lin_cat"
     heads: 1    # for attention-like inner product
-    emb_edge: False
+    emb_edge: True
     emb_spd: True
     emb_ppr: False
 
+    rwse:
+      kernel: 20
+      layers: 2
+      dim_pe: 16
+      raw_norm_type: 'BatchNorm'
+
     emb_hid_size: 64
-    gnn_layer: 2
-    mlp_layer: 2
+    gnn_layer: 0
+    mlp_layer: 3
     dropout: 0.
     embd_lr: 1.e-3
     reg_embd: 0.
     bn: False
     micro_batch_embd: 1
 
-    aux_type: 'norm'
-    auxloss: 0.0
+    auxloss:
+      variance: 0.
+      degree: 0.
+      origin_bias: 0.1
 
   model: zinc_gin
   hid_size: 256
@@ -40,9 +48,16 @@ fixed:
   num_convlayers: 4
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 0
+  inter_graph_pooling: null
   batch_size: 128
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
   debug: False
   num_runs: 5
+
+  plot_graphs:
+    batch_id: 0
+    plot_every: 10
+    n_graphs: 4
+    plot_folder: './plots'

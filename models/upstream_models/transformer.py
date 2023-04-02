@@ -2,7 +2,6 @@ from ml_collections import ConfigDict
 
 import torch
 import torch.nn as nn
-from torch.nn.utils import spectral_norm
 import torch_geometric.nn as pygnn
 from torch_geometric.utils import to_dense_batch
 
@@ -39,14 +38,20 @@ class FeatureEncoder(torch.nn.Module):
                                                 hidden - rw_encoder.dim_pe,
                                                 lap_encoder,
                                                 expand_x=False)
+        else:
+            self.lap_encoder = None
 
         if rw_encoder is not None:
             self.rw_encoder = RWSENodeEncoder(hidden, hidden, rw_encoder, expand_x=False)
+        else:
+            self.rw_encoder = None
 
     def forward(self, batch):
         x = self.linear_embed(batch.x)
-        x = self.lap_encoder(x, batch)
-        x = self.rw_encoder(x, batch)
+        if self.lap_encoder is not None:
+            x = self.lap_encoder(x, batch)
+        if self.rw_encoder is not None:
+            x = self.rw_encoder(x, batch)
         return x
 
     def reset_parameters(self):

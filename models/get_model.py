@@ -33,11 +33,21 @@ def get_model(args, device, *_args):
 
     if args.imle_configs is not None:
         spectral_norm = True if hasattr(args.imle_configs, 'spectral_norm') and args.imle_configs.spectral_norm else False
+        if args.dataset.lower() in ['zinc']:
+            type_encoder = 'linear'
+        else:
+            raise ValueError
         if args.imle_configs.model.startswith('lin'):
+            encoder = FeatureEncoder(
+                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                hidden=args.imle_configs.emb_hid_size,
+                type_encoder=type_encoder,
+                lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
+                rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
             emb_model = LinearEmbed(
+                encoder=encoder,
                 tuple_type=args.imle_configs.model.split('_')[-1],
                 heads=args.imle_configs.heads if hasattr(args.imle_configs, 'heads') else 1,
-                in_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                 edge_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
                 hid_size=args.imle_configs.emb_hid_size,
                 gnn_layer=args.imle_configs.gnn_layer,
@@ -48,13 +58,8 @@ def get_model(args, device, *_args):
                 emb_ppr=args.imle_configs.emb_ppr,
                 ensemble=args.sample_configs.ensemble,
                 use_bn=args.imle_configs.bn,
-                use_ogb_encoder=args.dataset.lower().startswith('ogb')
             )
         elif args.imle_configs.model == 'transformer':
-            if args.dataset.lower() in ['zinc']:
-                type_encoder = 'linear'
-            else:
-                raise ValueError
             encoder = FeatureEncoder(dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                                      hidden=args.imle_configs.emb_hid_size,
                                      type_encoder=type_encoder,
