@@ -3,12 +3,14 @@ import pickle
 from collections import defaultdict
 from math import ceil, sqrt
 from typing import Any, Optional, Union
+import warnings
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 import networkx as nx
 import numpy as np
 import torch
+import torch.nn.functional as F
 import torch_geometric.utils as pyg_utils
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
@@ -55,6 +57,7 @@ class Trainer:
         self.device = device
 
         self.sample_configs = sample_configs
+        self.imle_configs = imle_configs
 
         self.best_val_loss = 1e5
         self.best_val_metric = None
@@ -116,6 +119,25 @@ class Trainer:
         padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
         logits = output_logits - padding_bias
         node_mask, _ = self.train_forward(logits) if train else self.val_forward(logits)
+        scores = output_logits.detach() * real_node_node_mask[..., None]
+        sampled_edge_weights = node_mask
+
+        if hasattr(self.sample_configs, 'weight_edges') and self.imle_configs is not None:
+            if self.sample_configs.weight_edges == 'logits':
+                attn_shape = output_logits.shape[-2]
+                logits_softmax = logits.view(logits.shape[0], attn_shape * attn_shape, logits.shape[-1])
+                logits_softmax = F.softmax(logits_softmax, dim=-2)
+                logits_softmax = logits_softmax.view(logits.shape[0], attn_shape, attn_shape, logits.shape[-1])
+                sampled_edge_weights = logits_softmax * node_mask
+            elif self.sample_configs.weight_edges == 'marginals':
+                if self.imle_configs.sampler != 'simple':
+                    warnings.warn('Weighting with marginals only works with simple sampler. Falling back to binary weights.') 
+                else:
+                    raise NotImplementedError
+            else:
+                warnings.warn('Unknown edge weighting scheme. Falling back to binary weights.')
+                 
+
 
         auxloss = 0.
         if train and self.auxloss is not None:
@@ -135,7 +157,10 @@ class Trainer:
             original_graphs = Batch.to_data_list(dat_batch)
             graphs += original_graphs
 
-        edge_weight = node_mask[real_node_node_mask].T.reshape(-1)
+        if hasattr(self.sample_configs, 'weighted_sample') and self.sample_configs.weighted_sample:
+            edge_weight = None
+            
+        edge_weight = sampled_edge_weights[real_node_node_mask].T.reshape(-1)
         if self.include_original_graph:
             edge_weight = torch.cat([edge_weight, edge_weight.new_ones(dat_batch.num_edges)], dim=0)
         new_batch = Batch.from_data_list(graphs)
@@ -148,7 +173,7 @@ class Trainer:
 
         new_batch.y = dat_batch.y
         new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat(logits.shape[-1] + int(self.include_original_graph))
-        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+        return new_batch, scores, auxloss
 
     def plot(self, new_batch: Batch):
         """Plot graphs and edge weights.        
