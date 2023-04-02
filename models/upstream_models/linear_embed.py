@@ -5,16 +5,15 @@ from torch.nn import Sequential, Linear, ReLU, BatchNorm1d as BN
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import to_dense_batch
 
-from models.my_encoder import AtomEncoder, BondEncoder
 from models.my_convs import GINEConv
 from models.nn_utils import MLP
 
 
 class LinearEmbed(torch.nn.Module):
     def __init__(self,
+                 encoder,
                  tuple_type,
                  heads,
-                 in_features,
                  edge_features,
                  hid_size,
                  gnn_layer,
@@ -24,20 +23,15 @@ class LinearEmbed(torch.nn.Module):
                  emb_spd=False,
                  emb_ppr=False,
                  ensemble=1,
-                 use_bn=False,
-                 use_ogb_encoder=True):
+                 use_bn=False):
         super(LinearEmbed, self).__init__()
 
         self.emb_edge = emb_edge
         self.emb_spd = emb_spd
         self.emb_ppr = emb_ppr
 
-        if use_ogb_encoder:
-            self.atom_encoder = AtomEncoder(emb_dim=hid_size)
-            self.bond_encoder = BondEncoder(emb_dim=hid_size)
-        else:
-            self.atom_encoder = Linear(in_features, hid_size)
-            self.bond_encoder = Linear(edge_features, hid_size)
+        self.atom_encoder = encoder
+        self.bond_encoder = Linear(edge_features, hid_size)
 
         # don't regularize these params
         # self.p_list.append({'params': self.atom_encoder.parameters(), 'weight_decay': 0.})
@@ -72,18 +66,14 @@ class LinearEmbed(torch.nn.Module):
             raise ValueError(f"Unsupported type {tuple_type}")
         self.tuple_type = tuple_type
 
-        mlp_in_size += int(emb_edge) + int(emb_spd) + int(emb_ppr)
+        mlp_in_size += int(emb_edge) * hid_size + int(emb_spd) + int(emb_ppr)
 
         self.mlp = MLP([mlp_in_size] + [hid_size] * (mlp_layer - 1) + [ensemble],
                        layer_norm=use_bn, dropout=dropout)
 
     def forward(self, data: Union[Data, Batch]):
         edge_index = data.edge_index
-        # ptr = data.ptr.cpu().numpy() if hasattr(data, 'ptr') else np.zeros(1, dtype=np.int32)
-        # nnodes = data.nnodes.cpu().numpy()
-        # idx = np.concatenate([np.triu_indices(n, -n) + ptr[i] for i, n in enumerate(nnodes)], axis=-1)
-        # idx_no_acum = np.concatenate([np.triu_indices(n, -n) for i, n in enumerate(nnodes)], axis=-1)
-        x = self.atom_encoder(data.x)
+        x = self.atom_encoder(data)
         edge_attr = self.bond_encoder(data.edge_attr)
 
         for gnn in self.gnn:
@@ -111,9 +101,9 @@ class LinearEmbed(torch.nn.Module):
             num_edges = (data._slice_dict['edge_attr'][1:] - data._slice_dict['edge_attr'][:-1]).to(edge_attr.device)
             graph_idx_mask = torch.repeat_interleave(torch.arange(bsz, device=edge_attr.device), num_edges)  # [0, 0, 0, 1, 1, 1, 2, 2, 2, ... batchsize - 1, ..]
             edge_index_rel = torch.repeat_interleave(data._inc_dict['edge_index'].to(edge_attr.device), num_edges)
-            local_edge_index = data.edge_index - edge_index_rel
-            edge_embeddings = edge_attr.new_zeros(bsz, Nmax, Nmax, 1)
-            edge_embeddings[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = 1
+            local_edge_index = edge_index - edge_index_rel
+            edge_embeddings = edge_attr.new_zeros(bsz, Nmax, Nmax, edge_attr.shape[-1])
+            edge_embeddings[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = edge_attr
             emb.append(edge_embeddings)
 
         if self.emb_spd:
