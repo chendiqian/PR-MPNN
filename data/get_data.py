@@ -29,7 +29,9 @@ from .data_utils import AttributedDataLoader
 NUM_WORKERS = 0
 
 DATASET = (PygGraphPropPredDataset, ZINC)
-SAMPLED_EMBED_LISTS = [AugmentWithUndirectedGlobalRewiredGraphs, AugmentWithDirectedGlobalRewiredGraphs]
+SAMPLED_EMBED_LISTS = [AugmentWithUndirectedGlobalRewiredGraphs,
+                       AugmentWithDirectedGlobalRewiredGraphs,
+                       AugmentWithExtraUndirectedGlobalRewiredGraphs]
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
