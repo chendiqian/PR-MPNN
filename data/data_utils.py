@@ -6,6 +6,7 @@ from typing import Union, Optional
 import torch
 import torch.optim as optim
 from torch.optim import Optimizer
+from torch_geometric.data import Data
 
 AttributedDataLoader = namedtuple(
     'AttributedDataLoader', [
@@ -106,3 +107,25 @@ class SyncMeanTimer:
             self.mean_time = (self.mean_time * self.count + self.last_end_time - self.last_start_time) / (self.count + 1)
             self.count += 1
             return self.last_end_time
+
+
+def batched_edge_index_to_batched_adj(data: Data, target_dtype: torch.dtype=torch.float):
+    """
+
+    Args:
+        data: should be the original batch, i.e. without ensembles
+        target_dtype:
+
+    Returns:
+
+    """
+    device = data.x.device
+    B = data.num_graphs
+    N = (data._slice_dict['x'][1:] - data._slice_dict['x'][:-1]).max().item()
+    num_edges = (data._slice_dict['edge_index'][1:] - data._slice_dict['edge_index'][:-1]).to(device)
+    graph_idx_mask = torch.repeat_interleave(torch.arange(B, device=device), num_edges)
+    edge_index_rel = torch.repeat_interleave(data._inc_dict['edge_index'].to(device), num_edges)
+    local_edge_index = data.edge_index - edge_index_rel
+    adj = torch.zeros(B, N, N, 1, dtype=target_dtype, device=device)
+    adj[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = 1
+    return adj
