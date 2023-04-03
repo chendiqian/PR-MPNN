@@ -14,7 +14,8 @@ from models.get_model import get_model
 from training.trainer import Trainer
 from data.get_data import get_data
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
-from data.data_utils import SyncMeanTimer, get_cosine_schedule_with_warmup
+from data.data_utils import SyncMeanTimer
+from data.get_optimizer import make_get_embed_opt, make_get_opt
 
 import wandb
 
@@ -129,52 +130,19 @@ def run(fixed):
     test_metrics = [[] for _ in range(args.num_runs)]
     time_per_epoch = []
 
+    get_embed_opt = make_get_embed_opt(args)
+    get_opt = make_get_opt(args)
+
     for _run in range(args.num_runs):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(zip(train_loaders, val_loaders, test_loaders)):
             model, emb_model = get_model(args, device)
+            optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
+            optimizer, scheduler = get_opt(model)
+
             wandb.watch(model, log="all", log_freq=10)
             if emb_model is not None:
                 wandb.watch(emb_model, log="all", log_freq=10)
 
-                optimizer_embd = torch.optim.AdamW(emb_model.parameters(),
-                                                lr=args.imle_configs.embd_lr,
-                                                weight_decay=args.imle_configs.reg_embd)
-
-                if hasattr(args.imle_configs, 'emb_optim'):
-                    if args.imle_configs.emb_optim == 'adam':
-                        optimizer_embd = torch.optim.Adam(emb_model.parameters(),
-                                                        lr=args.imle_configs.embd_lr,
-                                                        weight_decay=args.imle_configs.reg_embd)
-                    if args.imle_configs.emb_optim == 'sgd':
-                        optimizer_embd = torch.optim.SGD(emb_model.parameters(),
-                                                        lr=args.imle_configs.embd_lr,
-                                                        weight_decay=args.imle_configs.reg_embd)
-
-                scheduler_embd = get_cosine_schedule_with_warmup(optimizer_embd, 50, args.max_epochs)
-
-                if hasattr(args.imle_configs, 'emb_scheduler'):
-                    if args.imle_configs.emb_scheduler == 'step':
-                        scheduler_embd = torch.optim.lr_scheduler.MultiStepLR(optimizer_embd,
-                                                                            args.lr_steps,
-                                                                            gamma=args.lr_decay_rate if hasattr(args, 'lr_decay_rate')
-                                                                            else 0.1 ** 0.5)
-            else:
-                optimizer_embd = None
-                scheduler_embd = None
-
-            optimizer = torch.optim.Adam(model.parameters(),
-                                         lr=args.lr, weight_decay=args.reg)
-            
-            if hasattr(args, 'optim'):
-                if args.optim == 'sgd':
-                    optimizer = torch.optim.SGD(model.parameters(),
-                                                lr=args.lr, weight_decay=args.reg)
-
-
-            scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                                                             args.lr_steps,
-                                                             gamma=args.lr_decay_rate if hasattr(args, 'lr_decay_rate')
-                                                             else 0.1 ** 0.5)
             run_folder = prepare_exp(folder_name, _run, _fold)
 
             best_epoch = 0
