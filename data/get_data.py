@@ -20,6 +20,7 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPPR,
                               AugmentWithDirectedGlobalRewiredGraphs,
                               AugmentWithUndirectedGlobalRewiredGraphs,
+                              AugmentWithExtraUndirectedGlobalRewiredGraphs,
                               AugmentWithSpatialInfo,
                               AugmentWithPlotCoordinates,
                               my_collate_fn)
@@ -76,6 +77,10 @@ def get_transform(args: Union[Namespace, ConfigDict]):
         transform = AugmentWithUndirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
                                                              args.sample_configs.include_original_graph,
                                                              args.sample_configs.ensemble)
+    elif args.sample_configs.sample_policy == 'global_topk_semi':
+        transform = AugmentWithExtraUndirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
+                                                                  args.sample_configs.include_original_graph,
+                                                                  args.sample_configs.ensemble)
     else:
         raise ValueError
     return transform

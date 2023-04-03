@@ -11,6 +11,7 @@ from torch_geometric.data import Data, Batch
 from torch_geometric.utils import (is_undirected,
                                    to_undirected,
                                    add_remaining_self_loops,
+                                   contains_self_loops,
                                    coalesce,
                                    to_networkx)
 from torch_sparse import SparseTensor
@@ -222,6 +223,46 @@ class AugmentWithUndirectedGlobalRewiredGraphs(GraphModification):
             for i in range(self.ensemble):
                 idx = np.sort(np.random.choice(full_edge_index.shape[1], size=self.sample_k, replace=False))
                 directed_edge_index = full_edge_index[:, idx]
+                undirec_edge_index = to_undirected(directed_edge_index, num_nodes=graph.num_nodes)
+                g = graph.clone()
+                g.edge_index = undirec_edge_index
+                graphs.append(g)
+            if self.include_original_graph:
+                graphs.append(graph)
+        return graphs
+
+
+class AugmentWithExtraUndirectedGlobalRewiredGraphs(GraphModification):
+    def __init__(self, sample_k, include_original_graph, ensemble):
+        super(AugmentWithExtraUndirectedGlobalRewiredGraphs, self).__init__()
+        self.sample_k = sample_k
+        self.include_original_graph = include_original_graph
+        self.ensemble = ensemble
+
+    def __call__(self, graph: Data):
+        original_edge_index = graph.edge_index
+        original_unique_edges_idx = original_edge_index[0] < original_edge_index[1]
+        if self.sample_k >= (graph.num_nodes * (graph.num_nodes - 1)) // 2 - original_unique_edges_idx.sum():
+            new_graph = deepcopy(graph)
+            full_edge_index = np.vstack(np.triu_indices(graph.num_nodes, k=-graph.num_nodes,))
+            if not contains_self_loops(original_edge_index):
+                self_loop_idx = full_edge_index[0] == full_edge_index[1]
+                full_edge_index = full_edge_index[:, ~self_loop_idx]
+            new_graph.edge_index = torch.from_numpy(full_edge_index)
+            graphs = [new_graph] * self.ensemble
+            if self.include_original_graph:
+                graphs.append(graph)
+        else:
+            original_unique_edges = original_edge_index[:, original_unique_edges_idx]
+            original_id = original_unique_edges[0] * graph.num_nodes + original_unique_edges[1]
+            full_edge_index = torch.from_numpy(np.vstack(np.triu_indices(graph.num_nodes, k=1)))
+            full_id = full_edge_index[0] * graph.num_nodes + full_edge_index[1]
+            sample_pool_idx = torch.logical_not(torch.isin(full_id, original_id))
+            sample_pool = full_edge_index[:, sample_pool_idx]
+            graphs = []
+            for i in range(self.ensemble):
+                idx = np.sort(np.random.choice(sample_pool.shape[1], size=self.sample_k, replace=False))
+                directed_edge_index = torch.hstack([sample_pool[:, idx], original_edge_index])
                 undirec_edge_index = to_undirected(directed_edge_index, num_nodes=graph.num_nodes)
                 g = graph.clone()
                 g.edge_index = undirec_edge_index
