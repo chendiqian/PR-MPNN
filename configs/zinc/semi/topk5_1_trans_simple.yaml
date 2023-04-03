@@ -41,7 +41,7 @@ fixed:
     auxloss:
       variance: 0.
       degree: 0.
-      origin_bias: 0.1
+      origin_bias: 0.
 
   model: zinc_gin
   hid_size: 256
