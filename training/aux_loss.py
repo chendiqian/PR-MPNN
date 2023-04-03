@@ -1,9 +1,6 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch_geometric.data import Data
-
-from data.data_utils import batched_edge_index_to_batched_adj
 
 SMALL_EPS = 1.e-10
 
@@ -43,9 +40,8 @@ def get_variance_regularization(logits: torch.Tensor, auxloss: float, real_node_
     return loss * auxloss
 
 
-def get_original_bias(data: Data, logits: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
+def get_original_bias(adj: torch.Tensor, logits: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
     B, N, _, E = logits.shape
-    adj = batched_edge_index_to_batched_adj(data, torch.float)
     diag_idx = np.diag_indices(N)
     adj[:, diag_idx[0], diag_idx[1]] = 0.   # remove self loops
     logits = F.softmax(logits, dim=2)  # make sure positive

@@ -15,7 +15,7 @@ import torch_geometric.utils as pyg_utils
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, scale_grad
+from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj
 from data.metrics import eval_acc, eval_rmse, eval_rocauc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
@@ -92,16 +92,17 @@ class Trainer:
                 # we perturb during training, but not validation
                 self.train_forward = imle_sample_scheme
                 self.val_forward = imle_scheduler.torch_sample_scheme
-
+                self.sampler_class = imle_scheduler
             elif imle_configs.sampler == 'gumbel':
                 gumbel_sampler = GumbelSampler(sample_configs.sample_k, tau=imle_configs.tau, policy=sample_configs.sample_policy)
                 self.train_forward = gumbel_sampler
                 self.val_forward = gumbel_sampler.validation
-
+                self.sampler_class = gumbel_sampler
             elif imle_configs.sampler == 'simple':
                 simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k, device, policy=sample_configs.sample_policy)
                 self.train_forward = simple_sampler
                 self.val_forward = simple_sampler.validation
+                self.sampler_class = simple_sampler
             else:
                 raise ValueError
 
@@ -115,6 +116,11 @@ class Trainer:
 
         train = emb_model.training
         output_logits, real_node_node_mask = emb_model(dat_batch)
+
+        if self.sample_policy == 'global_topk_semi' or (train and self.auxloss is not None and self.auxloss.origin_bias > 0.):
+            # need to compute the dense adj matrix
+            adj = batched_edge_index_to_batched_adj(dat_batch, torch.float)
+            self.sampler_class.adj = adj
 
         padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
         logits = output_logits - padding_bias
@@ -136,8 +142,6 @@ class Trainer:
                     raise NotImplementedError
             else:
                 warnings.warn('Unknown edge weighting scheme. Falling back to binary weights.')
-                 
-
 
         auxloss = 0.
         if train and self.auxloss is not None:
@@ -146,7 +150,7 @@ class Trainer:
             if self.auxloss.variance > 0:
                 auxloss = auxloss + get_variance_regularization(logits, self.auxloss.variance, real_node_node_mask)
             if self.auxloss.origin_bias > 0.:
-                auxloss = auxloss + get_original_bias(dat_batch, logits, self.auxloss.origin_bias, real_node_node_mask)
+                auxloss = auxloss + get_original_bias(adj, logits, self.auxloss.origin_bias, real_node_node_mask)
 
         graphs = Batch.to_data_list(dat_batch)
         batchsize = len(graphs)
@@ -156,9 +160,6 @@ class Trainer:
         if self.include_original_graph:
             original_graphs = Batch.to_data_list(dat_batch)
             graphs += original_graphs
-
-        if hasattr(self.sample_configs, 'weighted_sample') and self.sample_configs.weighted_sample:
-            edge_weight = None
             
         edge_weight = sampled_edge_weights[real_node_node_mask].T.reshape(-1)
         if self.include_original_graph:

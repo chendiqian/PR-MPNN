@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from training.deterministic_scheme import rewire_global_undirected, rewire_global_directed
+from training.deterministic_scheme import rewire_global_undirected, rewire_global_directed, rewire_global_semi
 from simple.simple import Layer
 
 LARGE_NUMBER = 1.e10
@@ -21,6 +21,7 @@ class EdgeSIMPLEBatched(nn.Module):
         self.device = device
         self.policy = policy
         self.layer_configs = dict()
+        self.adj = None  # for potential usage
 
     def forward(self, scores):
         bsz, Nmax, _, ensemble = scores.shape
@@ -33,6 +34,17 @@ class EdgeSIMPLEBatched(nn.Module):
             local_k = min(self.k, target_size)
             triu_idx = np.triu_indices(Nmax, k=1)
             scores = scores + scores.transpose(1, 2)
+            flat_scores = scores[:, triu_idx[0], triu_idx[1], :].permute((0, 2, 1)).reshape(bsz * ensemble, -1)
+        elif self.policy == 'global_topk_semi':
+            triu_idx = np.triu_indices(Nmax, k=1)
+            uniques_num_edges = self.adj[:, triu_idx[0], triu_idx[1], :].sum(dim=(1, 2))
+            max_num_edges = uniques_num_edges.max().long().item()
+            target_size = (Nmax * (Nmax - 1)) // 2
+            if self.k > target_size - max_num_edges:
+                raise ValueError(f"k = {self.k} too large!")
+            local_k = self.k
+            scores = scores + scores.transpose(1, 2)
+            scores = scores - self.adj * LARGE_NUMBER   # do not sample existing edges
             flat_scores = scores[:, triu_idx[0], triu_idx[1], :].permute((0, 2, 1)).reshape(bsz * ensemble, -1)
         else:
             raise NotImplementedError
@@ -64,6 +76,13 @@ class EdgeSIMPLEBatched(nn.Module):
             new_mask = scores.new_zeros(scores.shape)
             new_mask[:, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(1, 2)
+        elif self.policy == 'global_topk_semi':
+            samples = samples.reshape(bsz, ensemble, -1).permute((0, 2, 1))
+            new_mask = scores.new_zeros(scores.shape)
+            new_mask[:, triu_idx[0], triu_idx[1], :] = samples
+            new_mask = new_mask + new_mask.transpose(1, 2) + self.adj
+        else:
+            raise ValueError
         return new_mask
 
     @torch.no_grad()
@@ -74,6 +93,9 @@ class EdgeSIMPLEBatched(nn.Module):
             # make symmetric
             scores = scores + scores.transpose(1, 2)
             mask = rewire_global_undirected(scores, self.k)
+        elif self.policy == 'global_topk_semi':
+            scores = scores + scores.transpose(1, 2)
+            mask = rewire_global_semi(scores, self.k, self.adj)
         else:
             raise NotImplementedError
         return mask
