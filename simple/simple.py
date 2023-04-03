@@ -183,7 +183,7 @@ class Layer:
         marginals = self.log_pr(log_probs).exp().permute(1, 0)
         return (samples - marginals).detach() + marginals
 
-    @torch.compile(fullgraph=True, mode=MODE, disable=DISABLE)
+    # @torch.compile(fullgraph=True, mode=MODE, disable=DISABLE)
     def log_pr(self, log_probs):
         lit_weights = torch.stack((log1mexp(-log_probs.detach()), log_probs), dim=-1).permute(1, 2, 0)
 
