@@ -64,7 +64,7 @@ class EdgeSIMPLEBatched(nn.Module):
             new_mask = scores.new_zeros(scores.shape)
             new_mask[:, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(1, 2)
-        return new_mask, None
+        return new_mask
 
     @torch.no_grad()
     def validation(self, scores):
@@ -76,4 +76,4 @@ class EdgeSIMPLEBatched(nn.Module):
             mask = rewire_global_undirected(scores, self.k)
         else:
             raise NotImplementedError
-        return mask, None
+        return mask

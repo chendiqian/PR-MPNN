@@ -13,11 +13,11 @@ class IMLEScheme:
         local_logits = logits.detach()
         if self.imle_sample_policy == 'global_topk_directed':
             mask = rewire_global_directed(local_logits, self.sample_k)
-            return mask, None
+            return mask
         elif self.imle_sample_policy == 'global_topk_undirected':
             # make symmetric
             local_logits = local_logits + local_logits.transpose(1, 2)
             mask = rewire_global_undirected(local_logits, self.sample_k)
-            return mask, None
+            return mask
         else:
             raise NotImplementedError
