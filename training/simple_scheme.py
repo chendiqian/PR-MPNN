@@ -95,7 +95,10 @@ class EdgeSIMPLEBatched(nn.Module):
             new_mask[:, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(1, 2) + self.adj
             if marginals is not None:
-                raise NotImplementedError("Marginals for original edges undefined!")
+                marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
+                new_marginals = scores.new_zeros(scores.shape)
+                new_marginals[:, triu_idx[0], triu_idx[1], :] = marginals
+                new_marginals = new_marginals + new_marginals.transpose(1, 2)
         else:
             raise ValueError
         return new_mask, new_marginals
