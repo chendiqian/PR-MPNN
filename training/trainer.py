@@ -288,9 +288,10 @@ class Trainer:
         ncols = ceil(sqrt(n_ensemble))
         is_only_one_plot = ncols * nrows == 1
 
-        plot_folder = self.plot_args.plot_folder
-        if not os.path.exists(plot_folder):
-            os.makedirs(plot_folder)
+        if hasattr(self.plot_args, 'plot_folder'):
+            plot_folder = self.plot_args.plot_folder
+            if not os.path.exists(plot_folder):
+                os.makedirs(plot_folder)
 
         for graph_id in range(total_plotted_graphs):
             fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*7, nrows*7), gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
@@ -305,9 +306,10 @@ class Trainer:
             for e in range(n_ensemble):
                 sns.heatmap(atten_scores[..., e], ax=axs[e] if not is_only_one_plot else axs)
 
-            fig.savefig(os.path.join(plot_folder,
-                                     f'scores_epoch_{self.epoch}_graph_{graph_id}.png'),
-                        bbox_inches='tight')
+            if hasattr(self.plot_args, 'plot_folder'):
+                fig.savefig(os.path.join(plot_folder,
+                                        f'scores_epoch_{self.epoch}_graph_{graph_id}.png'),
+                            bbox_inches='tight')
 
             if self.wandb is not None and self.use_wandb:
                 self.wandb.log({f"scores_{graph_id}": self.wandb.Image(fig)}, step=self.epoch)
