@@ -74,6 +74,7 @@ class EdgeSIMPLEBatched(nn.Module):
         if marginals is not None:
             marginals = marginals[:, :target_size]
 
+        new_marginals = None
         if self.policy == 'global_topk_directed':
             new_mask = samples.reshape(bsz, ensemble, Nmax, Nmax).permute((0, 2, 3, 1))
             if marginals is not None:
@@ -84,7 +85,9 @@ class EdgeSIMPLEBatched(nn.Module):
             new_mask[:, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(1, 2)
             if marginals is not None:
-                new_marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
+                marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
+                new_marginals = scores.new_zeros(scores.shape)
+                new_marginals[:, triu_idx[0], triu_idx[1], :] = marginals
                 new_marginals = new_marginals + new_marginals.transpose(1, 2)
         elif self.policy == 'global_topk_semi':
             samples = samples.reshape(bsz, ensemble, -1).permute((0, 2, 1))
@@ -92,11 +95,10 @@ class EdgeSIMPLEBatched(nn.Module):
             new_mask[:, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(1, 2) + self.adj
             if marginals is not None:
-                new_marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
-                new_marginals = new_marginals + new_marginals.transpose(1, 2)
+                raise NotImplementedError("Marginals for original edges undefined!")
         else:
             raise ValueError
-        return (new_mask, new_marginals) if marginals is not None else (new_mask, None)
+        return new_mask, new_marginals
 
     @torch.no_grad()
     def validation(self, scores):
