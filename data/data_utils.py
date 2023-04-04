@@ -147,3 +147,17 @@ def self_defined_softmax(scores, mask):
     exp_scores = exp_scores * mask
     softmax_scores = exp_scores / exp_scores.sum()
     return softmax_scores
+
+def multiply_with_mask(scores, mask):
+    """
+    A specific function
+
+    Args:
+        scores: B, N, N, E
+        mask: same shape as scores
+
+    Returns:
+
+    """
+    scores = scores * mask
+    return scores

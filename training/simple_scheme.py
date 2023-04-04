@@ -15,13 +15,14 @@ def logsigmoid(x):
 
 
 class EdgeSIMPLEBatched(nn.Module):
-    def __init__(self, k, device, policy):
+    def __init__(self, k, device, policy, return_marginals=True):
         super(EdgeSIMPLEBatched, self).__init__()
         self.k = k
         self.device = device
         self.policy = policy
         self.layer_configs = dict()
         self.adj = None  # for potential usage
+        self.return_marginals = return_marginals
 
     def forward(self, scores):
         bsz, Nmax, _, ensemble = scores.shape
@@ -53,7 +54,7 @@ class EdgeSIMPLEBatched(nn.Module):
         if (N, local_k) in self.layer_configs:
             layer = self.layer_configs[(N, local_k)]
         else:
-            layer = Layer(N, local_k, self.device)
+            layer = Layer(N, local_k, self.device, self.return_marginals)
             self.layer_configs[(N, local_k)] = layer
 
         # padding
@@ -66,24 +67,36 @@ class EdgeSIMPLEBatched(nn.Module):
             dim=1)
 
         flat_scores = logsigmoid(flat_scores)
-        samples = layer(flat_scores, local_k)
+        samples, marginals = layer(flat_scores, local_k)
         # unpadding
         samples = samples[:, :target_size]
+
+        if marginals is not None:
+            marginals = marginals[:, :target_size]
+
         if self.policy == 'global_topk_directed':
             new_mask = samples.reshape(bsz, ensemble, Nmax, Nmax).permute((0, 2, 3, 1))
+            if marginals is not None:
+                new_marginals = marginals.reshape(bsz, ensemble, Nmax, Nmax).permute((0, 2, 3, 1))
         elif self.policy == 'global_topk_undirected':
             samples = samples.reshape(bsz, ensemble, -1).permute((0, 2, 1))
             new_mask = scores.new_zeros(scores.shape)
             new_mask[:, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(1, 2)
+            if marginals is not None:
+                new_marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
+                new_marginals = new_marginals + new_marginals.transpose(1, 2)
         elif self.policy == 'global_topk_semi':
             samples = samples.reshape(bsz, ensemble, -1).permute((0, 2, 1))
             new_mask = scores.new_zeros(scores.shape)
             new_mask[:, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(1, 2) + self.adj
+            if marginals is not None:
+                new_marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
+                new_marginals = new_marginals + new_marginals.transpose(1, 2)
         else:
             raise ValueError
-        return new_mask
+        return (new_mask, new_marginals) if marginals is not None else (new_mask, None)
 
     @torch.no_grad()
     def validation(self, scores):
@@ -99,3 +112,7 @@ class EdgeSIMPLEBatched(nn.Module):
         else:
             raise NotImplementedError
         return mask
+
+    @torch.no_grad()
+    def validation_marginals(self, scores):
+        return self.forward(scores)

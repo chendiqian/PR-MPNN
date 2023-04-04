@@ -15,7 +15,7 @@ import torch_geometric.utils as pyg_utils
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax
+from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax, multiply_with_mask
 from data.metrics import eval_acc, eval_rmse, eval_rocauc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
@@ -101,7 +101,10 @@ class Trainer:
             elif imle_configs.sampler == 'simple':
                 simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k, device, policy=sample_configs.sample_policy)
                 self.train_forward = simple_sampler
-                self.val_forward = simple_sampler.validation
+                if hasattr(sample_configs, 'weight_edges') and sample_configs.weight_edges == "marginals":
+                                    self.val_forward = simple_sampler.validation_marginals
+                else:
+                    self.val_forward = simple_sampler.validation
                 self.sampler_class = simple_sampler
             else:
                 raise ValueError
@@ -124,18 +127,24 @@ class Trainer:
 
         padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
         logits = output_logits - padding_bias
-        node_mask = self.train_forward(logits) if train else self.val_forward(logits)
+
+        if hasattr(self.imle_configs, 'sampler') and self.imle_configs.sampler == 'simple':
+            node_mask, marginals = self.train_forward(logits) if train else self.val_forward(logits)
+        else:
+            node_mask = self.train_forward(logits) if train else self.val_forward(logits)
+
         scores = output_logits.detach() * real_node_node_mask[..., None]
         sampled_edge_weights = node_mask
 
         if hasattr(self.sample_configs, 'weight_edges') and self.imle_configs is not None:
             if self.sample_configs.weight_edges == 'logits':
                 sampled_edge_weights = torch.vmap(torch.vmap(self_defined_softmax, 0), -1, out_dims=-1)(logits, node_mask)
-            elif self.sample_configs.weight_edges == 'marginals':
+            elif self.sample_configs.weight_edges == 'marginals':                    
                 if self.imle_configs.sampler != 'simple':
                     warnings.warn('Weighting with marginals only works with simple sampler. Falling back to binary weights.')
                 else:
-                    raise NotImplementedError
+                    # Maybe we should also try this with softmax?
+                    sampled_edge_weights = torch.vmap(torch.vmap(multiply_with_mask, 0), -1, out_dims=-1)(marginals, node_mask)
             else:
                 warnings.warn('Unknown edge weighting scheme. Falling back to binary weights.')
 
