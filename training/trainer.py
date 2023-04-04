@@ -130,14 +130,15 @@ class Trainer:
 
         if hasattr(self.sample_configs, 'weight_edges') and self.imle_configs is not None:
             if self.sample_configs.weight_edges == 'logits':
-                attn_shape = output_logits.shape[-2]
-                logits_softmax = logits.view(logits.shape[0], attn_shape * attn_shape, logits.shape[-1])
-                logits_softmax = F.softmax(logits_softmax, dim=-2)
-                logits_softmax = logits_softmax.view(logits.shape[0], attn_shape, attn_shape, logits.shape[-1])
-                sampled_edge_weights = logits_softmax * node_mask
+                logits_masked = logits * node_mask
+                b_sz, n_subgraphs = logits_masked.shape[0], logits_masked.shape[-1]
+                logits_softmax = logits_masked.permute((0, 3, 1, 2))[
+                    node_mask.permute((0, 3, 1, 2)) != 0.].reshape(b_sz, n_subgraphs, -1)
+                logits_softmax = F.softmax(logits_softmax, dim=-1)
+                logits_masked.permute((0, 3, 1, 2))[node_mask.permute(0, 3, 1, 2)!=0.] = logits_softmax.flatten()
             elif self.sample_configs.weight_edges == 'marginals':
                 if self.imle_configs.sampler != 'simple':
-                    warnings.warn('Weighting with marginals only works with simple sampler. Falling back to binary weights.') 
+                    warnings.warn('Weighting with marginals only works with simple sampler. Falling back to binary weights.')
                 else:
                     raise NotImplementedError
             else:
