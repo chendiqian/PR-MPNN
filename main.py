@@ -80,7 +80,7 @@ def naming(args) -> str:
         name += f'optim_{args.optim}_'
 
     if hasattr(args, 'wandb_prefix'):
-        name += f'{args.wandb_prefix}_'
+        name = f'{args.wandb_prefix}_' + name 
 
     return name
 
