@@ -129,3 +129,21 @@ def batched_edge_index_to_batched_adj(data: Data, target_dtype: torch.dtype=torc
     adj = torch.zeros(B, N, N, 1, dtype=target_dtype, device=device)
     adj[graph_idx_mask, local_edge_index[0], local_edge_index[1]] = 1
     return adj
+
+
+def self_defined_softmax(scores, mask):
+    """
+    A specific function
+
+    Args:
+        scores: B, N, N, E
+        mask: same shape as scores
+
+    Returns:
+
+    """
+    scores = scores - scores.detach().max()  # for numerical stability
+    exp_scores = torch.exp(scores)
+    exp_scores = exp_scores * mask
+    softmax_scores = exp_scores / exp_scores.sum()
+    return softmax_scores

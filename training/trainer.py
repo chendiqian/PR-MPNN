@@ -15,7 +15,7 @@ import torch_geometric.utils as pyg_utils
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj
+from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax
 from data.metrics import eval_acc, eval_rmse, eval_rocauc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
@@ -130,12 +130,7 @@ class Trainer:
 
         if hasattr(self.sample_configs, 'weight_edges') and self.imle_configs is not None:
             if self.sample_configs.weight_edges == 'logits':
-                logits_masked = logits * node_mask
-                b_sz, n_subgraphs = logits_masked.shape[0], logits_masked.shape[-1]
-                logits_softmax = logits_masked.permute((0, 3, 1, 2))[
-                    node_mask.permute((0, 3, 1, 2)) != 0.].reshape(b_sz, n_subgraphs, -1)
-                logits_softmax = F.softmax(logits_softmax, dim=-1)
-                logits_masked.permute((0, 3, 1, 2))[node_mask.permute(0, 3, 1, 2)!=0.] = logits_softmax.flatten()
+                sampled_edge_weights = torch.vmap(torch.vmap(self_defined_softmax, 0), -1, out_dims=-1)(logits, node_mask)
             elif self.sample_configs.weight_edges == 'marginals':
                 if self.imle_configs.sampler != 'simple':
                     warnings.warn('Weighting with marginals only works with simple sampler. Falling back to binary weights.')
