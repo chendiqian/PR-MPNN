@@ -39,6 +39,9 @@ def naming(args) -> str:
     if args.sample_configs.sample_policy is None:
         name += 'normal'
         return name
+    
+    if hasattr(args.sample_configs, 'weight_edges'):
+        name += f'weight_{args.sample_configs.weight_edges}_'
 
     if args.imle_configs is not None:
         name += f'sampler_{args.imle_configs.sampler}_'
@@ -75,6 +78,9 @@ def naming(args) -> str:
 
     if hasattr(args, 'optim'):
         name += f'optim_{args.optim}_'
+
+    if hasattr(args, 'wandb_prefix'):
+        name += f'{args.wandb_prefix}_'
 
     return name
 
