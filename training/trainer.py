@@ -128,11 +128,7 @@ class Trainer:
         padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
         logits = output_logits - padding_bias
 
-        if self.imle_configs.sampler == 'simple':
-            node_mask, marginals = self.train_forward(logits) if train else self.val_forward(logits)
-        else:
-            node_mask = self.train_forward(logits) if train else self.val_forward(logits)
-            marginals = None
+        node_mask, marginals = self.train_forward(logits) if train else self.val_forward(logits)
 
         scores = output_logits.detach() * real_node_node_mask[..., None]
         sampled_edge_weights = node_mask

@@ -79,10 +79,10 @@ def imle(function: Callable[[Tensor], Tensor] = None,
 
                 perturbed_input = input + input_noise
 
-                perturbed_output = function(perturbed_input)
+                perturbed_output, aux_output = function(perturbed_input)
                 ctx.save_for_backward(input, noise, perturbed_output)
 
-                return perturbed_output
+                return perturbed_output, aux_output
 
             @staticmethod
             def backward(ctx, dy, *args):
@@ -94,7 +94,7 @@ def imle(function: Callable[[Tensor], Tensor] = None,
 
                 perturbed_target_input = target_input + target_noise
 
-                target_output = function(perturbed_target_input)
+                target_output, _ = function(perturbed_target_input)
 
                 gradient = (perturbed_output - target_output)
                 gradient = gradient / target_distribution.beta

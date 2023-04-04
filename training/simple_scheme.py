@@ -116,7 +116,7 @@ class EdgeSIMPLEBatched(nn.Module):
             mask = rewire_global_semi(scores, self.k, self.adj)
         else:
             raise NotImplementedError
-        return mask
+        return mask, None
 
     @torch.no_grad()
     def validation_marginals(self, scores):
