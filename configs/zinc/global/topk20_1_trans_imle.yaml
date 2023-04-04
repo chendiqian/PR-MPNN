@@ -3,6 +3,7 @@ fixed:
   log_path: './logs'
 
   use_wandb: True
+  wandb_name: "imle_ablate"
 
   sample_configs:
     sample_policy: global_topk_directed
