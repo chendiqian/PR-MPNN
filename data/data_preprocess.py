@@ -272,6 +272,58 @@ class AugmentWithExtraUndirectedGlobalRewiredGraphs(GraphModification):
         return graphs
 
 
+class AugmentWithHybridRewiredGraphs(GraphModification):
+    """
+    remove edges from existing ones, add new non-existing edges
+    """
+    def __init__(self, sample_k, include_original_graph, ensemble):
+        super(AugmentWithHybridRewiredGraphs, self).__init__()
+        self.sample_k = sample_k
+        self.include_original_graph = include_original_graph
+        self.ensemble = ensemble
+
+    def __call__(self, graph: Data):
+        original_edge_index = graph.edge_index
+        original_unique_edges_idx = original_edge_index[0] <= original_edge_index[1]
+        original_directed_edges = original_edge_index[:, original_unique_edges_idx]
+        original_directed_id = original_directed_edges[0] * graph.num_nodes + original_directed_edges[1]
+
+        # remove edges
+        if self.sample_k >= original_directed_edges.shape[1]:
+            new_graph = deepcopy(graph)
+            new_graph.edge_index = original_edge_index[:, :0]
+            graphs = [new_graph] * self.ensemble
+        else:
+            graphs = []
+            for k in range(self.ensemble):
+                remove_idx = np.sort(np.random.choice(original_directed_edges.shape[1], size=self.sample_k, replace=False))
+                removed_edges = original_directed_edges[:, remove_idx]
+                remove_id = removed_edges[0] * graph.num_nodes + removed_edges[1]
+                remaining_edges = original_directed_edges[:, torch.logical_not(torch.isin(original_directed_id, remove_id))]
+                g = graph.clone()
+                g.edge_index = remaining_edges  # directed!
+                graphs.append(g)
+
+        # add new edges
+        full_edge_index = torch.from_numpy(np.vstack(np.triu_indices(graph.num_nodes, k=1)))
+        full_edge_id = full_edge_index[0] * graph.num_nodes + full_edge_index[1]
+        new_edges_id = torch.logical_not(torch.isin(full_edge_id, original_directed_id))
+        new_edges_pool = full_edge_index[:, new_edges_id]
+        if self.sample_k >= (graph.num_nodes * (graph.num_nodes - 1)) // 2 - (original_edge_index[0] < original_edge_index[1]).sum():
+            for g in graphs:
+                g.edge_index = torch.hstack([g.edge_index, new_edges_pool])
+                g.edge_index = to_undirected(g.edge_index)
+        else:
+            for g in graphs:
+                idx = np.sort(np.random.choice(new_edges_pool.shape[1], size=self.sample_k, replace=False))
+                directed_edge_index = torch.hstack([new_edges_pool[:, idx], g.edge_index])
+                g.edge_index = to_undirected(directed_edge_index, num_nodes=graph.num_nodes)
+
+        if self.include_original_graph:
+            graphs.append(graph)
+        return graphs
+
+
 class AugmentWithSpatialInfo(GraphModification):
     """
     adapted from https://github.com/rampasek/GraphGPS/blob/95a17d57767b34387907f42a43f91a0354feac05/graphgps/encoder/graphormer_encoder.py#L15

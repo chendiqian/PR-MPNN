@@ -21,6 +21,7 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithDirectedGlobalRewiredGraphs,
                               AugmentWithUndirectedGlobalRewiredGraphs,
                               AugmentWithExtraUndirectedGlobalRewiredGraphs,
+                              AugmentWithHybridRewiredGraphs,
                               AugmentWithSpatialInfo,
                               AugmentWithPlotCoordinates,
                               my_collate_fn)
@@ -31,7 +32,8 @@ NUM_WORKERS = 0
 DATASET = (PygGraphPropPredDataset, ZINC)
 SAMPLED_EMBED_LISTS = [AugmentWithUndirectedGlobalRewiredGraphs,
                        AugmentWithDirectedGlobalRewiredGraphs,
-                       AugmentWithExtraUndirectedGlobalRewiredGraphs]
+                       AugmentWithExtraUndirectedGlobalRewiredGraphs,
+                       AugmentWithHybridRewiredGraphs]
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -83,6 +85,10 @@ def get_transform(args: Union[Namespace, ConfigDict]):
         transform = AugmentWithExtraUndirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
                                                                   args.sample_configs.include_original_graph,
                                                                   args.sample_configs.ensemble)
+    elif args.sample_configs.sample_policy == 'global_topk_hybrid':
+        transform = AugmentWithHybridRewiredGraphs(args.sample_configs.sample_k,
+                                                   args.sample_configs.include_original_graph,
+                                                   args.sample_configs.ensemble)
     else:
         raise ValueError
     return transform
