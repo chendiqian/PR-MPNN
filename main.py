@@ -250,7 +250,18 @@ def run(fixed):
     with open(os.path.join(folder_name, 'results.txt'), 'wt') as f:
         f.write(str(results))
 
-    logger.info(f'Val loss and std: {np_mean(best_val_losses)} ±{np_std(best_val_losses)}')
-    logger.info(f'Test loss and std: {np_mean(test_losses)} ±{np_std(test_losses)}')
+    wandb.log.summary['final_test_loss'] = np_mean(test_losses)
+    wandb.log.summary['final_test_std'] = np_std(test_losses)
 
-    wandb.log(results)
+    wandb.log.summary['final_test_metric'] = np_mean(test_metrics)
+    wandb.log.summary['final_test_metric_std'] = np_std(test_metrics)
+
+    wandb.log.summary['final_val_loss'] = np_mean(best_val_losses)
+    wandb.log.summary['final_val_std'] = np_std(best_val_losses)
+
+    wandb.log.summary['final_val_metric'] = np_mean(best_val_metrics)
+    wandb.log.summary['final_val_metric_std'] = np_std(best_val_metrics)
+
+    wandb.log.summary['time_per_epoch'] = np_mean(time_per_epoch)
+    wandb.log.summary['time_per_epoch_std'] = np_std(time_per_epoch)
+    
