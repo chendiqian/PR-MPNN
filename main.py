@@ -252,3 +252,5 @@ def run(fixed):
 
     logger.info(f'Val loss and std: {np_mean(best_val_losses)} ±{np_std(best_val_losses)}')
     logger.info(f'Test loss and std: {np_mean(test_losses)} ±{np_std(test_losses)}')
+
+    wandb.log(results)
