@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 from training.deterministic_scheme import rewire_global_undirected, rewire_global_directed, rewire_global_semi
 from simple.simple import Layer
+from data.data_utils import self_defined_softmax
 
 LARGE_NUMBER = 1.e10
 
@@ -66,7 +67,16 @@ class EdgeSIMPLEBatched(nn.Module):
                         device=flat_scores.device)],
             dim=1)
 
-        flat_scores = logsigmoid(flat_scores)
+        # todo: sigmoid is not good, it makes large scores too similar, i.e. close to 1.
+        # flat_scores = logsigmoid(flat_scores)
+        # todo: softmax is not good, it takes padding numbers into account
+        # flat_scores = F.log_softmax(flat_scores, -1)
+
+        # todo: it is bad heuristic to detect the padding
+        masks = (flat_scores.detach() > - LARGE_NUMBER / 2).float()
+        flat_scores = torch.vmap(self_defined_softmax, in_dims=0, out_dims=0)(flat_scores, masks)
+        flat_scores = torch.log(flat_scores + 1 / LARGE_NUMBER)
+
         samples, marginals = layer(flat_scores, local_k)
         # unpadding
         samples = samples[:, :target_size]
