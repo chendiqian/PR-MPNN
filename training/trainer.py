@@ -99,7 +99,10 @@ class Trainer:
                 self.val_forward = gumbel_sampler.validation
                 self.sampler_class = gumbel_sampler
             elif imle_configs.sampler == 'simple':
-                simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k, device, policy=sample_configs.sample_policy)
+                logits_activation = None
+                if hasattr(sample_configs, 'logits_activation'):
+                    logits_activation = sample_configs.logits_activation
+                simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k, device, policy=sample_configs.sample_policy, logits_activation=logits_activation)
                 self.train_forward = simple_sampler
                 if hasattr(sample_configs, 'weight_edges') and sample_configs.weight_edges == "marginals":
                     self.val_forward = simple_sampler.validation_marginals
@@ -142,7 +145,10 @@ class Trainer:
                 else:
                     # Maybe we should also try this with softmax?
                     assert marginals is not None
-                    sampled_edge_weights = marginals * node_mask
+                    if hasattr(self.sample_configs, 'marginals_mask') and self.sample_configs.marginals_mask:
+                        marginals = marginals * node_mask
+
+                    sampled_edge_weights = marginals
             else:
                 warnings.warn('Unknown edge weighting scheme. Falling back to binary weights.')
 
@@ -362,7 +368,8 @@ class Trainer:
             if optimizer_embd is not None:
                 if (batch_id % self.micro_batch_embd == self.micro_batch_embd - 1) or (batch_id >= len(dataloader) - 1):
                     emb_model = scale_grad(emb_model, (batch_id % self.micro_batch_embd) + 1)
-                    torch.nn.utils.clip_grad_value_(emb_model.parameters(), clip_value=1.0)
+                    # torch.nn.utils.clip_grad_value_(emb_model.parameters(), clip_value=1.0)
+                    torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=True)
                     optimizer_embd.step()
                     optimizer_embd.zero_grad()
 

@@ -16,7 +16,7 @@ def logsigmoid(x):
 
 
 class EdgeSIMPLEBatched(nn.Module):
-    def __init__(self, k, device, policy, return_marginals=True):
+    def __init__(self, k, device, policy, return_marginals=True, logits_activation=None):
         super(EdgeSIMPLEBatched, self).__init__()
         self.k = k
         self.device = device
@@ -24,6 +24,7 @@ class EdgeSIMPLEBatched(nn.Module):
         self.layer_configs = dict()
         self.adj = None  # for potential usage
         self.return_marginals = return_marginals
+        self.logits_activation = logits_activation
 
     def forward(self, scores):
         bsz, Nmax, _, ensemble = scores.shape
@@ -67,15 +68,23 @@ class EdgeSIMPLEBatched(nn.Module):
                         device=flat_scores.device)],
             dim=1)
 
-        # todo: sigmoid is not good, it makes large scores too similar, i.e. close to 1.
-        # flat_scores = logsigmoid(flat_scores)
-        # todo: softmax is not good, it takes padding numbers into account
-        # flat_scores = F.log_softmax(flat_scores, -1)
+        #default logits activation is none
+        if self.logits_activation == None:
+            pass
+        elif self.logits_activation == 'logsoftmax':
+            # todo: sigmoid is not good, it makes large scores too similar, i.e. close to 1.
+            # flat_scores = logsigmoid(flat_scores)
+            # todo: softmax is not good, it takes padding numbers into account
+            # flat_scores = F.log_softmax(flat_scores, -1)
 
-        # todo: it is bad heuristic to detect the padding
-        masks = (flat_scores.detach() > - LARGE_NUMBER / 2).float()
-        flat_scores = torch.vmap(self_defined_softmax, in_dims=0, out_dims=0)(flat_scores, masks)
-        flat_scores = torch.log(flat_scores + 1 / LARGE_NUMBER)
+            # todo: it is bad heuristic to detect the padding
+            masks = (flat_scores.detach() > - LARGE_NUMBER / 2).float()
+            flat_scores = torch.vmap(self_defined_softmax, in_dims=0, out_dims=0)(flat_scores, masks)
+            flat_scores = torch.log(flat_scores + 1 / LARGE_NUMBER)
+        elif self.logits_activation == 'logsigmoid':
+            flat_scores = logsigmoid(flat_scores)
+        else:
+            raise NotImplementedError
 
         samples, marginals = layer(flat_scores, local_k)
         # unpadding
