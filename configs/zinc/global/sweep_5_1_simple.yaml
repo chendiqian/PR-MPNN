@@ -5,6 +5,12 @@ project: sweep-k5-e1
 name: sweep-k5-e1
 run_cap: 30
 
+early_terminate:
+  type: hyperband
+  max_iter: 600
+  s: 3  # number of brackets
+  eta: 2   # multiplier
+
 metric:
   goal: minimize
   name: val_loss
