@@ -16,7 +16,8 @@ fixed:
   model: zinc_gin
   hid_size: 256
   lr: 1.e-3
-  lr_steps: [ 400, 600 ]
+  optim: adam
+  lr_steps: '[ 400, 600 ]'
   patience: 100
   reg: 0.
   num_convlayers: 4
