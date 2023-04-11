@@ -1,8 +1,8 @@
 import logging
 import os
+
 import yaml
 from ml_collections import ConfigDict
-from sacred import Experiment
 from datetime import datetime
 
 import torch
@@ -14,12 +14,12 @@ from models.get_model import get_model
 from training.trainer import Trainer
 from data.get_data import get_data
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
-from data.data_utils import SyncMeanTimer
+from data.data_utils import SyncMeanTimer, unflatten
 from data.get_optimizer import make_get_embed_opt, make_get_opt
 
 import wandb
 
-ex = Experiment()
+hyperparameter_defaults = {}
 
 
 def get_logger(folder_path: str) -> logging.Logger:
@@ -39,7 +39,7 @@ def naming(args) -> str:
     if args.sample_configs.sample_policy is None:
         name += 'normal'
         return name
-    
+
     if hasattr(args.sample_configs, 'weight_edges'):
         name += f'weight_{args.sample_configs.weight_edges}_'
 
@@ -80,7 +80,7 @@ def naming(args) -> str:
         name += f'optim_{args.optim}_'
 
     if hasattr(args, 'wandb_prefix'):
-        name = f'{args.wandb_prefix}_' + name 
+        name = f'{args.wandb_prefix}_' + name
 
     return name
 
@@ -91,9 +91,13 @@ def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> str:
     return run_folder
 
 
-@ex.automain
-def run(fixed):
-    args = ConfigDict(dict(fixed))
+if __name__ == '__main__':
+    wandb.init(
+        config=hyperparameter_defaults,
+        mode="oneline",
+    )
+
+    args = ConfigDict(unflatten(wandb.config))
     hparams = naming(args)
 
     if not os.path.isdir(args.log_path):
@@ -106,13 +110,6 @@ def run(fixed):
         yaml.dump(args.to_dict(), outfile, default_flow_style=False)
 
     logger = get_logger(folder_name)
-
-    wandb_name = args.wandb_name if hasattr(args, "wandb_name") else "imle_ablate"
-
-    wandb.init(project=wandb_name, mode="online" if args.use_wandb else "disabled",
-               config=args.to_dict(),
-               name=hparams,
-               entity="mls-stuttgart")
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_loaders, val_loaders, test_loaders = get_data(args, device)
@@ -264,4 +261,3 @@ def run(fixed):
 
     wandb.run.summary['time_per_epoch'] = np_mean(time_per_epoch)
     wandb.run.summary['time_per_epoch_std'] = np_std(time_per_epoch)
-    

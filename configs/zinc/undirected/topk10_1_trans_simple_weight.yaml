@@ -1,0 +1,63 @@
+fixed:
+  dataset: zinc
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "weighting"
+
+  sample_configs:
+    sample_policy: global_topk_undirected
+    sample_k: 10
+    ensemble: 1
+    include_original_graph: True
+    weight_edges: logits
+
+  imle_configs:
+    sampler: simple
+
+    model: "transformer"
+    heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51
+    rwse:
+      kernel: 20
+      layers: 2
+      dim_pe: 16
+      raw_norm_type: 'BatchNorm'
+
+    lap:
+      max_freqs: 4
+      dim_pe: 16
+      layers: 2
+      raw_norm_type: null
+
+    emb_hid_size: 64
+    tf_layer: 2
+    dropout: 0.
+    attn_dropout: 0.5
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    layernorm: False
+    batchnorm: True
+    spectral_norm: True   # spectral normalization
+    micro_batch_embd: 1
+
+    auxloss:
+      variance: 0.
+      degree: 0.
+      origin_bias: 0.1
+
+  model: zinc_gin
+  hid_size: 256
+  lr: 1.e-3
+  lr_steps: [ 400, 600 ]
+  patience: 100
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 0
+  inter_graph_pooling: null
+  batch_size: 128
+  min_epochs: 700
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 3

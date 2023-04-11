@@ -69,19 +69,15 @@ class EdgeSIMPLEBatched(nn.Module):
             dim=1)
 
         #default logits activation is none
-        if self.logits_activation == None:
+        if self.logits_activation == 'None':
             pass
         elif self.logits_activation == 'logsoftmax':
-            # todo: sigmoid is not good, it makes large scores too similar, i.e. close to 1.
-            # flat_scores = logsigmoid(flat_scores)
-            # todo: softmax is not good, it takes padding numbers into account
-            # flat_scores = F.log_softmax(flat_scores, -1)
-
             # todo: it is bad heuristic to detect the padding
             masks = (flat_scores.detach() > - LARGE_NUMBER / 2).float()
             flat_scores = torch.vmap(self_defined_softmax, in_dims=0, out_dims=0)(flat_scores, masks)
             flat_scores = torch.log(flat_scores + 1 / LARGE_NUMBER)
         elif self.logits_activation == 'logsigmoid':
+            # todo: sigmoid is not good, it makes large scores too similar, i.e. close to 1.
             flat_scores = logsigmoid(flat_scores)
         else:
             raise NotImplementedError
