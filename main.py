@@ -94,7 +94,7 @@ def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> str:
 if __name__ == '__main__':
     wandb.init(
         config=hyperparameter_defaults,
-        mode="oneline",
+        mode="online",
     )
 
     args = ConfigDict(unflatten(wandb.config))

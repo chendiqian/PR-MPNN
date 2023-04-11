@@ -1,8 +1,8 @@
 program: main.py
 method: bayes
 entity: mls-stuttgart
-project: sweep-k20-e1
-name: sweep-k20-e1
+project: sweep-k5-e8
+name: sweep-k5-e8
 run_cap: 30
 
 metric:
@@ -30,9 +30,9 @@ parameters:
   sample_configs.sample_policy:
     value: global_topk_directed
   sample_configs.sample_k:
-    value: 20
+    value: 5
   sample_configs.ensemble:
-    value: 1
+    value: 8
   sample_configs.include_original_graph:
     value: True
 
