@@ -30,7 +30,7 @@ class LapPENodeEncoder(torch.nn.Module):
             self.linear_x = nn.Linear(dim_in, dim_emb - dim_pe)
         self.expand_x = expand_x and dim_emb - dim_pe > 0
 
-        if pecfg.raw_norm_type == 'None':
+        if pecfg.raw_norm_type is None or pecfg.raw_norm_type == 'None':
             self.raw_norm = None
         elif pecfg.raw_norm_type.lower() == 'batchnorm':
             self.raw_norm = nn.BatchNorm1d(max_freqs)

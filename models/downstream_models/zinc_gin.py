@@ -81,7 +81,7 @@ class ZINC_GIN(torch.nn.Module):
 
         self.inter_graph_pooling = inter_graph_pooling
         # inter-graph pooling
-        if inter_graph_pooling == 'None':
+        if self.inter_graph_pooling is None or inter_graph_pooling == 'None':
             self.mlp1 = MLP([hidden] * mlp_layers_intragraph + [num_classes], dropout=0.)
             self.inter_pool = None
             self.mlp2 = None
@@ -107,7 +107,7 @@ class ZINC_GIN(torch.nn.Module):
     def forward(self, data):
         h_node = self.gnn(data)
 
-        if self.inter_graph_pooling == 'None':
+        if self.inter_graph_pooling is None or self.inter_graph_pooling == 'None':
             h_graph = self.pool(h_node, data.batch)
             if hasattr(data, 'inter_graph_idx'):
                 h_graph = global_mean_pool(h_graph, data.inter_graph_idx)
