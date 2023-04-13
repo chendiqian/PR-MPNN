@@ -210,3 +210,12 @@ def unflatten(
         root[key] = value
 
     return base
+
+
+def set_nonetype(dic: Dict):
+    for k, v in dic.items():
+        if isinstance(v, str) and v.lower() == 'none':
+            dic[k] = None
+        elif isinstance(v, dict):
+            dic[k] = set_nonetype(v)
+    return dic
