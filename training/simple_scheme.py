@@ -69,7 +69,7 @@ class EdgeSIMPLEBatched(nn.Module):
             dim=1)
 
         #default logits activation is none
-        if self.logits_activation == 'None':
+        if self.logits_activation == 'None' or self.logits_activation is None:
             pass
         elif self.logits_activation == 'logsoftmax':
             # todo: it is bad heuristic to detect the padding
