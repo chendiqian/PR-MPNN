@@ -2,7 +2,7 @@ import os
 import pickle
 from collections import defaultdict
 from math import ceil, sqrt
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, Tuple, List
 import warnings
 
 import matplotlib.pyplot as plt
@@ -117,7 +117,18 @@ class Trainer:
             self.construct_duplicate_data = self.diffable_rewire
 
 
-    def diffable_rewire(self, dat_batch: Union[Batch, Data], emb_model: Emb_model, ):
+    def check_datatype(self, data):
+        if isinstance(data, Data):
+            return data.to(self.device)
+        elif isinstance(data, tuple) and isinstance(data[0], Data) and isinstance(data[1], list):
+            return data[0].to(self.device), [g.to(self.device) for g in data[1]]
+        else:
+            raise TypeError(f"Unexpected dtype {type(data)}")
+
+
+    def diffable_rewire(self, collate_data: Tuple[Data, List[Data]], emb_model: Emb_model, ):
+
+        dat_batch, graphs = collate_data
 
         train = emb_model.training
         output_logits, real_node_node_mask = emb_model(dat_batch)
@@ -159,19 +170,18 @@ class Trainer:
             if self.auxloss.origin_bias > 0.:
                 auxloss = auxloss + get_original_bias(adj, logits, self.auxloss.origin_bias, real_node_node_mask)
 
-        graphs = Batch.to_data_list(dat_batch)
-        batchsize = len(graphs)
-        for g in graphs:
+        new_graphs = [g.clone() for g in graphs]
+        batchsize = len(new_graphs)
+        for g in new_graphs:
             g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
-        graphs = graphs * logits.shape[-1]
+        new_graphs = new_graphs * logits.shape[-1]
         if self.include_original_graph:
-            original_graphs = Batch.to_data_list(dat_batch)
-            graphs += original_graphs
+            new_graphs += graphs
             
         edge_weight = sampled_edge_weights[real_node_node_mask].T.reshape(-1)
         if self.include_original_graph:
             edge_weight = torch.cat([edge_weight, edge_weight.new_ones(dat_batch.num_edges)], dim=0)
-        new_batch = Batch.from_data_list(graphs)
+        new_batch = Batch.from_data_list(new_graphs)
         if train:
             new_batch.edge_weight = edge_weight
         else:
@@ -349,7 +359,7 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
-            data = data.to(self.device)
+            data = self.check_datatype(data)
             data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
@@ -422,7 +432,7 @@ class Trainer:
         labels = []
 
         for data in dataloader.loader:
-            data = data.to(self.device)
+            data = self.check_datatype(data)
             data, _, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
