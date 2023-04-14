@@ -30,7 +30,7 @@ def make_get_embed_opt(args):
         elif args.imle_configs.emb_scheduler == 'cosine':
             scheduler_embd = get_cosine_schedule_with_warmup(optimizer_embd, 50,
                                                              args.max_epochs)
-        elif args.imle_configs.emb_scheduler == 'None':
+        elif args.imle_configs.emb_scheduler == 'None' or args.imle_configs.emb_scheduler is None:
             scheduler_embd = None
         else:
             raise ValueError
