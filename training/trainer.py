@@ -367,7 +367,7 @@ class Trainer:
                 if (batch_id % self.micro_batch_embd == self.micro_batch_embd - 1) or (batch_id >= len(dataloader) - 1):
                     emb_model = scale_grad(emb_model, (batch_id % self.micro_batch_embd) + 1)
                     # torch.nn.utils.clip_grad_value_(emb_model.parameters(), clip_value=1.0)
-                    torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=True)
+                    torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=False)
                     optimizer_embd.step()
                     optimizer_embd.zero_grad()
 
