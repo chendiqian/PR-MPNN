@@ -24,16 +24,12 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithHybridRewiredGraphs,
                               AugmentWithSpatialInfo,
                               AugmentWithPlotCoordinates,
-                              my_collate_fn)
+                              my_collate_fn, collate_fn_with_origin_list)
 from .data_utils import AttributedDataLoader
 
 NUM_WORKERS = 0
 
 DATASET = (PygGraphPropPredDataset, ZINC)
-SAMPLED_EMBED_LISTS = [AugmentWithUndirectedGlobalRewiredGraphs,
-                       AugmentWithDirectedGlobalRewiredGraphs,
-                       AugmentWithExtraUndirectedGlobalRewiredGraphs,
-                       AugmentWithHybridRewiredGraphs]
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -139,8 +135,15 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     else:
         raise ValueError
 
-    if type(train_set.transform) in SAMPLED_EMBED_LISTS:
-        # write my own collate
+    if args.imle_configs is not None:
+        # collator that returns a batch and a list
+        dataloader = partial(PTDataLoader,
+                             batch_size=args.batch_size,
+                             shuffle=not args.debug,
+                             num_workers=NUM_WORKERS,
+                             collate_fn=collate_fn_with_origin_list)
+    elif args.sample_configs.sample_policy is not None:
+        # collator for sampled graphs
         dataloader = partial(PTDataLoader,
                              batch_size=args.batch_size,
                              shuffle=not args.debug,
