@@ -156,7 +156,7 @@ class Trainer:
                 if self.imle_configs.marginals_mask:
                     marginals = marginals * node_mask
                 sampled_edge_weights = marginals
-        elif self.imle_configs.weight_edges == 'None':
+        elif self.imle_configs.weight_edges == 'None' or self.imle_configs.weight_edges is None:
             sampled_edge_weights = node_mask
         else:
             raise ValueError(f"{self.imle_configs.weight_edges} not supported")
