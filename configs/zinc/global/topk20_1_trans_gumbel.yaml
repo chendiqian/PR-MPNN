@@ -14,6 +14,7 @@ fixed:
   imle_configs:
     sampler: gumbel
     tau: 0.1
+    num_val_ensemble: 1
 
     model: "transformer"
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51

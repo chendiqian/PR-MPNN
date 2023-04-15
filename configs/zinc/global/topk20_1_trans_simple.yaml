@@ -16,6 +16,7 @@ fixed:
     logits_activation: 'None'
     weight_edges: marginals
     marginals_mask: False
+    num_val_ensemble: 1
 
     model: "transformer"
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51

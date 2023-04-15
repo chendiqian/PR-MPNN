@@ -41,6 +41,8 @@ parameters:
     value: simple
   imle_configs.logits_activation:
     value: None
+  imle_configs.num_val_ensemble:
+    value: 1
 
   # weighting the edges
   imle_configs.weight_edges:
