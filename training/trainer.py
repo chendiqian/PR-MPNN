@@ -79,6 +79,7 @@ class Trainer:
             self.micro_batch_embd = imle_configs.micro_batch_embd
 
             if imle_configs.sampler == 'imle':
+                assert imle_configs.num_val_ensemble == 1
                 imle_scheduler = IMLEScheme(sample_configs.sample_policy, sample_configs.sample_k)
 
                 @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
@@ -93,6 +94,7 @@ class Trainer:
                 self.val_forward = imle_scheduler.torch_sample_scheme
                 self.sampler_class = imle_scheduler
             elif imle_configs.sampler == 'gumbel':
+                assert imle_configs.num_val_ensemble == 1
                 gumbel_sampler = GumbelSampler(sample_configs.sample_k, tau=imle_configs.tau, policy=sample_configs.sample_policy)
                 self.train_forward = gumbel_sampler
                 self.val_forward = gumbel_sampler.validation
@@ -100,13 +102,11 @@ class Trainer:
             elif imle_configs.sampler == 'simple':
                 simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k,
                                                    device,
+                                                   val_ensemble=imle_configs.num_val_ensemble,
                                                    policy=sample_configs.sample_policy,
                                                    logits_activation=imle_configs.logits_activation)
                 self.train_forward = simple_sampler
-                if imle_configs.weight_edges == "marginals":
-                    self.val_forward = simple_sampler.validation_marginals
-                else:
-                    self.val_forward = simple_sampler.validation
+                self.val_forward = simple_sampler.validation
                 self.sampler_class = simple_sampler
             else:
                 raise ValueError
@@ -141,44 +141,59 @@ class Trainer:
         padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
         logits = output_logits - padding_bias
 
-        node_mask, marginals = self.train_forward(logits) if train else self.val_forward(logits)
+        auxloss = 0.
+        if train and self.auxloss is not None:
+            if self.auxloss.degree > 0:
+                raise NotImplementedError
+                # auxloss = auxloss + get_degree_regularization(node_mask, self.auxloss.degree, real_node_node_mask)
+            if self.auxloss.variance > 0:
+                auxloss = auxloss + get_variance_regularization(logits,
+                                                                self.auxloss.variance,
+                                                                real_node_node_mask)
+            if self.auxloss.origin_bias > 0.:
+                auxloss = auxloss + get_original_bias(adj, logits,
+                                                      self.auxloss.origin_bias,
+                                                      real_node_node_mask)
 
-        scores = output_logits.detach() * real_node_node_mask[..., None]
+        # (#sampled, B, N, N, E), (B, N, N, E)
+        node_mask, marginals = self.train_forward(logits) if train else self.val_forward(logits)
+        VE, B, N, _, E = node_mask.shape
 
         if self.imle_configs.weight_edges == 'logits':
-            sampled_edge_weights = torch.vmap(torch.vmap(self_defined_softmax, 0), -1, out_dims=-1)(logits, node_mask)
+            # (#sampled, B, N, N, E)
+            sampled_edge_weights = torch.vmap(
+                torch.vmap(
+                    torch.vmap(
+                        self_defined_softmax,
+                        in_dims=(None, 0),
+                        out_dims=0),
+                    in_dims=0, out_dims=0),
+                in_dims=-1,
+                out_dims=-1)(logits, node_mask)
         elif self.imle_configs.weight_edges == 'marginals':
-            if self.imle_configs.sampler != 'simple':
-                warnings.warn('Weighting with marginals only works with simple sampler. Falling back to binary weights.')
-            else:
-                # Maybe we should also try this with softmax?
-                assert marginals is not None
-                if self.imle_configs.marginals_mask:
-                    marginals = marginals * node_mask
-                sampled_edge_weights = marginals
+            assert self.imle_configs.sampler == 'simple'
+            # Maybe we should also try this with softmax?
+            assert marginals is not None
+            sampled_edge_weights = marginals[None].repeat(node_mask.shape[0], 1, 1, 1, 1)
+            if self.imle_configs.marginals_mask:
+                sampled_edge_weights = sampled_edge_weights * node_mask
+
         elif self.imle_configs.weight_edges == 'None' or self.imle_configs.weight_edges is None:
             sampled_edge_weights = node_mask
         else:
             raise ValueError(f"{self.imle_configs.weight_edges} not supported")
 
-        auxloss = 0.
-        if train and self.auxloss is not None:
-            if self.auxloss.degree > 0:
-                auxloss = auxloss + get_degree_regularization(node_mask, self.auxloss.degree, real_node_node_mask)
-            if self.auxloss.variance > 0:
-                auxloss = auxloss + get_variance_regularization(logits, self.auxloss.variance, real_node_node_mask)
-            if self.auxloss.origin_bias > 0.:
-                auxloss = auxloss + get_original_bias(adj, logits, self.auxloss.origin_bias, real_node_node_mask)
+        sampled_edge_weights = sampled_edge_weights.permute((1, 2, 3, 4, 0)).reshape(B, N, N, VE * E)
+        edge_weight = sampled_edge_weights[real_node_node_mask].T.reshape(-1)
 
         new_graphs = [g.clone() for g in graphs]
         batchsize = len(new_graphs)
         for g in new_graphs:
             g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
-        new_graphs = new_graphs * logits.shape[-1]
+        new_graphs = new_graphs * (VE * E)
         if self.include_original_graph:
             new_graphs += graphs
             
-        edge_weight = sampled_edge_weights[real_node_node_mask].T.reshape(-1)
         if self.include_original_graph:
             edge_weight = torch.cat([edge_weight, edge_weight.new_ones(dat_batch.num_edges)], dim=0)
         new_batch = Batch.from_data_list(new_graphs)
@@ -190,8 +205,8 @@ class Trainer:
             new_batch.edge_weight = edge_weight[nonzero_idx]
 
         new_batch.y = dat_batch.y
-        new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat(logits.shape[-1] + int(self.include_original_graph))
-        return new_batch, scores, auxloss
+        new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat((VE * E) + int(self.include_original_graph))
+        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
     def plot(self, new_batch: Batch):
         """Plot graphs and edge weights.        

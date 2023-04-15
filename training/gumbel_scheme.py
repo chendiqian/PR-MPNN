@@ -75,7 +75,7 @@ class GumbelSampler(torch.nn.Module):
             new_mask = new_mask + new_mask.transpose(1, 2) + self.adj
         else:
             raise NotImplementedError
-        return new_mask, None
+        return new_mask[None], None
 
     @torch.no_grad()
     def validation(self, scores):
@@ -91,4 +91,4 @@ class GumbelSampler(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        return mask, None
+        return mask[None], None

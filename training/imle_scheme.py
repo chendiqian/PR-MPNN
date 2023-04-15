@@ -25,4 +25,4 @@ class IMLEScheme:
         else:
             raise NotImplementedError
 
-        return mask, None
+        return mask[None], None
