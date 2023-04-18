@@ -71,11 +71,11 @@ CRITERION_DICT = {
     'exp': nn.BCEWithLogitsLoss(),
     'protein': nn.BCEWithLogitsLoss(),
 
-    'tree_2': lambda pred, y: nn.CrossEntropyLoss(),
-    'tree_3': lambda pred, y: nn.CrossEntropyLoss(),
-    'tree_4': lambda pred, y: nn.CrossEntropyLoss(),
-    'tree_5': lambda pred, y: nn.CrossEntropyLoss(),
-    'tree_6': lambda pred, y: nn.CrossEntropyLoss(),
-    'tree_7': lambda pred, y: nn.CrossEntropyLoss(),
-    'tree_8': lambda pred, y: nn.CrossEntropyLoss(),
+    'tree_2': nn.CrossEntropyLoss(),
+    'tree_3': nn.CrossEntropyLoss(),
+    'tree_4': nn.CrossEntropyLoss(),
+    'tree_5': nn.CrossEntropyLoss(),
+    'tree_6': nn.CrossEntropyLoss(),
+    'tree_7': nn.CrossEntropyLoss(),
+    'tree_8': nn.CrossEntropyLoss(),
 }
