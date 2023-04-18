@@ -2,7 +2,7 @@ fixed:
   dataset: tree_4
   log_path: './logs'
 
-  use_wandb: True
+  use_wandb: False
   wandb_name: "imle_ablate"
 
   sample_configs:
@@ -20,11 +20,11 @@ fixed:
   lr_decay:
     scheduler: plateau
     decay_rate: 0.5
-    patience: 10
+    patience: 10000
     mode: max
     target: train_metric
   early_stop:
-    patience: 20
+    patience: 20000
     target: train_metric
   reg: 0.
   num_convlayers: 5   # depth + 1
