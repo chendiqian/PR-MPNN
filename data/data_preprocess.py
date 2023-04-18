@@ -77,8 +77,7 @@ class GraphToUndirected(GraphModification):
                                                       graph.num_nodes)
             else:
                 edge_index = to_undirected(graph.edge_index,
-                                           graph.edge_attr,
-                                           graph.num_nodes)
+                                           num_nodes=graph.num_nodes)
                 edge_attr = None
         else:
             if graph.edge_attr is not None:
@@ -87,8 +86,7 @@ class GraphToUndirected(GraphModification):
                                                  graph.num_nodes)
             else:
                 edge_index = coalesce(graph.edge_index,
-                                      graph.edge_attr,
-                                      graph.num_nodes)
+                                      num_nodes=graph.num_nodes)
                 edge_attr = None
         new_data = Data(x=graph.x,
                         edge_index=edge_index,
