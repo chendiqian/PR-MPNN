@@ -78,9 +78,9 @@ class IsBetter:
             return True
 
         if self.task_type in ['regression', 'rmse']:
-            return val1 <= val2
+            return val1 < val2
         elif self.task_type in ['rocauc', 'acc']:
-            return val1 >= val2
+            return val1 > val2
         else:
             raise ValueError
 
