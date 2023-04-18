@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from models.my_convs import GINConv
+from models.nn_utils import BiEmbedding
 
 
 def get_layer(gnn_type, in_dim, out_dim):
@@ -25,8 +26,7 @@ class TreeGraphModel(torch.nn.Module):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.num_layers = num_layers
-        self.layer0_keys = nn.Embedding(num_embeddings=dim0 + 1, embedding_dim=h_dim)
-        self.layer0_values = nn.Embedding(num_embeddings=dim0 + 1, embedding_dim=h_dim)
+        self.embedding = BiEmbedding(dim0, h_dim)
         self.layers = nn.ModuleList()
         self.layer_norms = nn.ModuleList()
         if unroll:
@@ -51,10 +51,7 @@ class TreeGraphModel(torch.nn.Module):
         x, edge_index, batch, roots = data.x, data.edge_index, data.batch, data.root_mask
         edge_weight = data.edge_weight
 
-        x_key, x_val = x[:, 0], x[:, 1]
-        x_key_embed = self.layer0_keys(x_key)
-        x_val_embed = self.layer0_values(x_val)
-        x = x_key_embed + x_val_embed
+        x = self.embedding(x)
 
         for i in range(self.num_layers):
             if self.unroll:

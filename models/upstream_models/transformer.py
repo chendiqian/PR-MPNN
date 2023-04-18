@@ -8,6 +8,7 @@ from torch_geometric.utils import to_dense_batch
 from .kernel_encoder import RWSENodeEncoder
 from .lap_encoder import LapPENodeEncoder
 from .my_attention_layer import AttentionLayer
+from models.nn_utils import BiEmbedding
 
 
 class FeatureEncoder(torch.nn.Module):
@@ -20,13 +21,16 @@ class FeatureEncoder(torch.nn.Module):
                  rw_encoder: ConfigDict = None):
         super(FeatureEncoder, self).__init__()
 
+        lin_hidden = hidden
+        if lap_encoder is not None:
+            lin_hidden -= lap_encoder.dim_pe
+        if rw_encoder is not None:
+            lin_hidden -= rw_encoder.dim_pe
+
         if type_encoder == 'linear':
-            lin_hidden = hidden
-            if lap_encoder is not None:
-                lin_hidden -= lap_encoder.dim_pe
-            if rw_encoder is not None:
-                lin_hidden -= rw_encoder.dim_pe
             self.linear_embed = nn.Linear(dim_in, lin_hidden)
+        elif type_encoder == 'bi_embedding':
+            self.linear_embed = BiEmbedding(dim_in, lin_hidden)
         elif type_encoder == 'embedding':
             # https://github.com/rampasek/GraphGPS/blob/28015707cbab7f8ad72bed0ee872d068ea59c94b/graphgps/encoder/type_dict_encoder.py#L82
             raise NotImplementedError

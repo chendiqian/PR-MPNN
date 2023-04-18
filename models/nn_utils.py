@@ -1,6 +1,7 @@
 from typing import List
 
 import torch
+from torch import nn as nn
 
 
 def residual(y_old: torch.Tensor, y_new: torch.Tensor) -> torch.Tensor:
@@ -87,3 +88,23 @@ def cat_pooling(x, graph_idx):
     ensemble_idx = torch.arange(n_ensemble, device=x.device).repeat_interleave(n_graphs)
     new_x[graph_idx, ensemble_idx, :] = x
     return new_x.reshape(n_graphs, -1)
+
+
+class BiEmbedding(torch.nn.Module):
+    def __init__(self,
+                 dim_in,
+                 hidden,):
+        super(BiEmbedding, self).__init__()
+        self.layer0_keys = nn.Embedding(num_embeddings=dim_in + 1, embedding_dim=hidden)
+        self.layer0_values = nn.Embedding(num_embeddings=dim_in + 1, embedding_dim=hidden)
+
+    def forward(self, x):
+        x_key, x_val = x[:, 0], x[:, 1]
+        x_key_embed = self.layer0_keys(x_key)
+        x_val_embed = self.layer0_values(x_val)
+        x = x_key_embed + x_val_embed
+        return x
+
+    def reset_parameters(self):
+        self.layer0_keys.reset_parameters()
+        self.layer0_values.reset_parameters()
