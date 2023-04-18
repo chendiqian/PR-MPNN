@@ -91,7 +91,7 @@ def get_transform(args: Union[Namespace, ConfigDict]):
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):
-    pretransform = [GraphToUndirected(), AugmentwithNNodes(), GraphAddRemainSelfLoop(), AugmentWithPlotCoordinates()]
+    pretransform = [AugmentwithNNodes(), AugmentWithPlotCoordinates()]
     if extra_pretransforms is not None:
         pretransform = pretransform + extra_pretransforms
 
@@ -227,6 +227,8 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
 
 def get_zinc(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[
+        GraphAddRemainSelfLoop(),
+        GraphToUndirected(),
         GraphExpandDim(),
         GraphAttrToOneHot(DATASET_FEATURE_STAT_DICT['zinc']['node'],
                           DATASET_FEATURE_STAT_DICT['zinc']['edge'])])
