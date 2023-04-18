@@ -1,3 +1,5 @@
+# credits to https://github.com/tech-srl/bottleneck/
+
 import itertools
 import math
 import random
@@ -9,6 +11,7 @@ from sklearn.model_selection import train_test_split
 from torch_geometric.data import Data, InMemoryDataset
 
 
+# https://github.com/tech-srl/bottleneck/blob/main/tasks/tree_dataset.py
 class TreeDataset(object):
     def __init__(self, depth):
         super(TreeDataset, self).__init__()
@@ -74,6 +77,7 @@ class TreeDataset(object):
         raise NotImplementedError
 
 
+# https://github.com/tech-srl/bottleneck/blob/bfe83b4a6dd7939ddb19cabea4f1e072f3c35432/tasks/dictionary_lookup.py#L10
 class DictionaryLookupDataset(TreeDataset):
     def __init__(self, depth, seed):
         super(DictionaryLookupDataset, self).__init__(depth)
