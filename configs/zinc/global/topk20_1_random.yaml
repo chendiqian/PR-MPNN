@@ -17,8 +17,12 @@ fixed:
   hid_size: 256
   lr: 1.e-3
   optim: adam
-  lr_steps: '[ 400, 600 ]'
-  patience: 100
+  lr_decay:
+    scheduler: step
+    steps: '[ 400, 600 ]'
+  early_stop:
+    patience: 100
+    target: val_metric
   reg: 0.
   num_convlayers: 4
   mlp_layers_intragraph: 3

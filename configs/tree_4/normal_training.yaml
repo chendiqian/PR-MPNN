@@ -17,18 +17,21 @@ fixed:
   hid_size: 32
   lr: 1.e-3
   optim: adam
-  scheduler: plateau
-  lr_decay: 0.5
-  lr_patience: 10
-  lr_mode: max
-  lr_target: train_metric
-  patience: 20
+  lr_decay:
+    scheduler: plateau
+    decay_rate: 0.5
+    patience: 10
+    mode: max
+    target: train_metric
+  early_stop:
+    patience: 20
+    target: train_metric
   reg: 0.
   num_convlayers: 5   # depth + 1
   inter_graph_pooling: null
   batch_size: 1024
   min_epochs: 0
-  max_epochs: 10000
+  max_epochs: 50000
   data_path: './datasets'
   debug: False
   num_runs: 3

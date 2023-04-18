@@ -48,23 +48,21 @@ def make_get_opt(args):
         else:
             raise ValueError
 
-        if hasattr(args, 'scheduler'):
-            if args.scheduler == 'plateau':
-                scheduler = MyPlateau(optimizer,
-                                      mode=args.lr_mode,
-                                      factor=args.lr_decay,
-                                      patience=args.lr_patience,
-                                      threshold_mode='abs',
-                                      cooldown=0,
-                                      min_lr=1.e-5)
-                setattr(scheduler, 'lr_target', args.lr_target)
-
-            else:
-                raise NotImplementedError
-        else:
+        if args.lr_decay.scheduler == 'plateau':
+            scheduler = MyPlateau(optimizer,
+                                  mode=args.lr_decay.mode,
+                                  factor=args.lr_decay.decay_rate,
+                                  patience=args.lr_decay.patience,
+                                  threshold_mode='abs',
+                                  cooldown=0,
+                                  min_lr=1.e-5)
+            setattr(scheduler, 'lr_target', args.lr_decay.target)
+        elif args.lr_decay.scheduler == 'step':
             scheduler = optim.lr_scheduler.MultiStepLR(optimizer,
-                                                       eval(args.lr_steps),
+                                                       eval(args.lr_decay.steps),
                                                        gamma=0.1 ** 0.5)
+        else:
+            raise NotImplementedError
 
         return optimizer, scheduler
     return get_opt
