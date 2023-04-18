@@ -14,6 +14,7 @@ from .tree_dataset import MyTreeDataset
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
+                              GraphCanonicalYClass,
                               AugmentwithNNodes,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop,
@@ -35,6 +36,7 @@ DATASET = (PygGraphPropPredDataset, ZINC)
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
     GraphExpandDim: 0,  # low
+    GraphCanonicalYClass: 0,
     GraphAddRemainSelfLoop: 100,  # highest
     GraphToUndirected: 99,  # high
     GraphCoalesce: 99,
@@ -134,6 +136,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
         train_set, val_set, test_set, mean, std = get_zinc(args)
+    elif args.dataset.lower().startswith('tree'):
+        train_set, val_set, test_set, mean, std = get_treedataset(args)
     else:
         raise ValueError
 
@@ -268,10 +272,11 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
 
 
 def get_treedataset(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
     transform = get_transform(args)
 
-    depth = args.dataset.lower.split('_')[1]
+    depth = int(args.dataset.lower.split('_')[1])
+    assert 2 <= depth <= 8
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
     if extra_path is not None:
