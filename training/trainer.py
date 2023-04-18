@@ -380,7 +380,7 @@ class Trainer:
             pred = model(data)
 
             is_labeled = data.y == data.y
-            loss = self.criterion(pred[is_labeled], data.y[is_labeled].to(torch.float))
+            loss = self.criterion(pred[is_labeled], data.y[is_labeled])
             train_losses += loss.detach() * data.num_graphs
 
             if auxloss is not None:
@@ -457,7 +457,7 @@ class Trainer:
                 labels.append(data.y.to(torch.float) * dataloader.std)
             else:
                 preds.append(pred)
-                labels.append(data.y.to(torch.float))
+                labels.append(data.y)
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
