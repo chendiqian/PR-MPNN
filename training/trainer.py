@@ -3,7 +3,6 @@ import pickle
 from collections import defaultdict
 from math import ceil, sqrt
 from typing import Any, Optional, Union, Tuple, List
-import warnings
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -14,7 +13,7 @@ import torch_geometric.utils as pyg_utils
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax
+from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax, MyPlateau
 from data.metrics import eval_acc, eval_rmse, eval_rocauc
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
@@ -438,6 +437,8 @@ class Trainer:
                   model: Train_model,
                   scheduler_embd: Optional[Scheduler] = None,
                   scheduler: Optional[Scheduler] = None,
+                  train_loss: float = 0.,
+                  train_metric: float = 0.,
                   test: bool = False):
         if emb_model is not None:
             emb_model.eval()
@@ -485,12 +486,19 @@ class Trainer:
 
             self.best_val_loss = min(self.best_val_loss, val_loss)
 
-            if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                raise NotImplementedError("Need to specify max or min plateau")
+            if isinstance(scheduler, MyPlateau):
+                if scheduler.lr_target == 'train_metric':
+                    scheduler.step(train_metric)
+                elif scheduler.lr_target == 'train_loss':
+                    scheduler.step(train_loss)
+                elif scheduler.lr_target == 'val_metric':
+                    scheduler.step(val_metric)
+                elif scheduler.lr_target == 'val_loss':
+                    scheduler.step(val_loss)
             else:
                 scheduler.step()
             if scheduler_embd is not None:
-                if isinstance(scheduler_embd, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                if isinstance(scheduler_embd, MyPlateau):
                     raise NotImplementedError("Need to specify max or min plateau")
                 else:
                     scheduler_embd.step()

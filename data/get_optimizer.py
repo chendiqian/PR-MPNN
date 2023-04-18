@@ -1,5 +1,5 @@
 import torch.optim as optim
-from data.data_utils import get_cosine_schedule_with_warmup
+from data.data_utils import get_cosine_schedule_with_warmup, MyPlateau
 
 
 def make_get_embed_opt(args):
@@ -48,8 +48,23 @@ def make_get_opt(args):
         else:
             raise ValueError
 
-        scheduler = optim.lr_scheduler.MultiStepLR(optimizer,
-                                                   eval(args.lr_steps),
-                                                   gamma=0.1 ** 0.5)
+        if hasattr(args, 'scheduler'):
+            if args.scheduler == 'plateau':
+                scheduler = MyPlateau(optimizer,
+                                      mode=args.lr_mode,
+                                      factor=args.lr_decay,
+                                      patience=args.lr_patience,
+                                      threshold_mode='abs',
+                                      cooldown=0,
+                                      min_lr=1.e-5)
+                setattr(scheduler, 'lr_target', args.lr_target)
+
+            else:
+                raise NotImplementedError
+        else:
+            scheduler = optim.lr_scheduler.MultiStepLR(optimizer,
+                                                       eval(args.lr_steps),
+                                                       gamma=0.1 ** 0.5)
+
         return optimizer, scheduler
     return get_opt

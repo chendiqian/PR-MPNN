@@ -156,6 +156,8 @@ def run(wandb, args):
                                                                      model,
                                                                      scheduler_embd,
                                                                      scheduler,
+                                                                     train_loss,
+                                                                     train_metric,
                                                                      test=False)
 
                 if epoch > args.min_epochs and early_stop:

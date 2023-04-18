@@ -2,7 +2,7 @@ fixed:
   dataset: tree_4
   log_path: './logs'
 
-  use_wandb: False
+  use_wandb: True
   wandb_name: "imle_ablate"
 
   sample_configs:
@@ -17,14 +17,18 @@ fixed:
   hid_size: 32
   lr: 1.e-3
   optim: adam
-  lr_steps: '[ 400, 600 ]'
-  patience: 100
+  scheduler: plateau
+  lr_decay: 0.5
+  lr_patience: 10
+  lr_mode: max
+  lr_target: train_metric
+  patience: 20
   reg: 0.
   num_convlayers: 5   # depth + 1
   inter_graph_pooling: null
-  batch_size: 128
-  min_epochs: 700
-  max_epochs: 1000
+  batch_size: 1024
+  min_epochs: 0
+  max_epochs: 10000
   data_path: './datasets'
   debug: False
   num_runs: 3

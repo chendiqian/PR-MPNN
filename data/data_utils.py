@@ -219,3 +219,10 @@ def set_nonetype(dic: Dict):
         elif isinstance(v, dict):
             dic[k] = set_nonetype(v)
     return dic
+
+
+class MyPlateau(optim.lr_scheduler.ReduceLROnPlateau):
+    def get_last_lr(self):
+        """ Return last computed learning rate by current scheduler.
+        """
+        return self._last_lr
