@@ -10,9 +10,10 @@ from torch_geometric.datasets import ZINC
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 
+from .tree_dataset import MyTreeDataset
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
-                              GraphToUndirected,
+                              GraphToUndirected, GraphCoalesce,
                               AugmentwithNNodes,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop,
@@ -36,6 +37,7 @@ PRETRANSFORM_PRIORITY = {
     GraphExpandDim: 0,  # low
     GraphAddRemainSelfLoop: 100,  # highest
     GraphToUndirected: 99,  # high
+    GraphCoalesce: 99,
     AugmentwithNNodes: 0,  # low
     GraphAttrToOneHot: 0,  # low
     AugmentWithShortedPathDistance: 98,
@@ -256,6 +258,28 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
                     subset=True,
                     transform=transform,
                     pre_transform=pre_transform)
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
+
+    return train_set, val_set, test_set, None, None
+
+
+def get_treedataset(args: Union[Namespace, ConfigDict]):
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
+    transform = get_transform(args)
+
+    depth = args.dataset.lower.split('_')[1]
+    data_path = os.path.join(args.data_path, args.dataset)
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    train_set = MyTreeDataset(data_path, True, 11, depth, transform=transform, pre_transform=pre_transform)
+    val_set = MyTreeDataset(data_path, False, 11, depth, transform=transform, pre_transform=pre_transform)
+    test_set = val_set
 
     if args.debug:
         train_set = train_set[:16]
