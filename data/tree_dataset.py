@@ -3,6 +3,7 @@
 import itertools
 import math
 import random
+from tqdm import tqdm
 
 import numpy as np
 import torch
@@ -149,14 +150,16 @@ class MyTreeDataset(InMemoryDataset):
         # Read data into huge `Data` list.
         X_train, X_test, dim0, out_dim = DictionaryLookupDataset(self.depth, self.seed).generate_data(0.8)
 
+        print('Dataset generated!')
+
         if self.pre_transform is not None:
-            X_train = [self.pre_transform(data) for data in X_train]
+            X_train = [self.pre_transform(data) for data in tqdm(X_train)]
 
         data, slices = self.collate(X_train)
         torch.save((data, slices), self.processed_paths[0])
 
         if self.pre_transform is not None:
-            X_test = [self.pre_transform(data) for data in X_test]
+            X_test = [self.pre_transform(data) for data in tqdm(X_test)]
 
         data, slices = self.collate(X_test)
         torch.save((data, slices), self.processed_paths[1])
