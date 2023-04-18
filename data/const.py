@@ -15,8 +15,13 @@ DATASET_FEATURE_STAT_DICT = {
     'exp': {'node': 1, 'edge': 0, 'num_class': 1},  # bin classification
     'protein': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
 
-    'cora': {'node': 1433, 'edge': 0, 'num_class': 7},
-    'pubmed': {'node': 500, 'edge': 0, 'num_class': 3},
+    'tree_2': {'node': 4, 'edge': 0, 'num_class': 4},
+    'tree_3': {'node': 8, 'edge': 0, 'num_class': 8},
+    'tree_4': {'node': 16, 'edge': 0, 'num_class': 16},
+    'tree_5': {'node': 32, 'edge': 0, 'num_class': 32},
+    'tree_6': {'node': 64, 'edge': 0, 'num_class': 64},
+    'tree_7': {'node': 128, 'edge': 0, 'num_class': 128},
+    'tree_8': {'node': 256, 'edge': 0, 'num_class': 256},
 }
 
 MAX_NUM_NODE_DICT = {
@@ -25,6 +30,13 @@ MAX_NUM_NODE_DICT = {
     'ogbg-molesol': 55,
     'ogbg-molbace': 97,
     'ogbg-molhiv': 222,
+    'tree_2': 7,
+    'tree_3': 15,
+    'tree_4': 31,
+    'tree_5': 63,
+    'tree_6': 127,
+    'tree_7': 255,
+    'tree_8': 511,
 }
 
 TASK_TYPE_DICT = {
@@ -39,8 +51,13 @@ TASK_TYPE_DICT = {
     'exp': 'acc',
     'protein': 'acc',
 
-    'cora': 'acc',
-    'pubmed': 'acc',
+    'tree_2': 'acc',
+    'tree_3': 'acc',
+    'tree_4': 'acc',
+    'tree_5': 'acc',
+    'tree_6': 'acc',
+    'tree_7': 'acc',
+    'tree_8': 'acc',
 }
 
 CRITERION_DICT = {
@@ -55,6 +72,11 @@ CRITERION_DICT = {
     'exp': nn.BCEWithLogitsLoss(),
     'protein': nn.BCEWithLogitsLoss(),
 
-    'cora': lambda pred, y: nn.CrossEntropyLoss()(pred, y.to(torch.long)),
-    'pubmed': lambda pred, y: nn.CrossEntropyLoss()(pred, y.to(torch.long)),
+    'tree_2': lambda pred, y: nn.CrossEntropyLoss(),
+    'tree_3': lambda pred, y: nn.CrossEntropyLoss(),
+    'tree_4': lambda pred, y: nn.CrossEntropyLoss(),
+    'tree_5': lambda pred, y: nn.CrossEntropyLoss(),
+    'tree_6': lambda pred, y: nn.CrossEntropyLoss(),
+    'tree_7': lambda pred, y: nn.CrossEntropyLoss(),
+    'tree_8': lambda pred, y: nn.CrossEntropyLoss(),
 }
