@@ -3,6 +3,7 @@ import torch.nn
 from data.const import DATASET_FEATURE_STAT_DICT
 from models.downstream_models.ogb_mol_gnn import OGBGNN
 from models.downstream_models.zinc_gin import ZINC_GIN
+from models.downstream_models.tree_gnn import TreeGraphModel
 from models.upstream_models.linear_embed import LinearEmbed
 from models.upstream_models.transformer import FeatureEncoder, Transformer
 from models.upstream_models.graphormer import BiasEncoder, NodeEncoder, Graphormer
@@ -28,6 +29,17 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             mlp_layers_intergraph=args.mlp_layers_intergraph,
             inter_graph_pooling=args.inter_graph_pooling)
+    elif args.model.lower().startswith('tree'):
+        model = TreeGraphModel(gnn_type=args.model.lower().split('_')[1],
+                               num_layers=args.num_convlayers,
+                               dim0=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
+                               h_dim=args.hid_size,
+                               out_dim=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                               last_layer_fully_adjacent=False,
+                               unroll=False,
+                               layer_norm=False,
+                               use_activation=False,
+                               use_residual=False)
     else:
         raise NotImplementedError
 
