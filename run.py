@@ -108,7 +108,8 @@ def run(wandb, args):
 
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=task_type,
-                      max_patience=args.patience,
+                      max_patience=args.early_stop.patience,
+                      patience_target=args.early_stop.target,
                       criterion=criterion,
                       device=device,
                       imle_configs=args.imle_configs,
@@ -120,8 +121,7 @@ def run(wandb, args):
                       plot_args=args.plot_graphs if hasattr(args,
                                                             'plot_graphs') else None)
 
-    best_val_losses = [[] for _ in range(args.num_runs)]
-    test_losses = [[] for _ in range(args.num_runs)]
+    best_train_metrics = [[] for _ in range(args.num_runs)]
     best_val_metrics = [[] for _ in range(args.num_runs)]
     test_metrics = [[] for _ in range(args.num_runs)]
     time_per_epoch = []
@@ -218,8 +218,7 @@ def run(wandb, args):
             logger.info(f'max_memory_allocated: {torch.cuda.max_memory_allocated()}')
             logger.info(f'memory_allocated: {torch.cuda.memory_allocated()}')
 
-            best_val_losses[_run].append(trainer.best_val_loss)
-            test_losses[_run].append(test_loss)
+            best_train_metrics[_run].append(trainer.best_train_metric)
             best_val_metrics[_run].append(trainer.best_val_metric)
             test_metrics[_run].append(test_metric)
             time_per_epoch.append(end_time - start_time)
@@ -227,35 +226,27 @@ def run(wandb, args):
             trainer.save_curve(run_folder)
             trainer.clear_stats()
 
-    best_val_losses = [np_mean(_) for _ in best_val_losses]
-    test_losses = [np_mean(_) for _ in test_losses]
-    best_val_metrics = [np_mean(_) for _ in best_val_metrics]
+    if args.early_stop.target == 'train_metric':
+        best_metrics = [np_mean(_) for _ in best_train_metrics]
+    else:
+        best_metrics = [np_mean(_) for _ in best_val_metrics]
     test_metrics = [np_mean(_) for _ in test_metrics]
 
-    results = {'best_val_losses': best_val_losses,
-               'test_losses': test_losses,
-               'best_val_metrics': best_val_metrics,
-               'test_metrics': test_metrics,
-               'val_loss_stats': f'mean: {np_mean(best_val_losses)}, std: {np_std(best_val_losses)}',
-               'test_loss_stats': f'mean: {np_mean(test_losses)}, std: {np_std(test_losses)}',
-               'val_metrics_stats': f'mean: {np_mean(best_val_metrics)}, std: {np_std(best_val_metrics)}',
+    results = {'best_metrics_type': args.early_stop.target,
+               'best_metrics': str(best_metrics),
+               'test_metrics': str(test_metrics),
+               'best_metrics_stats': f'mean: {np_mean(best_metrics)}, std: {np_std(best_metrics)}',
                'test_metrics_stats': f'mean: {np_mean(test_metrics)}, std: {np_std(test_metrics)}',
                'time_stats': f'mean: {np_mean(time_per_epoch)}, std: {np_std(time_per_epoch)}'}
 
-    with open(os.path.join(folder_name, 'results.txt'), 'wt') as f:
-        f.write(str(results))
+    with open(os.path.join(folder_name, 'result.yaml'), 'w') as outfile:
+        yaml.dump(results, outfile, default_flow_style=False)
 
-    wandb.run.summary['final_test_loss'] = np_mean(test_losses)
-    wandb.run.summary['final_test_std'] = np_std(test_losses)
+    wandb.run.summary['final_metric'] = np_mean(best_metrics)
+    wandb.run.summary['final_metric_std'] = np_std(best_metrics)
 
     wandb.run.summary['final_test_metric'] = np_mean(test_metrics)
     wandb.run.summary['final_test_metric_std'] = np_std(test_metrics)
-
-    wandb.run.summary['final_val_loss'] = np_mean(best_val_losses)
-    wandb.run.summary['final_val_std'] = np_std(best_val_losses)
-
-    wandb.run.summary['final_val_metric'] = np_mean(best_val_metrics)
-    wandb.run.summary['final_val_metric_std'] = np_std(best_val_metrics)
 
     wandb.run.summary['time_per_epoch'] = np_mean(time_per_epoch)
     wandb.run.summary['time_per_epoch_std'] = np_std(time_per_epoch)

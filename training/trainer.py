@@ -38,6 +38,7 @@ class Trainer:
                  dataset: str,
                  task_type: str,
                  max_patience: int,
+                 patience_target: str,
                  criterion: Loss,
                  device: Union[str, torch.device],
                  imle_configs: ConfigDict,
@@ -58,9 +59,12 @@ class Trainer:
         self.imle_configs = imle_configs
 
         self.best_val_loss = 1e5
+        self.best_train_loss = 1e5
         self.best_val_metric = None
+        self.best_train_metric = None
         self.patience = 0
         self.max_patience = max_patience
+        self.patience_target = patience_target
         self.auxloss = auxloss
 
         self.wandb = wandb
@@ -408,6 +412,7 @@ class Trainer:
 
         train_loss = train_losses.item() / num_graphs
         self.curves['train_loss'].append(train_loss)
+        self.best_train_loss = min(self.best_train_loss, train_loss)
 
         if isinstance(preds, list):
             preds = torch.cat(preds, dim=0)
@@ -503,9 +508,19 @@ class Trainer:
                 else:
                     scheduler_embd.step()
 
-            if self.metric_comparator(val_metric, self.best_val_metric):
-                self.best_val_metric = val_metric
+            if self.patience_target == 'val_metric':
+                is_better = self.metric_comparator(val_metric, self.best_val_metric)
+            elif self.patience_target == 'train_metric':
+                is_better = self.metric_comparator(train_metric, self.best_train_metric)
+            else:
+                raise NotImplementedError
+
+            if is_better:
                 self.patience = 0
+                if self.patience_target == 'val_metric':
+                    self.best_val_metric = val_metric
+                elif self.patience_target == 'train_metric':
+                    self.best_train_metric = train_metric
             else:
                 self.patience += 1
                 if self.patience > self.max_patience:
@@ -519,4 +534,6 @@ class Trainer:
         self.curves = defaultdict(list)
         self.best_val_loss = 1e5
         self.best_val_metric = None
+        self.best_train_loss = 1e5
+        self.best_train_metric = None
         self.patience = 0
