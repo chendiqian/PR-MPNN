@@ -31,7 +31,7 @@ from .data_utils import AttributedDataLoader
 
 NUM_WORKERS = 0
 
-DATASET = (PygGraphPropPredDataset, ZINC)
+DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -275,7 +275,7 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
     transform = get_transform(args)
 
-    depth = int(args.dataset.lower.split('_')[1])
+    depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
