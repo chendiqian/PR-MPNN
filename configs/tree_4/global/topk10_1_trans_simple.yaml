@@ -15,7 +15,7 @@ fixed:
     sampler: simple
     logits_activation: 'None'
     weight_edges: marginals
-    marginals_mask: False
+    marginals_mask: True
     num_val_ensemble: 1
 
     model: "transformer"
