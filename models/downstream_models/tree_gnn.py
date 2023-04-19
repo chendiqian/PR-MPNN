@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch_geometric.nn import global_mean_pool
 from models.my_convs import GINConv
 from models.nn_utils import BiEmbedding
 
@@ -78,5 +79,7 @@ class TreeGraphModel(torch.nn.Module):
                 x = self.layer_norms[i](x)
 
         root_nodes = x[roots]
+        if hasattr(data, 'inter_graph_idx'):
+            root_nodes = global_mean_pool(root_nodes, data.inter_graph_idx)
         logits = self.out_layer(root_nodes)
         return logits
