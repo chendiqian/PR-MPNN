@@ -8,6 +8,7 @@ from models.nn_modules import MLP
 
 class ZINC_GIN(torch.nn.Module):
     def __init__(self,
+                 encoder,
                  ensemble,
                  in_features,
                  num_layers,
@@ -18,6 +19,8 @@ class ZINC_GIN(torch.nn.Module):
                  graph_pooling='mean',
                  inter_graph_pooling=None):
         super(ZINC_GIN, self).__init__()
+
+        self.encoder = encoder
 
         if num_layers > 0:
             self.gnn = BaseGIN(in_features, num_layers, hidden)
@@ -57,14 +60,18 @@ class ZINC_GIN(torch.nn.Module):
             raise NotImplementedError
 
     def reset_parameters(self):
+        if self.encoder is not None:
+            self.encoder.reset_parameters()
         self.gnn.reset_parameters()
         self.mlp1.reset_parameters()
         if self.mlp2 is not None:
             self.mlp2.reset_parameters()
 
     def forward(self, data):
-        h_node = self.gnn(data)
+        if self.encoder is not None:
+            data.x = self.encoder(data)
 
+        h_node = self.gnn(data)
         if self.inter_graph_pooling is None or self.inter_graph_pooling == 'None':
             h_graph = self.pool(h_node, data.batch)
             if hasattr(data, 'inter_graph_idx'):

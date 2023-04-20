@@ -22,9 +22,23 @@ def get_model(args, device, *_args):
             drop_ratio=args.dropout,
         )
     elif args.model.lower() == 'zinc_gin':
+        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
+            # we encode the lap and rwse to the downstream model
+            encoder = FeatureEncoder(
+                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                hidden=args.input_feature,
+                type_encoder='linear',
+                lap_encoder=args.lap if hasattr(args, 'lap') else None,
+                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
+            input_feature = args.input_feature
+        else:
+            encoder = None
+            input_feature = DATASET_FEATURE_STAT_DICT['zinc']['node']
+
         model = ZINC_GIN(
+            encoder=encoder,
             ensemble=args.sample_configs.ensemble + int(args.sample_configs.include_original_graph),
-            in_features=DATASET_FEATURE_STAT_DICT['zinc']['node'],
+            in_features=input_feature,
             num_layers=args.num_convlayers,
             hidden=args.hid_size,
             num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
