@@ -178,13 +178,13 @@ class Trainer:
             # Maybe we should also try this with softmax?
             assert marginals is not None
             sampled_edge_weights = marginals[None].repeat(node_mask.shape[0], 1, 1, 1, 1)
-            if self.imle_configs.marginals_mask:
-                sampled_edge_weights = sampled_edge_weights * node_mask
-
         elif self.imle_configs.weight_edges == 'None' or self.imle_configs.weight_edges is None:
             sampled_edge_weights = node_mask
         else:
             raise ValueError(f"{self.imle_configs.weight_edges} not supported")
+
+        if self.imle_configs.marginals_mask or not train:
+            sampled_edge_weights = sampled_edge_weights * node_mask
 
         sampled_edge_weights = sampled_edge_weights.permute((1, 2, 3, 4, 0)).reshape(B, N, N, VE * E)
         edge_weight = sampled_edge_weights[real_node_node_mask].T.reshape(-1)
