@@ -57,9 +57,9 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
         extra_path += 'SPDaug_'
     if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
         extra_path += 'PPRaug_'
-    if hasattr(args.imle_configs, 'rwse'):
+    if hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse'):
         extra_path += 'rwse_'
-    if hasattr(args.imle_configs, 'lap'):
+    if hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap'):
         extra_path += 'lap_'
     if hasattr(args.imle_configs, 'attenbias'):
         extra_path += 'attenbias_'
@@ -107,9 +107,13 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
 
     if hasattr(args.imle_configs, 'rwse'):
         pretransform.append(AddRandomWalkPE(args.imle_configs.rwse.kernel, 'pestat_RWSE'))
+    elif hasattr(args, 'rwse'):
+        pretransform.append(AddRandomWalkPE(args.rwse.kernel, 'pestat_RWSE'))
 
     if hasattr(args.imle_configs, 'lap'):
         pretransform.append(AddLaplacianEigenvectorPE(args.imle_configs.lap.max_freqs, 'EigVecs', is_undirected=True))
+    elif hasattr(args, 'lap'):
+        pretransform.append(AddLaplacianEigenvectorPE(args.lap.max_freqs, 'EigVecs', is_undirected=True))
 
     if hasattr(args.imle_configs, 'attenbias'):
         pretransform.append(AugmentWithSpatialInfo(args.imle_configs.attenbias.num_spatial_types,
