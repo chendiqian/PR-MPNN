@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.nn import global_mean_pool, global_add_pool
+from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set
 
 from models.my_convs import GNN_Placeholder, BaseGIN
 from models.nn_utils import cat_pooling
@@ -48,6 +48,11 @@ class ZINC_GIN(torch.nn.Module):
             self.mlp1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
             self.inter_pool = cat_pooling
             self.mlp2 = MLP([hidden * ensemble] + [hidden] * (mlp_layers_intergraph - 1) + [num_classes], dropout=0.)
+        elif inter_graph_pooling == 'set2set':
+            assert mlp_layers_intergraph > 0
+            self.mlp1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
+            self.inter_pool = Set2Set(hidden, processing_steps=6)
+            self.mlp2 = MLP([hidden * 2] + [hidden] * (mlp_layers_intergraph - 1) + [num_classes], dropout=0.)
         else:
             raise NotImplementedError
 
@@ -65,7 +70,7 @@ class ZINC_GIN(torch.nn.Module):
             if hasattr(data, 'inter_graph_idx'):
                 h_graph = global_mean_pool(h_graph, data.inter_graph_idx)
             h_graph = self.mlp1(h_graph)
-        elif self.inter_graph_pooling in ['mean', 'cat']:
+        elif self.inter_graph_pooling in ['mean', 'cat', 'set2set']:
             h_graph = self.pool(h_node, data.batch)
             h_graph = self.mlp1(h_graph)
             # inter graph pooling
