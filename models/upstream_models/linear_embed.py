@@ -6,7 +6,7 @@ from torch_geometric.data import Data, Batch
 from torch_geometric.utils import to_dense_batch
 
 from models.my_convs import GINEConv
-from models.nn_utils import MLP
+from models.nn_modules import MLP
 
 
 class LinearEmbed(torch.nn.Module):

@@ -4,8 +4,10 @@ from data.const import DATASET_FEATURE_STAT_DICT
 from models.downstream_models.ogb_mol_gnn import OGBGNN
 from models.downstream_models.zinc_gin import ZINC_GIN
 from models.downstream_models.tree_gnn import TreeGraphModel
+from models.downstream_models.zinc_halftransformer import ZINC_HalfTransformer
 from models.upstream_models.linear_embed import LinearEmbed
-from models.upstream_models.transformer import FeatureEncoder, Transformer
+from models.upstream_models.transformer import Transformer
+from models.my_encoder import FeatureEncoder
 from models.upstream_models.graphormer import BiasEncoder, NodeEncoder, Graphormer
 
 
@@ -29,6 +31,29 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             mlp_layers_intergraph=args.mlp_layers_intergraph,
             inter_graph_pooling=args.inter_graph_pooling)
+    elif args.model.lower() == 'zinc_trans+gin':
+        encoder = FeatureEncoder(
+            dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+            hidden=args.tf_hid_size,
+            type_encoder='linear',
+            lap_encoder=args.lap if hasattr(args, 'lap') else None,
+            rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
+        model = ZINC_HalfTransformer(
+            encoder=encoder,
+            head=args.tf_head,
+            gnn_in_features=args.tf_hid_size,
+            num_layers=args.num_convlayers,
+            tf_layers=args.tf_layers,
+            hidden=args.hid_size,
+            tf_hidden=args.tf_hid_size,
+            dropout=args.tf_dropout,
+            attn_dropout=args.attn_dropout,
+            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+            mlp_layers_intragraph=args.mlp_layers_intragraph,
+            layer_norm=False,
+            batch_norm=True,
+            use_spectral_norm=True,
+        )
     elif args.model.lower().startswith('tree'):
         model = TreeGraphModel(gnn_type=args.model.lower().split('_')[1],
                                num_layers=args.num_convlayers,

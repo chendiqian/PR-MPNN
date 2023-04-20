@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch_geometric.nn import global_mean_pool
 from models.my_convs import GINConv
-from models.nn_utils import BiEmbedding
+from models.nn_modules import BiEmbedding
 
 
 def get_layer(gnn_type, in_dim, out_dim):

@@ -1,7 +1,4 @@
-from typing import List
-
 import torch
-from torch import nn as nn
 
 
 def residual(y_old: torch.Tensor, y_new: torch.Tensor) -> torch.Tensor:
@@ -25,50 +22,6 @@ def reset_modulelist_parameters(seq: torch.nn.ModuleList) -> None:
             l.reset_parameters()
 
 
-class OneHot(torch.nn.Module):
-    def __init__(self, num_classes: int, target_dtype: torch.dtype = torch.float):
-        super(OneHot, self).__init__()
-        self.num_classes = num_classes
-        self.target_dtype = target_dtype
-
-    def forward(self, x: torch.Tensor):
-        return torch.nn.functional.one_hot(x, self.num_classes).to(self.target_dtype)
-
-    def reset_parameters(self):
-        pass
-
-
-class MLP(torch.nn.Module):
-    def __init__(self, hidden_dims: List,
-                 batch_norm: bool = False,
-                 layer_norm: bool = False,
-                 dropout: float = 0.5,
-                 activate_last: bool = False):
-        super(MLP, self).__init__()
-
-        assert not (batch_norm and layer_norm)   # cannot be both true
-
-        num_layers = len(hidden_dims) - 1
-        modules = []
-        for i in range(num_layers):
-            modules.append(torch.nn.Linear(hidden_dims[i], hidden_dims[i + 1], bias=i < num_layers - 1))
-            if batch_norm and i < num_layers - 1:
-                modules.append(torch.nn.BatchNorm1d(hidden_dims[i + 1]))
-            if layer_norm and i < num_layers - 1:
-                modules.append(torch.nn.LayerNorm(hidden_dims[i + 1]))
-            if i < num_layers - 1 or activate_last:
-                modules.append(torch.nn.ReLU())
-                modules.append(torch.nn.Dropout(p=dropout))
-
-        self.mlp = torch.nn.Sequential(*modules)
-
-    def forward(self, x):
-        return self.mlp(x)
-
-    def reset_parameters(self):
-        reset_sequential_parameters(self.mlp)
-
-
 def cat_pooling(x, graph_idx):
     """
 
@@ -88,23 +41,3 @@ def cat_pooling(x, graph_idx):
     ensemble_idx = torch.arange(n_ensemble, device=x.device).repeat_interleave(n_graphs)
     new_x[graph_idx, ensemble_idx, :] = x
     return new_x.reshape(n_graphs, -1)
-
-
-class BiEmbedding(torch.nn.Module):
-    def __init__(self,
-                 dim_in,
-                 hidden,):
-        super(BiEmbedding, self).__init__()
-        self.layer0_keys = nn.Embedding(num_embeddings=dim_in + 1, embedding_dim=hidden)
-        self.layer0_values = nn.Embedding(num_embeddings=dim_in + 1, embedding_dim=hidden)
-
-    def forward(self, x):
-        x_key, x_val = x[:, 0], x[:, 1]
-        x_key_embed = self.layer0_keys(x_key)
-        x_val_embed = self.layer0_values(x_val)
-        x = x_key_embed + x_val_embed
-        return x
-
-    def reset_parameters(self):
-        self.layer0_keys.reset_parameters()
-        self.layer0_values.reset_parameters()

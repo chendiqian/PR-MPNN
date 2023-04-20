@@ -2,15 +2,14 @@ import torch
 from torch_geometric.utils import to_dense_batch, to_dense_adj
 
 from models.nn_utils import reset_sequential_parameters
-from models.upstream_models.my_attention_layer import AttentionLayer
-
-# Permutes from (batch, node, node, head) to (batch, head, node, node)
-BATCH_HEAD_NODE_NODE = (0, 3, 1, 2)
-# Inserts a leading 0 row and a leading 0 column with F.pad
-INSERT_GRAPH_TOKEN = (1, 0, 1, 0)
+from models.nn_modules import AttentionLayer
 
 
 class BiasEncoder(torch.nn.Module):
+    # Permutes from (batch, node, node, head) to (batch, head, node, node)
+    BATCH_HEAD_NODE_NODE = (0, 3, 1, 2)
+    # Inserts a leading 0 row and a leading 0 column with F.pad
+    INSERT_GRAPH_TOKEN = (1, 0, 1, 0)
     def __init__(self, num_heads: int, num_spatial_types: int,
                  num_edge_types: int, use_graph_token: bool = False):
         """Implementation of the bias encoder of Graphormer.

@@ -1,56 +1,9 @@
 import torch
-from torch.nn import Linear, Sequential, ReLU, BatchNorm1d as BN
 from torch_geometric.nn import global_mean_pool, global_add_pool
 
-from models.my_convs import GINConv, GNN_Placeholder
-from models.nn_utils import residual, MLP, cat_pooling
-
-
-class BaseGIN(torch.nn.Module):
-    def __init__(self, in_features, num_layers, hidden):
-        super(BaseGIN, self).__init__()
-
-        assert num_layers > 0
-        self.conv1 = GINConv(
-            hidden,
-            Sequential(
-                Linear(in_features, hidden),
-                ReLU(),
-                Linear(hidden, hidden),
-                BN(hidden),
-                ReLU(),
-            ),
-        )
-
-        self.convs = torch.nn.ModuleList()
-        for i in range(num_layers - 1):
-            self.convs.append(
-                GINConv(
-                    hidden,
-                    Sequential(
-                        Linear(hidden, hidden),
-                        ReLU(),
-                        Linear(hidden, hidden),
-                        BN(hidden),
-                        ReLU(),
-                    ))
-                )
-
-    def reset_parameters(self):
-        self.conv1.reset_parameters()
-        for conv in self.convs:
-            conv.reset_parameters()
-
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        edge_weight = data.edge_weight
-
-        x = self.conv1(x, edge_index, edge_weight)
-        for conv in self.convs:
-            x_new = conv(x, edge_index, edge_weight)
-            x = residual(x, x_new)
-
-        return x
+from models.my_convs import GNN_Placeholder, BaseGIN
+from models.nn_utils import cat_pooling
+from models.nn_modules import MLP
 
 
 class ZINC_GIN(torch.nn.Module):

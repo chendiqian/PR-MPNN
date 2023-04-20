@@ -1,11 +1,13 @@
 from typing import Optional, Union, Tuple
 
 import torch
+from torch.nn import Sequential, Linear, ReLU, BatchNorm1d as BN
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import degree
 
 from .my_encoder import BondEncoder
-from .nn_utils import reset_sequential_parameters, MLP
+from .nn_utils import reset_sequential_parameters, residual
+from .nn_modules import MLP
 
 
 class GCNConv(MessagePassing):
@@ -187,3 +189,50 @@ class GNN_Placeholder(torch.nn.Module):
 
     def reset_parameters(self):
         pass
+
+
+class BaseGIN(torch.nn.Module):
+    def __init__(self, in_features, num_layers, hidden):
+        super(BaseGIN, self).__init__()
+
+        assert num_layers > 0
+        self.conv1 = GINConv(
+            hidden,
+            Sequential(
+                Linear(in_features, hidden),
+                ReLU(),
+                Linear(hidden, hidden),
+                BN(hidden),
+                ReLU(),
+            ),
+        )
+
+        self.convs = torch.nn.ModuleList()
+        for i in range(num_layers - 1):
+            self.convs.append(
+                GINConv(
+                    hidden,
+                    Sequential(
+                        Linear(hidden, hidden),
+                        ReLU(),
+                        Linear(hidden, hidden),
+                        BN(hidden),
+                        ReLU(),
+                    ))
+                )
+
+    def reset_parameters(self):
+        self.conv1.reset_parameters()
+        for conv in self.convs:
+            conv.reset_parameters()
+
+    def forward(self, data):
+        x, edge_index = data.x, data.edge_index
+        edge_weight = data.edge_weight
+
+        x = self.conv1(x, edge_index, edge_weight)
+        for conv in self.convs:
+            x_new = conv(x, edge_index, edge_weight)
+            x = residual(x, x_new)
+
+        return x
