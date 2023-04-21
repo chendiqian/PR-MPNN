@@ -186,30 +186,39 @@ class Trainer:
         if self.imle_configs.marginals_mask or not train:
             sampled_edge_weights = sampled_edge_weights * node_mask
 
-        sampled_edge_weights = sampled_edge_weights.permute((1, 2, 3, 4, 0)).reshape(B, N, N, VE * E)
-        edge_weight = sampled_edge_weights[real_node_node_mask].T.reshape(-1)
+        # B x E x VE
+        edge_weight = sampled_edge_weights.permute((1, 2, 3, 4, 0))[real_node_node_mask]
+        edge_weight = edge_weight.permute(2, 1, 0).reshape(VE, -1)
+
+        if self.include_original_graph:
+            edge_weight = torch.cat([edge_weight, edge_weight.new_ones(VE, dat_batch.num_edges)], dim=1)
 
         new_graphs = [g.clone() for g in graphs]
         batchsize = len(new_graphs)
         for g in new_graphs:
             g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
-        new_graphs = new_graphs * (VE * E)
+        new_graphs = new_graphs * E
         if self.include_original_graph:
             new_graphs += graphs
-            
-        if self.include_original_graph:
-            edge_weight = torch.cat([edge_weight, edge_weight.new_ones(dat_batch.num_edges)], dim=0)
         new_batch = Batch.from_data_list(new_graphs)
-        if train:
-            new_batch.edge_weight = edge_weight
-        else:
-            nonzero_idx = torch.where(edge_weight)[0]
-            new_batch.edge_index = new_batch.edge_index[:, nonzero_idx]
-            new_batch.edge_weight = edge_weight[nonzero_idx]
-
         new_batch.y = dat_batch.y
-        new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat((VE * E) + int(self.include_original_graph))
-        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+        new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat(E + int(self.include_original_graph))
+
+        if train:
+            assert VE == 1, "Does not support voting during training"
+            new_batch.edge_weight = edge_weight.squeeze()
+            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+        else:
+            # we have majority voting batching
+            new_batches = []
+            for i in range(VE):
+                g = new_batch.clone()
+                nonzero_idx = edge_weight[i].nonzero().reshape(-1)
+                g.edge_index = new_batch.edge_index[:, nonzero_idx]
+                g.edge_weight = edge_weight[i, nonzero_idx]
+                new_batches.append(g)
+            return new_batches, output_logits.detach() * real_node_node_mask[..., None], auxloss
+
 
     def plot(self, new_batch: Batch):
         """Plot graphs and edge weights.        
@@ -454,16 +463,20 @@ class Trainer:
 
         for data in dataloader.loader:
             data = self.check_datatype(data)
-            data, _, _ = self.construct_duplicate_data(data, emb_model)
+            datas, _, _ = self.construct_duplicate_data(data, emb_model)
 
-            pred = model(data)
+            if not isinstance(datas, list):
+                datas = [datas]
 
-            if dataloader.std is not None:
-                preds.append(pred * dataloader.std)
-                labels.append(data.y.to(torch.float) * dataloader.std)
-            else:
-                preds.append(pred)
-                labels.append(data.y)
+            for data in datas:
+                pred = model(data)
+
+                if dataloader.std is not None:
+                    preds.append(pred * dataloader.std)
+                    labels.append(data.y.to(torch.float) * dataloader.std)
+                else:
+                    preds.append(pred)
+                    labels.append(data.y)
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
