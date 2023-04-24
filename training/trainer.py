@@ -220,8 +220,9 @@ class Trainer:
             new_batches = Batch.from_data_list(new_batches)
             # batchsize * E
             num_graphs_per_val_ensemble = dat_batch.num_graphs * (E + int(self.include_original_graph))
-            inter_graph_idx_rel = torch.arange(VE).to(self.device).repeat_interleave(num_graphs_per_val_ensemble) * dat_batch.num_graphs
+            inter_graph_idx_rel = torch.arange(VE, device=self.device).repeat_interleave(num_graphs_per_val_ensemble) * dat_batch.num_graphs
             new_batches.inter_graph_idx += inter_graph_idx_rel
+            new_batches.val_ensemble_idx = torch.arange(dat_batch.num_graphs, device=self.device).repeat(VE)
             return new_batches, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
 
