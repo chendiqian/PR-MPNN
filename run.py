@@ -105,7 +105,7 @@ def run(wandb, args):
 
     task_type = TASK_TYPE_DICT[args.dataset.lower()]
     criterion = CRITERION_DICT[args.dataset.lower()]    
-    
+
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=task_type,
                       max_patience=args.early_stop.patience,
@@ -182,8 +182,9 @@ def run(wandb, args):
                            "up_lr": scheduler_embd.get_last_lr()[
                                -1] if emb_model is not None else 0.})
                 
-                # log a histogram with val uncertainty estimates to wandb
-                wandb.log({"val_preds_uncertainty": wandb.Histogram(val_preds_uncertainty.cpu().numpy())})
+                if args.imle_configs.num_val_ensemble > 1:
+                    # log a histogram with val uncertainty estimates to wandb
+                    wandb.log({"val_preds_uncertainty": wandb.Histogram(val_preds_uncertainty.cpu().numpy())})
 
                 if epoch % 50 == 0:
                     torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')

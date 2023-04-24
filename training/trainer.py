@@ -481,7 +481,7 @@ class Trainer:
             data, _, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
-
+            label = data.y
             # Todo: use the commented code if you want to report std etc.
             # batchsize x val_ensemble x num_classes
             # pred = pred.reshape(*(-1, num_graphs) + pred.shape[1:]).transpose(0, 1)
