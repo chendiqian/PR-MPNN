@@ -467,6 +467,11 @@ class Trainer:
         preds = []
         labels = []
 
+        preds_ensemble = []
+        labels_ensemble = []
+
+        preds_uncertainty = []
+
         for data in dataloader.loader:
             data = self.check_datatype(data)
             if isinstance(data, Data):
@@ -481,17 +486,49 @@ class Trainer:
             # batchsize x val_ensemble x num_classes
             # pred = pred.reshape(*(-1, num_graphs) + pred.shape[1:]).transpose(0, 1)
 
+            pred_ensemble = pred.reshape(*(-1, num_graphs) + pred.shape[1:]).transpose(0, 1)
+
+            # For classification we should use something like the entropy of the mean prediction
+            # i.e. we have (B_SZ, N_ENS, N_CLASSES)->(B_SZ, 1, N_CLASSES)->compute entropy over N_CLASSES
+            pred_uncertainty = pred_ensemble.std(dim=1)
+            pred_ensemble = pred_ensemble.mean(dim=1)
+
+            label_ensemble = data.y.reshape(*(-1, num_graphs) + data.y.shape[1:]).transpose(0, 1)
+            label_ensemble = label_ensemble[:, 0, :]
+
+            # Momentarly it's useful just for checkpointing (avg(loss(pred)) vs loss(avg(pred))).
+            # We should do something similar during training.
+            if self.imle_configs.ensemble_avg == 'before':
+                pred = pred_ensemble
+                label = label_ensemble
+            elif self.imle_configs.ensemble_avg == 'after':
+                pred_ensemble = pred_ensemble.detach()
+                label_ensemble = label_ensemble.detach()
+            else:
+                raise NotImplementedError
+
             if dataloader.std is not None:
                 preds.append(pred * dataloader.std)
-                labels.append(data.y.to(torch.float) * dataloader.std)
+                preds_ensemble.append(pred_ensemble * dataloader.std)
+                labels.append(label * dataloader.std)
+                labels_ensemble.append(label_ensemble.to(torch.float) * dataloader.std)
+                preds_uncertainty.append(pred_uncertainty)
             else:
                 preds.append(pred)
-                labels.append(data.y)
+                preds_ensemble.append(pred_ensemble)
+                labels.append(label)
+                labels_ensemble.append(label_ensemble.to(torch.float))
+                preds_uncertainty.append(pred_uncertainty)
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
+        preds_ensemble = torch.cat(preds_ensemble, dim=0)
+        labels_ensemble = torch.cat(labels_ensemble, dim=0)
+        preds_uncertainty = torch.cat(preds_uncertainty, dim=0)
+
         is_labeled = labels == labels
         val_loss = self.criterion(preds[is_labeled], labels[is_labeled]).item()
+        val_loss_ensemble = self.criterion(preds_ensemble[is_labeled], labels_ensemble[is_labeled]).item()
         if self.task_type == 'rocauc':
             val_metric = eval_rocauc(labels, preds)
         elif self.task_type == 'regression':  # not specified regression loss type
@@ -548,7 +585,7 @@ class Trainer:
                 self.patience += 1
                 if self.patience > self.max_patience:
                     early_stop = True
-        return val_loss, val_metric, early_stop
+        return val_loss, val_metric, val_loss_ensemble, preds_uncertainty, early_stop
 
     def save_curve(self, path):
         pickle.dump(self.curves, open(os.path.join(path, 'curves.pkl'), "wb"))

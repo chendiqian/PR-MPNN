@@ -104,8 +104,8 @@ def run(wandb, args):
     train_loaders, val_loaders, test_loaders = get_data(args, device)
 
     task_type = TASK_TYPE_DICT[args.dataset.lower()]
-    criterion = CRITERION_DICT[args.dataset.lower()]
-
+    criterion = CRITERION_DICT[args.dataset.lower()]    
+    
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=task_type,
                       max_patience=args.early_stop.patience,
@@ -151,14 +151,15 @@ def run(wandb, args):
                                                          model,
                                                          optimizer_embd,
                                                          optimizer)
-                val_loss, val_metric, early_stop = trainer.inference(val_loader,
-                                                                     emb_model,
-                                                                     model,
-                                                                     scheduler_embd,
-                                                                     scheduler,
-                                                                     train_loss,
-                                                                     train_metric,
-                                                                     test=False)
+                
+                val_loss, val_metric, val_loss_ensemble, val_preds_uncertainty, early_stop = trainer.inference(val_loader,
+                                                                                                           emb_model,
+                                                                                                           model,
+                                                                                                           scheduler_embd,
+                                                                                                           scheduler,
+                                                                                                           train_loss,
+                                                                                                           train_metric,
+                                                                                                           test=False)
 
                 if epoch > args.min_epochs and early_stop:
                     logger.info('early stopping')
@@ -169,15 +170,20 @@ def run(wandb, args):
                             f'val loss: {round(val_loss, 5)}, '
                             f'patience: {trainer.patience}, '
                             f'training metric: {round(train_metric, 5)}, '
-                            f'val metric: {round(val_metric, 5)}')
+                            f'val metric: {round(val_metric, 5)}, '
+                            f'val loss ensemble: {round(val_loss_ensemble, 5)}')
 
                 wandb.log({"train_loss": train_loss,
                            "val_loss": val_loss,
                            "train_metric": train_metric,
                            "val_metric": val_metric,
+                           "val_loss_ensemble": val_loss_ensemble,
                            "down_lr": scheduler.get_last_lr()[-1],
                            "up_lr": scheduler_embd.get_last_lr()[
                                -1] if emb_model is not None else 0.})
+                
+                # log a histogram with val uncertainty estimates to wandb
+                wandb.log({"val_preds_uncertainty": wandb.Histogram(val_preds_uncertainty.cpu().numpy())})
 
                 if epoch % 50 == 0:
                     torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')
@@ -208,13 +214,14 @@ def run(wandb, args):
                 emb_model.load_state_dict(torch.load(f'{run_folder}/embd_model_best.pt'))
 
             start_time = epoch_timer.synctimer()
-            test_loss, test_metric, _ = trainer.inference(test_loader, emb_model, model,
-                                                          test=True)
+            test_loss, test_metric, test_loss_ensemble, test_preds_uncertainty, _ = trainer.inference(test_loader, emb_model, model,
+                                                                                                     test=True)
             end_time = epoch_timer.synctimer()
             logger.info(f'Best val loss: {trainer.best_val_loss}')
             logger.info(f'Best val metric: {trainer.best_val_metric}')
             logger.info(f'test loss: {test_loss}')
             logger.info(f'test metric: {test_metric}')
+            logger.info(f'test loss ensemble: {test_loss_ensemble}')
             logger.info(f'max_memory_allocated: {torch.cuda.max_memory_allocated()}')
             logger.info(f'memory_allocated: {torch.cuda.memory_allocated()}')
 
