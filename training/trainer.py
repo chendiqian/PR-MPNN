@@ -527,8 +527,9 @@ class Trainer:
         preds_uncertainty = torch.cat(preds_uncertainty, dim=0)
 
         is_labeled = labels == labels
+        is_labeled_ens = labels_ensemble == labels_ensemble
         val_loss = self.criterion(preds[is_labeled], labels[is_labeled]).item()
-        val_loss_ensemble = self.criterion(preds_ensemble[is_labeled], labels_ensemble[is_labeled]).item()
+        val_loss_ensemble = self.criterion(preds_ensemble[is_labeled_ens], labels_ensemble[is_labeled_ens]).item()
         if self.task_type == 'rocauc':
             val_metric = eval_rocauc(labels, preds)
         elif self.task_type == 'regression':  # not specified regression loss type
