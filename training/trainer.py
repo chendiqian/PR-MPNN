@@ -217,6 +217,11 @@ class Trainer:
                 g.edge_index = new_batch.edge_index[:, nonzero_idx]
                 g.edge_weight = edge_weight[i, nonzero_idx]
                 new_batches.append(g)
+            new_batches = Batch.from_data_list(new_batches)
+            # batchsize * E
+            num_graphs_per_val_ensemble = dat_batch.num_graphs * (E + int(self.include_original_graph))
+            inter_graph_idx_rel = torch.arange(VE).to(self.device).repeat_interleave(num_graphs_per_val_ensemble) * dat_batch.num_graphs
+            new_batches.inter_graph_idx += inter_graph_idx_rel
             return new_batches, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
 
@@ -463,20 +468,16 @@ class Trainer:
 
         for data in dataloader.loader:
             data = self.check_datatype(data)
-            datas, _, _ = self.construct_duplicate_data(data, emb_model)
+            data, _, _ = self.construct_duplicate_data(data, emb_model)
 
-            if not isinstance(datas, list):
-                datas = [datas]
+            pred = model(data)
 
-            for data in datas:
-                pred = model(data)
-
-                if dataloader.std is not None:
-                    preds.append(pred * dataloader.std)
-                    labels.append(data.y.to(torch.float) * dataloader.std)
-                else:
-                    preds.append(pred)
-                    labels.append(data.y)
+            if dataloader.std is not None:
+                preds.append(pred * dataloader.std)
+                labels.append(data.y.to(torch.float) * dataloader.std)
+            else:
+                preds.append(pred)
+                labels.append(data.y)
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
