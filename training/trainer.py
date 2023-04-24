@@ -222,7 +222,7 @@ class Trainer:
             num_graphs_per_val_ensemble = dat_batch.num_graphs * (E + int(self.include_original_graph))
             inter_graph_idx_rel = torch.arange(VE, device=self.device).repeat_interleave(num_graphs_per_val_ensemble) * dat_batch.num_graphs
             new_batches.inter_graph_idx += inter_graph_idx_rel
-            new_batches.val_ensemble_idx = torch.arange(dat_batch.num_graphs, device=self.device).repeat(VE)
+            # new_batches.val_ensemble_idx = torch.arange(dat_batch.num_graphs, device=self.device).repeat(VE)
             return new_batches, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
 
@@ -469,9 +469,17 @@ class Trainer:
 
         for data in dataloader.loader:
             data = self.check_datatype(data)
+            if isinstance(data, Data):
+                num_graphs = data.num_graphs
+            else:
+                num_graphs = data[0].num_graphs
             data, _, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
+
+            # Todo: use the commented code if you want to report std etc.
+            # batchsize x val_ensemble x num_classes
+            # pred = pred.reshape(*(-1, num_graphs) + pred.shape[1:]).transpose(0, 1)
 
             if dataloader.std is not None:
                 preds.append(pred * dataloader.std)
