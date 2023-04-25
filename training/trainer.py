@@ -110,8 +110,10 @@ class Trainer:
             else:
                 raise ValueError
 
-        if sample_configs.sample_policy is None or imle_configs is None:
+        if sample_configs.sample_policy is None:
             self.construct_duplicate_data = lambda x, *args: (x, None, None)
+        elif imle_configs is None:
+            self.construct_duplicate_data = lambda x, *args: (x[0], None, None)
         elif imle_configs is not None:
             self.construct_duplicate_data = self.diffable_rewire
 
@@ -452,7 +454,7 @@ class Trainer:
             if isinstance(data, Data):
                 num_graphs = data.num_graphs
             else:
-                num_graphs = data[0].num_graphs
+                num_graphs = len(data[1])
             data, _, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
@@ -463,7 +465,7 @@ class Trainer:
 
             # For classification we should use something like the entropy of the mean prediction
             # i.e. we have (B_SZ, N_ENS, N_CLASSES)->(B_SZ, 1, N_CLASSES)->compute entropy over N_CLASSES
-            pred_uncertainty = pred_ensemble.std(dim=1)
+            pred_uncertainty = pred_ensemble.cpu().numpy().std(1)
             pred_ensemble = pred_ensemble.mean(dim=1)
 
             dataset_std = 1 if dataloader.std is None else dataloader.std
@@ -477,7 +479,7 @@ class Trainer:
         labels = torch.cat(labels, dim=0)
         preds_ensemble = torch.cat(preds_ensemble, dim=0)
         labels_ensemble = torch.cat(labels_ensemble, dim=0)
-        preds_uncertainty = torch.cat(preds_uncertainty, dim=0)
+        preds_uncertainty = np.concatenate(preds_uncertainty, axis=0)
 
         is_labeled = labels == labels
         is_labeled_ens = labels_ensemble == labels_ensemble
@@ -498,7 +500,7 @@ class Trainer:
                                 "val_metric_ensemble": val_metric_ensemble,
                                 "down_lr": scheduler.get_last_lr()[-1],
                                 "up_lr": scheduler_embd.get_last_lr()[-1] if emb_model is not None else 0.,
-                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty.cpu().numpy())})
+                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty)})
 
             self.best_val_loss = min(self.best_val_loss, val_loss)
 

@@ -461,13 +461,14 @@ def my_collate_fn(graphs: List[List]):
     Returns:
 
     """
+    original_graphs = [l[-1] for l in graphs]
     ordered_graphs = reduce(lambda a, b: a+b, [g for g in zip(*graphs)])
     new_batch = Batch.from_data_list(ordered_graphs)
     repeats = len(graphs[0])
     batchsize = len(graphs)
     new_batch.inter_graph_idx = torch.arange(batchsize).repeat(repeats)
     new_batch.y = torch.cat([g[0].y for g in graphs], dim=0)
-    return new_batch
+    return new_batch, original_graphs
 
 
 def collate_fn_with_origin_list(graphs: List[Data]):
