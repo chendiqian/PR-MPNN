@@ -17,7 +17,6 @@ fixed:
     weight_edges: marginals
     marginals_mask: False
     num_val_ensemble: 5
-    ensemble_avg: 'before' # before: avg before computing loss; after: avg after computing loss
 
     model: "transformer"
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51

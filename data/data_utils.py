@@ -1,7 +1,7 @@
 import math
 import time
 from collections import namedtuple
-from typing import Union, Optional, Dict, Any
+from typing import Union, Optional, Dict, Any, Tuple
 
 import torch
 import torch.optim as optim
@@ -73,14 +73,18 @@ class IsBetter:
     def __init__(self, task_type):
         self.task_type = task_type
 
-    def __call__(self, val1: float, val2: Optional[float]) -> bool:
+    def __call__(self, val1: float, val2: Optional[float]) -> Tuple[bool, float]:
         if val2 is None:
-            return True
+            return True, val1
 
-        if self.task_type in ['regression', 'rmse']:
-            return val1 < val2
+        if self.task_type in ['regression', 'rmse', 'mae']:
+            better = val1 < val2
+            the_better = val1 if better else val2
+            return better, the_better
         elif self.task_type in ['rocauc', 'acc']:
-            return val1 > val2
+            better = val1 > val2
+            the_better = val1 if better else val2
+            return better, the_better
         else:
             raise ValueError
 

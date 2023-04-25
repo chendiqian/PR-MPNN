@@ -124,6 +124,7 @@ def run(wandb, args):
     best_train_metrics = [[] for _ in range(args.num_runs)]
     best_val_metrics = [[] for _ in range(args.num_runs)]
     test_metrics = [[] for _ in range(args.num_runs)]
+    test_metrics_ensemble = [[] for _ in range(args.num_runs)]
     time_per_epoch = []
 
     get_embed_opt = make_get_embed_opt(args)
@@ -152,14 +153,15 @@ def run(wandb, args):
                                                          optimizer_embd,
                                                          optimizer)
                 
-                val_loss, val_metric, val_loss_ensemble, val_preds_uncertainty, early_stop = trainer.inference(val_loader,
-                                                                                                           emb_model,
-                                                                                                           model,
-                                                                                                           scheduler_embd,
-                                                                                                           scheduler,
-                                                                                                           train_loss,
-                                                                                                           train_metric,
-                                                                                                           test=False)
+                val_loss, val_metric, val_loss_ensemble, val_metric_ensemble, early_stop = trainer.inference(
+                    val_loader,
+                    emb_model,
+                    model,
+                    scheduler_embd,
+                    scheduler,
+                    train_loss,
+                    train_metric,
+                    test=False)
 
                 if epoch > args.min_epochs and early_stop:
                     logger.info('early stopping')
@@ -171,20 +173,8 @@ def run(wandb, args):
                             f'patience: {trainer.patience}, '
                             f'training metric: {round(train_metric, 5)}, '
                             f'val metric: {round(val_metric, 5)}, '
-                            f'val loss ensemble: {round(val_loss_ensemble, 5)}')
-
-                wandb.log({"train_loss": train_loss,
-                           "val_loss": val_loss,
-                           "train_metric": train_metric,
-                           "val_metric": val_metric,
-                           "val_loss_ensemble": val_loss_ensemble,
-                           "down_lr": scheduler.get_last_lr()[-1],
-                           "up_lr": scheduler_embd.get_last_lr()[
-                               -1] if emb_model is not None else 0.})
-                
-                if args.imle_configs.num_val_ensemble > 1:
-                    # log a histogram with val uncertainty estimates to wandb
-                    wandb.log({"val_preds_uncertainty": wandb.Histogram(val_preds_uncertainty.cpu().numpy())})
+                            f'val loss ensemble: {round(val_loss_ensemble, 5)}, '
+                            f'val metric ensemble: {round(val_metric_ensemble, 5)}')
 
                 if epoch % 50 == 0:
                     torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')
@@ -215,36 +205,39 @@ def run(wandb, args):
                 emb_model.load_state_dict(torch.load(f'{run_folder}/embd_model_best.pt'))
 
             start_time = epoch_timer.synctimer()
-            test_loss, test_metric, test_loss_ensemble, test_preds_uncertainty, _ = trainer.inference(test_loader, emb_model, model,
-                                                                                                     test=True)
+            test_loss, test_metric, test_loss_ensemble, test_metric_ensemble, _ = trainer.inference(test_loader, emb_model, model, test=True)
             end_time = epoch_timer.synctimer()
             logger.info(f'Best val loss: {trainer.best_val_loss}')
             logger.info(f'Best val metric: {trainer.best_val_metric}')
             logger.info(f'test loss: {test_loss}')
             logger.info(f'test metric: {test_metric}')
             logger.info(f'test loss ensemble: {test_loss_ensemble}')
-            logger.info(f'max_memory_allocated: {torch.cuda.max_memory_allocated()}')
-            logger.info(f'memory_allocated: {torch.cuda.memory_allocated()}')
+            logger.info(f'test metric ensemble: {test_metric_ensemble}')
 
             best_train_metrics[_run].append(trainer.best_train_metric)
             best_val_metrics[_run].append(trainer.best_val_metric)
             test_metrics[_run].append(test_metric)
+            test_metrics_ensemble[_run].append(test_metric_ensemble)
             time_per_epoch.append(end_time - start_time)
 
-            trainer.save_curve(run_folder)
             trainer.clear_stats()
 
     if args.early_stop.target == 'train_metric':
         best_metrics = [np_mean(_) for _ in best_train_metrics]
-    else:
+    elif args.early_stop.target == 'val_metric':
         best_metrics = [np_mean(_) for _ in best_val_metrics]
+    else:
+        raise NotImplementedError
     test_metrics = [np_mean(_) for _ in test_metrics]
+    test_metrics_ensemble = [np_mean(_) for _ in test_metrics_ensemble]
 
     results = {'best_metrics_type': args.early_stop.target,
                'best_metrics': str(best_metrics),
                'test_metrics': str(test_metrics),
+               'test_metrics_ensemble': str(test_metrics_ensemble),
                'best_metrics_stats': f'mean: {np_mean(best_metrics)}, std: {np_std(best_metrics)}',
                'test_metrics_stats': f'mean: {np_mean(test_metrics)}, std: {np_std(test_metrics)}',
+               'test_metrics_ensemble_stats': f'mean: {np_mean(test_metrics_ensemble)}, std: {np_std(test_metrics_ensemble)}',
                'time_stats': f'mean: {np_mean(time_per_epoch)}, std: {np_std(time_per_epoch)}'}
 
     with open(os.path.join(folder_name, 'result.yaml'), 'w') as outfile:
@@ -255,6 +248,9 @@ def run(wandb, args):
 
     wandb.run.summary['final_test_metric'] = np_mean(test_metrics)
     wandb.run.summary['final_test_metric_std'] = np_std(test_metrics)
+
+    wandb.run.summary['final_test_metric_ensemble'] = np_mean(test_metrics_ensemble)
+    wandb.run.summary['final_test_metric_ensemble_std'] = np_std(test_metrics_ensemble)
 
     wandb.run.summary['time_per_epoch'] = np_mean(time_per_epoch)
     wandb.run.summary['time_per_epoch_std'] = np_std(time_per_epoch)

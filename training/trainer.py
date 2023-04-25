@@ -1,6 +1,4 @@
 import os
-import pickle
-from collections import defaultdict
 from math import ceil, sqrt
 from typing import Any, Optional, Union, Tuple, List
 
@@ -9,12 +7,12 @@ import seaborn as sns
 import networkx as nx
 import numpy as np
 import torch
-import torch_geometric.utils as pyg_utils
+from torch_geometric.utils import to_networkx, degree
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
 
 from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax, MyPlateau
-from data.metrics import eval_acc, eval_rmse, eval_rocauc
+from data.metrics import get_eval
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
@@ -70,8 +68,6 @@ class Trainer:
         self.wandb = wandb
         self.use_wandb = use_wandb
         self.plot_args = plot_args
-
-        self.curves = defaultdict(list)
 
         self.epoch = None
 
@@ -238,7 +234,7 @@ class Trainer:
         new_batch_plot = new_batch.to_data_list()
         if hasattr(new_batch, 'edge_weight') and new_batch.edge_weight is not None:
             src, dst = new_batch.edge_index
-            sections = pyg_utils.degree(new_batch.batch[src], dtype=torch.long).tolist()
+            sections = degree(new_batch.batch[src], dtype=torch.long).tolist()
             weights_split = torch.split(new_batch.edge_weight, split_size_or_sections=sections)
         else:
             weights_split = [None] * len(new_batch_plot)
@@ -273,7 +269,7 @@ class Trainer:
 
         if self.include_original_graph:
             original_graphs_networkx = [
-                pyg_utils.convert.to_networkx(
+                to_networkx(
                     g,
                     to_undirected=True,
                     remove_self_loops=True
@@ -290,7 +286,7 @@ class Trainer:
 
             graph_version = 'original' if i >= (unique_graphs * n_ensemble) else 'rewired'
             if graph_version == 'rewired':
-                g_nx = pyg_utils.convert.to_networkx(g)
+                g_nx = to_networkx(g)
             else:
                 assert original_graphs_networkx is not None
                 g_nx = original_graphs_networkx[graph_id]
@@ -329,7 +325,6 @@ class Trainer:
                 self.wandb.log({f"graph_{graph_id}": self.wandb.Image(plot['fig'])}, step=self.epoch)
 
             plt.close(plot['fig'])
-
 
 
     def plot_score(self, scores: torch.Tensor):
@@ -383,11 +378,8 @@ class Trainer:
 
         model.train()
         train_losses = torch.tensor(0., device=self.device)
-        if self.task_type != 'regression':
-            preds = []
-            labels = []
-        else:
-            preds, labels = None, None
+        preds = []
+        labels = []
         num_graphs = 0
 
         for batch_id, data in enumerate(dataloader.loader):
@@ -415,9 +407,8 @@ class Trainer:
                     optimizer_embd.zero_grad()
 
             num_graphs += data.num_graphs
-            if isinstance(preds, list):
-                preds.append(pred)
-                labels.append(data.y)
+            preds.append(pred)
+            labels.append(data.y)
 
             if self.plot_args is not None:
                 if batch_id == self.plot_args.batch_id and self.epoch % self.plot_args.plot_every == 0:
@@ -426,27 +417,11 @@ class Trainer:
                         self.plot_score(scores)
 
         train_loss = train_losses.item() / num_graphs
-        self.curves['train_loss'].append(train_loss)
         self.best_train_loss = min(self.best_train_loss, train_loss)
 
-        if isinstance(preds, list):
-            preds = torch.cat(preds, dim=0)
-            labels = torch.cat(labels, dim=0)
-            if self.task_type == 'rocauc':
-                train_metric = eval_rocauc(labels, preds)
-            elif self.task_type == 'rmse':
-                train_metric = eval_rmse(labels, preds)
-            elif self.task_type == 'acc':
-                if preds.shape[1] == 1:
-                    preds = (preds > 0.).to(torch.int)
-                else:
-                    preds = torch.argmax(preds, dim=1)
-                train_metric = eval_acc(labels, preds)
-            else:
-                raise NotImplementedError
-        else:
-            train_metric = train_loss
-        self.curves['train_metric'].append(train_metric)
+        preds = torch.cat(preds, dim=0)
+        labels = torch.cat(labels, dim=0)
+        train_metric = get_eval(self.task_type, labels, preds)
 
         return train_loss, train_metric
 
@@ -482,9 +457,7 @@ class Trainer:
 
             pred = model(data)
             label = data.y
-            # Todo: use the commented code if you want to report std etc.
-            # batchsize x val_ensemble x num_classes
-            # pred = pred.reshape(*(-1, num_graphs) + pred.shape[1:]).transpose(0, 1)
+            label_ensemble = label[:num_graphs]
 
             pred_ensemble = pred.reshape(*(-1, num_graphs) + pred.shape[1:]).transpose(0, 1)
 
@@ -493,21 +466,12 @@ class Trainer:
             pred_uncertainty = pred_ensemble.std(dim=1)
             pred_ensemble = pred_ensemble.mean(dim=1)
 
-            label_ensemble = data.y.reshape(*(-1, num_graphs) + data.y.shape[1:]).transpose(0, 1)
-            label_ensemble = label_ensemble[:, 0, :]
-
-            if dataloader.std is not None:
-                preds.append(pred * dataloader.std)
-                preds_ensemble.append(pred_ensemble * dataloader.std)
-                labels.append(label * dataloader.std)
-                labels_ensemble.append(label_ensemble.to(torch.float) * dataloader.std)
-                preds_uncertainty.append(pred_uncertainty)
-            else:
-                preds.append(pred)
-                preds_ensemble.append(pred_ensemble)
-                labels.append(label)
-                labels_ensemble.append(label_ensemble.to(torch.float))
-                preds_uncertainty.append(pred_uncertainty)
+            dataset_std = 1 if dataloader.std is None else dataloader.std
+            preds.append(pred * dataset_std)
+            preds_ensemble.append(pred_ensemble * dataset_std)
+            labels.append(label * dataset_std)
+            labels_ensemble.append(label_ensemble * dataset_std)
+            preds_uncertainty.append(pred_uncertainty)
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
@@ -519,25 +483,22 @@ class Trainer:
         is_labeled_ens = labels_ensemble == labels_ensemble
         val_loss = self.criterion(preds[is_labeled], labels[is_labeled]).item()
         val_loss_ensemble = self.criterion(preds_ensemble[is_labeled_ens], labels_ensemble[is_labeled_ens]).item()
-        if self.task_type == 'rocauc':
-            val_metric = eval_rocauc(labels, preds)
-        elif self.task_type == 'regression':  # not specified regression loss type
-            val_metric = val_loss_ensemble
-        elif self.task_type == 'rmse':
-            val_metric = eval_rmse(labels, preds)
-        elif self.task_type == 'acc':
-            if preds.shape[1] == 1:
-                preds = (preds > 0.).to(torch.int)
-            else:
-                preds = torch.argmax(preds, dim=1)
-            val_metric = eval_acc(labels, preds)
-        else:
-            raise NotImplementedError
+
+        val_metric = get_eval(self.task_type, labels, preds)
+        val_metric_ensemble = get_eval(self.task_type, labels_ensemble, preds_ensemble)
 
         early_stop = False
         if not test:
-            self.curves['val_metric'].append(val_metric)
-            self.curves['val_loss'].append(val_loss)
+            if self.wandb is not None and self.use_wandb:
+                self.wandb.log({"train_loss": train_loss,
+                                "train_metric": train_metric,
+                                "val_loss": val_loss,
+                                "val_metric": val_metric,
+                                "val_loss_ensemble": val_loss_ensemble,
+                                "val_metric_ensemble": val_metric_ensemble,
+                                "down_lr": scheduler.get_last_lr()[-1],
+                                "up_lr": scheduler_embd.get_last_lr()[-1] if emb_model is not None else 0.,
+                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty.cpu().numpy())})
 
             self.best_val_loss = min(self.best_val_loss, val_loss)
 
@@ -558,30 +519,26 @@ class Trainer:
                 else:
                     scheduler_embd.step()
 
+            train_is_better, self.best_train_metric = self.metric_comparator(train_metric, self.best_train_metric)
+            val_is_better, self.best_val_metric = self.metric_comparator(val_metric, self.best_val_metric)
+
             if self.patience_target == 'val_metric':
-                is_better = self.metric_comparator(val_metric, self.best_val_metric)
+                is_better = val_is_better
             elif self.patience_target == 'train_metric':
-                is_better = self.metric_comparator(train_metric, self.best_train_metric)
+                is_better = train_is_better
             else:
                 raise NotImplementedError
 
             if is_better:
                 self.patience = 0
-                if self.patience_target == 'val_metric':
-                    self.best_val_metric = val_metric
-                elif self.patience_target == 'train_metric':
-                    self.best_train_metric = train_metric
             else:
                 self.patience += 1
                 if self.patience > self.max_patience:
                     early_stop = True
-        return val_loss, val_metric, val_loss_ensemble, preds_uncertainty, early_stop
 
-    def save_curve(self, path):
-        pickle.dump(self.curves, open(os.path.join(path, 'curves.pkl'), "wb"))
+        return val_loss, val_metric, val_loss_ensemble, val_metric_ensemble, early_stop
 
     def clear_stats(self):
-        self.curves = defaultdict(list)
         self.best_val_loss = 1e5
         self.best_val_metric = None
         self.best_train_loss = 1e5
