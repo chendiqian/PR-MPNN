@@ -496,17 +496,6 @@ class Trainer:
             label_ensemble = data.y.reshape(*(-1, num_graphs) + data.y.shape[1:]).transpose(0, 1)
             label_ensemble = label_ensemble[:, 0, :]
 
-            # Momentarly it's useful just for checkpointing (avg(loss(pred)) vs loss(avg(pred))).
-            # We should do something similar during training.
-            if self.imle_configs.ensemble_avg == 'before':
-                pred = pred_ensemble
-                label = label_ensemble
-            elif self.imle_configs.ensemble_avg == 'after':
-                pred_ensemble = pred_ensemble.detach()
-                label_ensemble = label_ensemble.detach()
-            else:
-                raise NotImplementedError
-
             if dataloader.std is not None:
                 preds.append(pred * dataloader.std)
                 preds_ensemble.append(pred_ensemble * dataloader.std)
@@ -533,7 +522,7 @@ class Trainer:
         if self.task_type == 'rocauc':
             val_metric = eval_rocauc(labels, preds)
         elif self.task_type == 'regression':  # not specified regression loss type
-            val_metric = val_loss
+            val_metric = val_loss_ensemble
         elif self.task_type == 'rmse':
             val_metric = eval_rmse(labels, preds)
         elif self.task_type == 'acc':
