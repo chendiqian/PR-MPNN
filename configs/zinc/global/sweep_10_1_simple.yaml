@@ -1,8 +1,8 @@
 program: main.py
 method: bayes
 entity: mls-stuttgart
-project: sweep-k10-e1
-name: sweep-k10-e1
+project: TEST_SWEEP
+name: TEST_SWEEP
 run_cap: 30
 
 metric:
@@ -143,6 +143,21 @@ parameters:
   inter_graph_pooling:
     value: None
 
+  early_stop.target:
+    value: 'val_metric'
+  early_stop.patience:
+    value: 100
+  lr_decay.scheduler:
+    value: 'plateau'
+  lr_decay.mode:
+    value: 'max'
+  lr_decay.decay_rate:
+    value: 0.5
+  lr_decay.patience:
+    value: 20
+  lr_decay.target:
+    value: 'val_metric'
+
   # downstream training
   lr:
     value: 1.e-3
@@ -150,8 +165,8 @@ parameters:
     value: '[400, 600]'
   optim:
     value: adam
-  patience:
-    value: 100
+  # patience:
+  #   value: 100
   reg:
     value: 0.
   batch_size:
