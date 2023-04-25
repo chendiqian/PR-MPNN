@@ -1,8 +1,6 @@
 # credits to OGB team
 # https://github.com/snap-stanford/ogb/blob/master/ogb/graphproppred/evaluate.py
 
-from typing import Union
-
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
@@ -20,13 +18,10 @@ def pre_proc(y1, y2):
     return y1, y2
 
 
-def eval_rocauc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor, np.ndarray]) -> float:
+def eval_rocauc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
         compute ROC-AUC averaged across tasks
     """
-
-    y_true, y_pred = pre_proc(y_true, y_pred)
-
     rocauc_list = []
 
     for i in range(y_true.shape[1]):
@@ -42,7 +37,7 @@ def eval_rocauc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Ten
     return sum(rocauc_list) / len(rocauc_list)
 
 
-def eval_acc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor, np.ndarray]) -> float:
+def eval_acc(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
     eval accuracy (potentially multi task)
 
@@ -50,9 +45,6 @@ def eval_acc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor
     :param y_pred:
     :return:
     """
-
-    y_true, y_pred = pre_proc(y_true, y_pred)
-
     acc_list = []
 
     for i in range(y_true.shape[1]):
@@ -63,9 +55,7 @@ def eval_acc(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor
     return sum(acc_list) / len(acc_list)
 
 
-def eval_rmse(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tensor, np.ndarray]) -> float:
-    y_true, y_pred = pre_proc(y_true, y_pred)
-
+def eval_rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     rmse_list = []
 
     for i in range(y_true.shape[1]):
@@ -74,3 +64,35 @@ def eval_rmse(y_true: Union[torch.Tensor, np.ndarray], y_pred: Union[torch.Tenso
         rmse_list.append(np.sqrt(((y_true[is_labeled, i] - y_pred[is_labeled, i]) ** 2).mean()))
 
     return sum(rmse_list) / len(rmse_list)
+
+
+def eval_mae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    mae_list = []
+
+    for i in range(y_true.shape[1]):
+        # ignore nan values
+        is_labeled = y_true[:, i] == y_true[:, i]
+        mae_list.append(np.abs(y_true[is_labeled, i] - y_pred[is_labeled, i]).mean())
+
+    return sum(mae_list) / len(mae_list)
+
+
+def get_eval(task_type: str, y_true: torch.Tensor, y_pred: torch.Tensor):
+    if task_type == 'rocauc':
+        func = eval_rocauc
+    elif task_type == 'rmse':
+        func = eval_rmse
+    elif task_type == 'acc':
+        if y_pred.shape[1] == 1:
+            y_pred = (y_pred > 0.).to(torch.int)
+        else:
+            y_pred = torch.argmax(y_pred, dim=1)
+        func = eval_acc
+    elif task_type == 'mae':
+        func = eval_mae
+    else:
+        raise NotImplementedError
+
+    y_true, y_pred = pre_proc(y_true, y_pred)
+    metric = func(y_true, y_pred)
+    return metric
