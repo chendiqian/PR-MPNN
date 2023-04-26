@@ -246,6 +246,7 @@ class Trainer:
 
             original_graphs_pos_np = new_batch_plot[graph_id].nx_layout.cpu().numpy()
             original_graphs_pos_dict = {i: pos for i, pos in enumerate(original_graphs_pos_np)}
+            node_colors = new_batch_plot[graph_id].x.detach().cpu().argmax(dim=1).unsqueeze(-1)
 
             fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*7, nrows*7), gridspec_kw={'wspace': 0, 'hspace': 0.05})
             if not is_only_one_plot:
@@ -265,8 +266,6 @@ class Trainer:
                     edges = g.edge_index[:, torch.where(weights)[0]].T.tolist()
                 else:
                     edges = g.edge_index.T.tolist()
-
-                node_colors = g.x.detach().cpu().argmax(dim=1).unsqueeze(-1)
 
                 if not is_only_one_plot:
                     ax = axs[variant_id]
