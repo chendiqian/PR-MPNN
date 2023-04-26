@@ -186,42 +186,30 @@ class Trainer:
 
         # B x E x VE
         edge_weight = sampled_edge_weights.permute((1, 2, 3, 4, 0))[real_node_node_mask]
-        edge_weight = edge_weight.permute(2, 1, 0).reshape(VE, -1)
+        edge_weight = edge_weight.permute(2, 1, 0).flatten()
 
         if self.include_original_graph:
-            edge_weight = torch.cat([edge_weight, edge_weight.new_ones(VE, dat_batch.num_edges)], dim=1)
+            edge_weight = torch.cat([edge_weight, edge_weight.new_ones(VE * E * dat_batch.num_edges)], dim=0)
 
         new_graphs = [g.clone() for g in graphs]
-        batchsize = len(new_graphs)
         for g in new_graphs:
             g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
-        new_graphs = new_graphs * E
+        new_graphs = new_graphs * (E * VE)
         if self.include_original_graph:
-            new_graphs += graphs
+            new_graphs += graphs * (E * VE)
         new_batch = Batch.from_data_list(new_graphs)
-        new_batch.y = dat_batch.y
-        new_batch.inter_graph_idx = torch.arange(batchsize).to(self.device).repeat(E + int(self.include_original_graph))
+        new_batch.y = new_batch.y[:B * E * VE]
+        new_batch.inter_graph_idx = torch.arange(B * E * VE).to(self.device).repeat(1 + int(self.include_original_graph))
 
         if train:
-            assert VE == 1, "Does not support voting during training"
-            new_batch.edge_weight = edge_weight.squeeze()
+            new_batch.edge_weight = edge_weight
             return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
         else:
             # we have majority voting batching
-            new_batches = []
-            for i in range(VE):
-                g = new_batch.clone()
-                nonzero_idx = edge_weight[i].nonzero().reshape(-1)
-                g.edge_index = new_batch.edge_index[:, nonzero_idx]
-                g.edge_weight = edge_weight[i, nonzero_idx]
-                new_batches.append(g)
-            new_batches = Batch.from_data_list(new_batches)
-            # batchsize * E
-            num_graphs_per_val_ensemble = dat_batch.num_graphs * (E + int(self.include_original_graph))
-            inter_graph_idx_rel = torch.arange(VE, device=self.device).repeat_interleave(num_graphs_per_val_ensemble) * dat_batch.num_graphs
-            new_batches.inter_graph_idx += inter_graph_idx_rel
-            # new_batches.val_ensemble_idx = torch.arange(dat_batch.num_graphs, device=self.device).repeat(VE)
-            return new_batches, output_logits.detach() * real_node_node_mask[..., None], auxloss
+            nonzero_idx = edge_weight.nonzero().reshape(-1)
+            new_batch.edge_index = new_batch.edge_index[:, nonzero_idx]
+            new_batch.edge_weight = edge_weight[nonzero_idx]
+            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
 
     def plot(self, new_batch: Batch):
