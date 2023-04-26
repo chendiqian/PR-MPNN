@@ -448,17 +448,6 @@ class Trainer:
 
         early_stop = False
         if not test:
-            if self.wandb is not None and self.use_wandb:
-                self.wandb.log({"train_loss": train_loss,
-                                "train_metric": train_metric,
-                                "val_loss": val_loss,
-                                "val_metric": val_metric,
-                                "val_loss_ensemble": val_loss_ensemble,
-                                "val_metric_ensemble": val_metric_ensemble,
-                                "down_lr": scheduler.get_last_lr()[-1],
-                                "up_lr": scheduler_embd.get_last_lr()[-1] if emb_model is not None else 0.,
-                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty)})
-
             self.best_val_loss = min(self.best_val_loss, val_loss)
 
             if isinstance(scheduler, MyPlateau):
@@ -494,6 +483,17 @@ class Trainer:
                 self.patience += 1
                 if self.patience > self.max_patience:
                     early_stop = True
+
+            if self.wandb is not None and self.use_wandb:
+                self.wandb.log({"train_loss": train_loss,
+                                "train_metric": train_metric,
+                                "val_loss": val_loss,
+                                "val_metric": val_metric,
+                                "val_loss_ensemble": val_loss_ensemble,
+                                "val_metric_ensemble": val_metric_ensemble,
+                                "down_lr": scheduler.get_last_lr()[-1],
+                                "up_lr": scheduler_embd.get_last_lr()[-1] if emb_model is not None else 0.,
+                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty)})
 
         return val_loss, val_metric, val_loss_ensemble, val_metric_ensemble, early_stop
 
