@@ -17,7 +17,7 @@ from .data_preprocess import (GraphExpandDim,
                               GraphCanonicalYClass,
                               AugmentwithNNodes,
                               GraphAttrToOneHot,
-                              GraphAddRemainSelfLoop, GraphAddSkipConnection,
+                              GraphAddRemainSelfLoop, GraphAddSkipConnection, GraphRedirect,
                               AugmentWithShortedPathDistance,
                               AugmentWithPPR,
                               AugmentWithDirectedGlobalRewiredGraphs,
@@ -39,6 +39,7 @@ PRETRANSFORM_PRIORITY = {
     GraphCanonicalYClass: 0,
     GraphAddRemainSelfLoop: 100,  # highest
     GraphAddSkipConnection: 100,
+    GraphRedirect: 100,
     GraphToUndirected: 99,  # high
     GraphCoalesce: 99,
     AugmentwithNNodes: 0,  # low
@@ -281,7 +282,7 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     assert 2 <= depth <= 8
 
     pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
-    # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), GraphAddSkipConnection(depth)])
+    # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), GraphRedirect(depth)])
     transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
