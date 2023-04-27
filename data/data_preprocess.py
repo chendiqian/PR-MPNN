@@ -29,6 +29,25 @@ class GraphModification:
         return None
 
 
+class GraphAddSkipConnection(GraphModification):
+    """
+    only for tree dataset
+    """
+    def __init__(self, depth):
+        super(GraphAddSkipConnection, self).__init__()
+        self.depth = depth
+
+    def __call__(self, graph: Data):
+        edge_index = torch.hstack((
+            graph.edge_index,
+            torch.vstack(
+                [torch.arange(2 ** self.depth, 2 ** (self.depth + 1) - 1),
+                 torch.zeros(2 ** self.depth - 1, dtype=torch.long)])
+        ))
+        graph.edge_index = edge_index
+        return graph
+
+
 class GraphAddRemainSelfLoop(GraphModification):
     def __call__(self, graph: Data):
         edge_index, edge_attr = add_remaining_self_loops(graph.edge_index, graph.edge_attr, num_nodes=graph.num_nodes)

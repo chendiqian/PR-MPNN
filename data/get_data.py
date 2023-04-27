@@ -17,7 +17,7 @@ from .data_preprocess import (GraphExpandDim,
                               GraphCanonicalYClass,
                               AugmentwithNNodes,
                               GraphAttrToOneHot,
-                              GraphAddRemainSelfLoop,
+                              GraphAddRemainSelfLoop, GraphAddSkipConnection,
                               AugmentWithShortedPathDistance,
                               AugmentWithPPR,
                               AugmentWithDirectedGlobalRewiredGraphs,
@@ -38,6 +38,7 @@ PRETRANSFORM_PRIORITY = {
     GraphExpandDim: 0,  # low
     GraphCanonicalYClass: 0,
     GraphAddRemainSelfLoop: 100,  # highest
+    GraphAddSkipConnection: 100,
     GraphToUndirected: 99,  # high
     GraphCoalesce: 99,
     AugmentwithNNodes: 0,  # low
@@ -276,11 +277,13 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
 
 
 def get_treedataset(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
-    transform = get_transform(args)
-
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
+
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
+    # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), GraphAddSkipConnection(depth)])
+    transform = get_transform(args)
+
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
     if extra_path is not None:
