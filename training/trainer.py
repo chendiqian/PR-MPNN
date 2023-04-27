@@ -1,4 +1,5 @@
 import os
+import pdb
 from math import ceil, sqrt
 from typing import Any, Optional, Union, Tuple, List
 
@@ -78,7 +79,7 @@ class Trainer:
             self.micro_batch_embd = imle_configs.micro_batch_embd
 
             if imle_configs.sampler == 'imle':
-                assert imle_configs.num_val_ensemble == 1
+                assert imle_configs.num_val_ensemble == imle_configs.num_train_ensemble == 1
                 imle_scheduler = IMLEScheme(sample_configs.sample_policy, sample_configs.sample_k)
 
                 @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
@@ -93,7 +94,7 @@ class Trainer:
                 self.val_forward = imle_scheduler.torch_sample_scheme
                 self.sampler_class = imle_scheduler
             elif imle_configs.sampler == 'gumbel':
-                assert imle_configs.num_val_ensemble == 1
+                assert imle_configs.num_val_ensemble == imle_configs.num_train_ensemble == 1
                 gumbel_sampler = GumbelSampler(sample_configs.sample_k, tau=imle_configs.tau, policy=sample_configs.sample_policy)
                 self.train_forward = gumbel_sampler
                 self.val_forward = gumbel_sampler.validation
@@ -102,6 +103,7 @@ class Trainer:
                 simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k,
                                                    device,
                                                    val_ensemble=imle_configs.num_val_ensemble,
+                                                   train_ensemble=imle_configs.num_train_ensemble,
                                                    policy=sample_configs.sample_policy,
                                                    logits_activation=imle_configs.logits_activation)
                 self.train_forward = simple_sampler
@@ -174,7 +176,6 @@ class Trainer:
         elif self.imle_configs.weight_edges == 'marginals':
             assert self.imle_configs.sampler == 'simple'
             # Maybe we should also try this with softmax?
-            assert marginals is not None
             sampled_edge_weights = marginals[None].repeat(node_mask.shape[0], 1, 1, 1, 1)
         elif self.imle_configs.weight_edges == 'None' or self.imle_configs.weight_edges is None:
             sampled_edge_weights = node_mask
@@ -212,7 +213,7 @@ class Trainer:
             return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
 
-    def plot(self, new_batch: Batch):
+    def plot(self, new_batch: Batch, train: bool):
         """Plot graphs and edge weights.        
         Inputs: Batch of graphs from list.
         Outputs: None"""
@@ -233,7 +234,8 @@ class Trainer:
         else:
             weights_split = [None] * len(new_batch_plot)
 
-        n_ensemble = self.sample_configs.ensemble
+        n_ensemble = self.sample_configs.ensemble * (self.imle_configs.num_train_ensemble if train
+                                                     else self.imle_configs.num_val_ensemble)
         unique_graphs = len(new_batch_plot) // n_ensemble // (2 if self.include_original_graph else 1)
         total_plotted_graphs = min(self.plot_args.n_graphs, unique_graphs)
 
@@ -371,7 +373,7 @@ class Trainer:
 
             if self.plot_args is not None:
                 if batch_id == self.plot_args.batch_id and self.epoch % self.plot_args.plot_every == 0:
-                    self.plot(data)
+                    self.plot(data, train=True)
                     if scores is not None:
                         self.plot_score(scores)
 

@@ -16,19 +16,28 @@ def logsigmoid(x):
 
 
 class EdgeSIMPLEBatched(nn.Module):
-    def __init__(self, k, device, policy, val_ensemble=1, return_marginals=True, logits_activation=None):
+    def __init__(self,
+                 k,
+                 device,
+                 policy,
+                 val_ensemble=1,
+                 train_ensemble=1,
+                 logits_activation=None):
         super(EdgeSIMPLEBatched, self).__init__()
         self.k = k
         self.device = device
         self.policy = policy
         self.layer_configs = dict()
         self.adj = None  # for potential usage
-        assert val_ensemble > 0
+        assert val_ensemble > 0 and train_ensemble > 1
         self.val_ensemble = val_ensemble
-        self.return_marginals = return_marginals
+        self.train_ensemble = train_ensemble
         self.logits_activation = logits_activation
 
-    def forward(self, scores, times_sampled=1):
+    def forward(self, scores, times_sampled=None):
+        if times_sampled is None:
+            times_sampled = self.train_ensemble
+
         bsz, Nmax, _, ensemble = scores.shape
         if self.policy == 'global_topk_directed':
             target_size = Nmax ** 2
@@ -58,7 +67,7 @@ class EdgeSIMPLEBatched(nn.Module):
         if (N, local_k) in self.layer_configs:
             layer = self.layer_configs[(N, local_k)]
         else:
-            layer = Layer(N, local_k, self.device, self.return_marginals)
+            layer = Layer(N, local_k, self.device)
             self.layer_configs[(N, local_k)] = layer
 
         # padding
@@ -96,35 +105,30 @@ class EdgeSIMPLEBatched(nn.Module):
 
         # unpadding
         samples = samples[..., :target_size]
-
-        if marginals is not None:
-            marginals = marginals[:, :target_size]
+        marginals = marginals[:, :target_size]
 
         new_marginals = None
         if self.policy == 'global_topk_directed':
             new_mask = samples.reshape(times_sampled, bsz, ensemble, Nmax, Nmax).permute((0, 1, 3, 4, 2))
-            if marginals is not None:
-                new_marginals = marginals.reshape(bsz, ensemble, Nmax, Nmax).permute((0, 2, 3, 1))
+            new_marginals = marginals.reshape(bsz, ensemble, Nmax, Nmax).permute((0, 2, 3, 1))
         elif self.policy == 'global_topk_undirected':
             samples = samples.reshape(times_sampled, bsz, ensemble, -1).permute((0, 1, 3, 2))
             new_mask = scores.new_zeros((times_sampled,) + scores.shape)
             new_mask[:, :, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(2, 3)
-            if marginals is not None:
-                marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
-                new_marginals = scores.new_zeros(scores.shape)
-                new_marginals[:, triu_idx[0], triu_idx[1], :] = marginals
-                new_marginals = new_marginals + new_marginals.transpose(1, 2)
+            marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
+            new_marginals = scores.new_zeros(scores.shape)
+            new_marginals[:, triu_idx[0], triu_idx[1], :] = marginals
+            new_marginals = new_marginals + new_marginals.transpose(1, 2)
         elif self.policy == 'global_topk_semi':
             samples = samples.reshape(times_sampled, bsz, ensemble, -1).permute((0, 1, 3, 2))
             new_mask = scores.new_zeros((times_sampled,) + scores.shape)
             new_mask[:, :, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(2, 3) + self.adj[None]
-            if marginals is not None:
-                marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
-                new_marginals = scores.new_zeros(scores.shape)
-                new_marginals[:, triu_idx[0], triu_idx[1], :] = marginals
-                new_marginals = new_marginals + new_marginals.transpose(1, 2)
+            marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
+            new_marginals = scores.new_zeros(scores.shape)
+            new_marginals[:, triu_idx[0], triu_idx[1], :] = marginals
+            new_marginals = new_marginals + new_marginals.transpose(1, 2)
         else:
             raise ValueError
         return new_mask, new_marginals
@@ -143,7 +147,7 @@ class EdgeSIMPLEBatched(nn.Module):
 
         """
         if self.val_ensemble == 1:
-            _, marginals = self.forward(scores)
+            _, marginals = self.forward(scores, times_sampled=1)
 
             # do deterministic top-k
             if self.policy == 'global_topk_directed':

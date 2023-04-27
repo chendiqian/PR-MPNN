@@ -99,7 +99,7 @@ def sample_subset(w, k):
 
 
 class Layer:
-    def __init__(self, n, k, device, return_marginals=True, root='./simple_configs'):
+    def __init__(self, n, k, device, root='./simple_configs'):
 
         if not os.path.isdir(root):
             os.mkdir(root)
@@ -108,8 +108,6 @@ class Layer:
             create_and_save(n, k, root)
         with open(f'{root}/{n}C{k}.pkl', 'rb') as inp:
             beta = pickle.load(inp)
-        
-        self.return_marginals = return_marginals
 
         max_elements = 0
         for node in beta.positive_iter():
@@ -183,7 +181,7 @@ class Layer:
     def __call__(self, log_probs, k):
         samples = self.sample(log_probs, k)
         marginals = self.log_pr(log_probs).exp().permute(1, 0)
-        return ((samples - marginals).detach() + marginals, marginals) if self.return_marginals else ((samples - marginals).detach() + marginals, None)
+        return (samples - marginals).detach() + marginals, marginals
 
     # @torch.compile(fullgraph=True, mode=MODE, disable=DISABLE)
     def log_pr(self, log_probs):
