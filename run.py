@@ -31,6 +31,9 @@ def naming(args) -> str:
     name = f'{args.dataset}_{args.model}_'
     name += f'layer_{args.num_convlayers}_'
 
+    if hasattr(args, 'wandb_prefix'):
+        name = f'{args.wandb_prefix}_' + name
+
     if args.sample_configs.sample_policy is None:
         name += 'normal'
         return name
@@ -73,9 +76,6 @@ def naming(args) -> str:
 
     if hasattr(args, 'optim'):
         name += f'optim_{args.optim}_'
-
-    if hasattr(args, 'wandb_prefix'):
-        name = f'{args.wandb_prefix}_' + name
 
     return name
 
@@ -137,9 +137,9 @@ def run(wandb, args):
             optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
             optimizer, scheduler = get_opt(model)
 
-            wandb.watch(model, log="all", log_freq=10)
-            if emb_model is not None:
-                wandb.watch(emb_model, log="all", log_freq=10)
+            # wandb.watch(model, log="all", log_freq=10)
+            # if emb_model is not None:
+            #     wandb.watch(emb_model, log="all", log_freq=10)
 
             run_folder = prepare_exp(folder_name, _run, _fold)
 
