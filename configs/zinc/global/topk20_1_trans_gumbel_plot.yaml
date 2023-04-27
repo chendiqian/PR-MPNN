@@ -14,6 +14,7 @@ fixed:
   imle_configs:
     sampler: gumbel
     tau: 0.1
+    num_train_ensemble: 1
     num_val_ensemble: 1
 
     model: "transformer"

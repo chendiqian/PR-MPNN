@@ -16,6 +16,7 @@ fixed:
     logits_activation: 'None'
     weight_edges: marginals
     marginals_mask: False
+    num_train_ensemble: 1
     num_val_ensemble: 1
 
     model: "transformer"
