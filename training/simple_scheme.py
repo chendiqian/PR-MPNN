@@ -29,7 +29,7 @@ class EdgeSIMPLEBatched(nn.Module):
         self.policy = policy
         self.layer_configs = dict()
         self.adj = None  # for potential usage
-        assert val_ensemble > 0 and train_ensemble > 1
+        assert val_ensemble > 0 and train_ensemble > 0
         self.val_ensemble = val_ensemble
         self.train_ensemble = train_ensemble
         self.logits_activation = logits_activation
