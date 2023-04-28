@@ -78,19 +78,26 @@ class Trainer:
             self.micro_batch_embd = imle_configs.micro_batch_embd
 
             if imle_configs.sampler == 'imle':
-                assert imle_configs.num_val_ensemble == imle_configs.num_train_ensemble == 1
                 imle_scheduler = IMLEScheme(sample_configs.sample_policy, sample_configs.sample_k)
 
                 @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
                       noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
+                      nb_samples=imle_configs.num_train_ensemble,
                       input_noise_temperature=1.,
                       target_noise_temperature=1.,)
-                def imle_sample_scheme(logits: torch.Tensor):
+                def imle_train_scheme(logits: torch.Tensor):
                     return imle_scheduler.torch_sample_scheme(logits)
+                self.train_forward = imle_train_scheme
 
-                # we perturb during training, but not validation
-                self.train_forward = imle_sample_scheme
-                self.val_forward = imle_scheduler.torch_sample_scheme
+                @imle(target_distribution=None,
+                      noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
+                      nb_samples=imle_configs.num_val_ensemble,
+                      input_noise_temperature=1. if imle_configs.num_val_ensemble > 1 else 0.,  # important
+                      target_noise_temperature=1.,)
+                def imle_val_scheme(logits: torch.Tensor):
+                    return imle_scheduler.torch_sample_scheme(logits)
+                self.val_forward = imle_val_scheme
+
                 self.sampler_class = imle_scheduler
             elif imle_configs.sampler == 'gumbel':
                 assert imle_configs.num_val_ensemble == imle_configs.num_train_ensemble == 1
