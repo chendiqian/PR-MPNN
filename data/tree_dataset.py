@@ -197,14 +197,14 @@ class LeafColorDataset(TreeDataset):
         label_binary = bin(leaf_label)[2:].zfill(n_bits)
         root_label = sum([int(bit) for bit in label_binary])
 
-        nodes = [0]
+        nodes = [(1, 0)]
 
         for i in range(1, self.num_nodes):
             if i in self.leaf_indices:
                 leaf_num = self.leaf_indices.index(i)
-                node = int(label_binary[leaf_num])
+                node = (leaf_num+2, int(label_binary[leaf_num]))
             else:
-                node = 0
+                node = (0, 0)
             nodes.append(node)
         return nodes, root_label
     
