@@ -304,6 +304,9 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     return train_set, val_set, test_set, None, None
 
 def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
+    depth = int(args.dataset.lower().split('_')[1])
+    assert 2 <= depth <= 8
+
     pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
     transform = get_transform(args)
 
@@ -312,8 +315,8 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     if extra_path is not None:
         data_path = os.path.join(data_path, extra_path)
 
-    train_set = MyLeafColorDataset(data_path, True, 11, transform=transform, pre_transform=pre_transform)
-    val_set = MyLeafColorDataset(data_path, False, 11, transform=transform, pre_transform=pre_transform)
+    train_set = MyLeafColorDataset(data_path, True, 11, depth, transform=transform, pre_transform=pre_transform)
+    val_set = MyLeafColorDataset(data_path, False, 11, depth, transform=transform, pre_transform=pre_transform)
     test_set = val_set
 
     if args.debug:
