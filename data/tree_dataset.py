@@ -20,18 +20,25 @@ class TreeDataset(object):
         self.num_nodes, self.edges, self.leaf_indices = self._create_blank_tree()
 
     def add_child_edges(self, cur_node, max_node):
+        # Initialize empty lists
         edges = []
         leaf_indices = []
+        # Create stack with initial node and maximum node
         stack = [(cur_node, max_node)]
         while len(stack) > 0:
+            # Pop the next node and its maximum node from the stack
             cur_node, max_node = stack.pop()
+            # If the current node is a leaf, add it to the leaf indices
             if cur_node == max_node:
                 leaf_indices.append(cur_node)
                 continue
+            # Otherwise, create the left and right child nodes
             left_child = cur_node + 1
             right_child = cur_node + 1 + ((max_node - cur_node) // 2)
+            # Add edges between the current node and its children
             edges.append([left_child, cur_node])
             edges.append([right_child, cur_node])
+            # Add the right child and left child to the stack
             stack.append((right_child, max_node))
             stack.append((left_child, right_child - 1))
         return edges, leaf_indices
@@ -163,3 +170,111 @@ class MyTreeDataset(InMemoryDataset):
 
         data, slices = self.collate(X_test)
         torch.save((data, slices), self.processed_paths[1])
+
+
+class LeafColorDataset(TreeDataset):
+    def __init__(self, depth, seed):
+        super(LeafColorDataset, self).__init__(depth)
+        random.seed(seed)
+        np.random.seed(seed)
+
+    def get_combinations(self):
+        # returns: an iterable of [key, permutation(leaves)]
+        # number of combinations: (num_leaves!)*num_choices
+
+        n_bits = 2 ** self.depth
+        max_value = 2 ** n_bits
+        max_examples = 32000
+        assert max_examples <= max_value
+        # sample "max_examples" numbers from [0, max_value] without replacement
+        leaf_labels = random.sample(range(max_value), max_examples)
+
+        return leaf_labels
+
+    def get_nodes_features(self, leaf_label):
+
+        n_bits = 2 ** self.depth
+        label_binary = bin(leaf_label)[2:].zfill(n_bits)
+        root_label = sum([int(bit) for bit in label_binary])
+
+        nodes = [0]
+
+        for i in range(1, self.num_nodes):
+            if i in self.leaf_indices:
+                leaf_num = self.leaf_indices.index(i)
+                node = int(label_binary[leaf_num])
+            else:
+                node = 0
+            nodes.append(node)
+        return nodes, root_label
+    
+    def generate_data(self, train_fraction):
+        data_list = []
+
+        for leaf_label in self.get_combinations():
+            edge_index = self.create_blank_tree(add_self_loops=True)
+            nodes, label = self.get_nodes_features(leaf_label)
+            nodes = torch.tensor(nodes, dtype=torch.long)
+            data_list.append(Data(x=nodes, edge_index=edge_index, y=label))
+
+        dim0, out_dim = self.get_dims()
+
+        labels = [data.y for data in data_list]
+        lens, labels_idx = [], set(labels)
+        for label in labels_idx:
+            lst = [item for item in labels if item == label]
+            lens.append(len(lst))
+        mean = int(np.mean(lens))
+
+        reduced_data = []
+        counter = [0 for _ in range(len(labels_idx))]
+        for data in data_list:
+            if lens[data.y] > mean and counter[data.y] < mean:
+                reduced_data.append(data)
+                counter[data.y] += 1
+        
+        start_class = next((i for i, x in enumerate(counter) if x), None)
+        end_class = len(counter) - next((i for i, x in enumerate(reversed(counter)) if x), None) - 1
+        num_classes = end_class - start_class + 1
+
+        for data in reduced_data:
+            data.y = data.y - start_class
+
+        dim0, out_dim = num_classes, num_classes
+
+        X_train, X_test = train_test_split(
+            reduced_data, train_size=train_fraction, shuffle=True, stratify=[data.y for data in reduced_data])
+
+        return X_train, X_test, dim0, out_dim
+
+class MyLeafColorDataset(InMemoryDataset):
+    def __init__(self, root, train, seed, depth, transform=None, pre_transform=None, pre_filter=None):
+        self.seed = seed
+        self.depth = depth
+        super().__init__(root, transform, pre_transform, pre_filter)
+        idx = 0 if train else 1
+        self.data, self.slices = torch.load(self.processed_paths[idx])
+
+    @property
+    def processed_file_names(self):
+        return ['train.pt', 'test.pt']
+
+    def process(self):
+        # Read data into huge `Data` list.
+        X_train, X_test, dim0, out_dim = LeafColorDataset(self.depth, self.seed).generate_data(0.8)
+
+        print('Dataset generated!')
+
+        if self.pre_transform is not None:
+            X_train = [self.pre_transform(data) for data in tqdm(X_train)]
+
+        data, slices = self.collate(X_train)
+        torch.save((data, slices), self.processed_paths[0])
+
+        if self.pre_transform is not None:
+            X_test = [self.pre_transform(data) for data in tqdm(X_test)]
+
+        data, slices = self.collate(X_test)
+        torch.save((data, slices), self.processed_paths[1])
+
+

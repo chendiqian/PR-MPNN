@@ -10,7 +10,7 @@ from torch_geometric.datasets import ZINC
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 
-from .tree_dataset import MyTreeDataset
+from .tree_dataset import MyTreeDataset, MyLeafColorDataset
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
@@ -144,6 +144,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_zinc(args)
     elif args.dataset.lower().startswith('tree'):
         train_set, val_set, test_set, mean, std = get_treedataset(args)
+    elif args.dataset.lower().startswith('leafcolor'):
+        train_set, val_set, test_set, mean, std = get_leafcolordataset(args)
     else:
         raise ValueError
 
@@ -292,6 +294,26 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
 
     train_set = MyTreeDataset(data_path, True, 11, depth, transform=transform, pre_transform=pre_transform)
     val_set = MyTreeDataset(data_path, False, 11, depth, transform=transform, pre_transform=pre_transform)
+    test_set = val_set
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
+
+    return train_set, val_set, test_set, None, None
+
+def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
+    transform = get_transform(args)
+
+    data_path = os.path.join(args.data_path, args.dataset)
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    train_set = MyLeafColorDataset(data_path, True, 11, transform=transform, pre_transform=pre_transform)
+    val_set = MyLeafColorDataset(data_path, False, 11, transform=transform, pre_transform=pre_transform)
     test_set = val_set
 
     if args.debug:
