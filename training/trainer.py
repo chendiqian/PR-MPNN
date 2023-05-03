@@ -1,4 +1,5 @@
 import os
+import pdb
 from math import ceil, sqrt
 from typing import Any, Optional, Union, Tuple, List
 
@@ -209,14 +210,30 @@ class Trainer:
         new_batch.inter_graph_idx = torch.arange(B * E * VE).to(self.device).repeat(1 + int(self.include_original_graph))
 
         if train:
-            new_batch.edge_weight = edge_weight
-            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+            if self.imle_configs.negative_sample == 'full':
+                new_batch.edge_weight = edge_weight
+            elif self.imle_configs.negative_sample == 'zero':
+                assert self.imle_configs.marginals_mask
+                nonzero_idx = edge_weight.nonzero().reshape(-1)
+                new_batch.edge_index = new_batch.edge_index[:, nonzero_idx]
+                new_batch.edge_weight = edge_weight[nonzero_idx]
+            elif self.imle_configs.negative_sample == 'same':
+                assert self.imle_configs.marginals_mask
+                zero_idx = torch.where(edge_weight == 0.)[0]
+                zero_idx = zero_idx[torch.randint(low=0, high=zero_idx.shape[0], size=(B * E * VE * self.sample_configs.sample_k,), device=self.device)]
+                nonzero_idx = edge_weight.nonzero().reshape(-1)
+                idx = torch.cat((zero_idx, nonzero_idx), dim=0).unique()
+                new_batch.edge_index = new_batch.edge_index[:, idx]
+                new_batch.edge_weight = edge_weight[idx]
+            else:
+                raise ValueError
         else:
             # we have majority voting batching
             nonzero_idx = edge_weight.nonzero().reshape(-1)
             new_batch.edge_index = new_batch.edge_index[:, nonzero_idx]
             new_batch.edge_weight = edge_weight[nonzero_idx]
-            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+
+        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
 
     def plot(self, new_batch: Batch, train: bool):
