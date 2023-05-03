@@ -10,6 +10,7 @@ from torch_geometric.datasets import ZINC
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 
+from .tudataset import MyTUDataset
 from .tree_dataset import MyTreeDataset, MyLeafColorDataset
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
@@ -31,7 +32,7 @@ from .data_utils import AttributedDataLoader
 
 NUM_WORKERS = 0
 
-DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset)
+DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyTUDataset)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -142,6 +143,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
         train_set, val_set, test_set, mean, std = get_zinc(args)
+    elif args.dataset.lower() == 'alchemy':
+        train_set, val_set, test_set, mean, std = get_alchemy(args)
     elif args.dataset.lower().startswith('tree'):
         train_set, val_set, test_set, mean, std = get_treedataset(args)
     elif args.dataset.lower().startswith('leafcolor'):
@@ -277,6 +280,52 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
         test_set = test_set[:16]
 
     return train_set, val_set, test_set, None, None
+
+
+def get_alchemy(args: Union[Namespace, ConfigDict]):
+    pre_transform = get_pretransform(args, extra_pretransforms=None)
+    transform = get_transform(args)
+
+    data_path = args.data_path
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    infile = open("datasets/indices/train_al_10.index", "r")
+    for line in infile:
+        indices_train = line.split(",")
+        indices_train = [int(i) for i in indices_train]
+
+    infile = open("datasets/indices/val_al_10.index", "r")
+    for line in infile:
+        indices_val = line.split(",")
+        indices_val = [int(i) for i in indices_val]
+
+    infile = open("datasets/indices/test_al_10.index", "r")
+    for line in infile:
+        indices_test = line.split(",")
+        indices_test = [int(i) for i in indices_test]
+
+    dataset = MyTUDataset(data_path,
+                          name="alchemy_full",
+                          index=indices_train + indices_val + indices_test,
+                          transform=transform,
+                          pre_transform=pre_transform)
+
+    mean = dataset.data.y.mean(dim=0, keepdim=True)
+    std = dataset.data.y.std(dim=0, keepdim=True)
+    dataset.data.y = (dataset.data.y - mean) / std
+
+    train_set = dataset[:len(indices_train)]
+    val_set = dataset[len(indices_train): len(indices_train) + len(indices_val)]
+    test_set = dataset[-len(indices_test):]
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
+
+    return train_set, val_set, test_set, mean, std
 
 
 def get_treedataset(args: Union[Namespace, ConfigDict]):

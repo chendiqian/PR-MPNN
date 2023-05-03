@@ -3,6 +3,7 @@ import torch.nn
 from data.const import DATASET_FEATURE_STAT_DICT
 from models.downstream_models.ogb_mol_gnn import OGBGNN
 from models.downstream_models.zinc_gin import ZINC_GIN
+from models.downstream_models.alchemy_gin import AL_GIN
 from models.downstream_models.tree_gnn import TreeGraphModel
 from models.downstream_models.zinc_halftransformer import ZINC_HalfTransformer
 from models.upstream_models.linear_embed import LinearEmbed
@@ -36,6 +37,30 @@ def get_model(args, device, *_args):
             input_feature = DATASET_FEATURE_STAT_DICT['zinc']['node']
 
         model = ZINC_GIN(
+            encoder=encoder,
+            ensemble=args.sample_configs.ensemble + int(args.sample_configs.include_original_graph),
+            in_features=input_feature,
+            num_layers=args.num_convlayers,
+            hidden=args.hid_size,
+            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+            mlp_layers_intragraph=args.mlp_layers_intragraph,
+            mlp_layers_intergraph=args.mlp_layers_intergraph,
+            inter_graph_pooling=args.inter_graph_pooling)
+    elif args.model.lower() == 'alchemy_gin':
+        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
+            # we encode the lap and rwse to the downstream model
+            encoder = FeatureEncoder(
+                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                hidden=args.hid_size,
+                type_encoder='linear',
+                lap_encoder=args.lap if hasattr(args, 'lap') else None,
+                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
+            input_feature = args.hid_size
+        else:
+            encoder = None
+            input_feature = DATASET_FEATURE_STAT_DICT['alchemy']['node']
+
+        model = AL_GIN(
             encoder=encoder,
             ensemble=args.sample_configs.ensemble + int(args.sample_configs.include_original_graph),
             in_features=input_feature,
@@ -84,7 +109,7 @@ def get_model(args, device, *_args):
 
     if args.imle_configs is not None:
         spectral_norm = True if hasattr(args.imle_configs, 'spectral_norm') and args.imle_configs.spectral_norm else False
-        if args.dataset.lower() in ['zinc']:
+        if args.dataset.lower() in ['zinc', 'alchemy']:
             type_encoder = 'linear'
         elif args.dataset.lower().startswith('tree'):
             type_encoder = 'bi_embedding'

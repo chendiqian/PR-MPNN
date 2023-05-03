@@ -450,7 +450,7 @@ class Trainer:
             pred_uncertainty = pred_ensemble.cpu().numpy().std(1)
             pred_ensemble = pred_ensemble.mean(dim=1)
 
-            dataset_std = 1 if dataloader.std is None else dataloader.std
+            dataset_std = 1 if dataloader.std is None else dataloader.std.to(self.device)
             preds.append(pred * dataset_std)
             preds_ensemble.append(pred_ensemble * dataset_std)
             labels.append(label * dataset_std)
