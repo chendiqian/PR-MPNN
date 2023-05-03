@@ -133,6 +133,8 @@ def run(wandb, args):
     for _run in range(args.num_runs):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(
                 zip(train_loaders, val_loaders, test_loaders)):
+            if args.model.lower().startswith('leafcolor'):
+                args['num_classes'] = max([s.y.item() for s in train_loader.loader.dataset]) + 1
             model, emb_model = get_model(args, device)
             optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
             optimizer, scheduler = get_opt(model)
