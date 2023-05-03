@@ -5,6 +5,7 @@ from models.downstream_models.ogb_mol_gnn import OGBGNN
 from models.downstream_models.zinc_gin import ZINC_GIN
 from models.downstream_models.alchemy_gin import AL_GIN
 from models.downstream_models.tree_gnn import TreeGraphModel
+from models.downstream_models.leafcolor_gnn import LeafColorGraphModel
 from models.downstream_models.zinc_halftransformer import ZINC_HalfTransformer
 from models.downstream_models.alchemy_halftransformer import AL_HalfTransformer
 from models.upstream_models.linear_embed import LinearEmbed
@@ -111,6 +112,19 @@ def get_model(args, device, *_args):
                                layer_norm=False,
                                use_activation=False,
                                use_residual=False)
+    elif args.model.lower().startswith('leafcolor'):
+        model = LeafColorGraphModel(gnn_type=args.model.lower().split('_')[1],
+                                    num_layers=args.num_convlayers,
+                                    tree_depth=DATASET_FEATURE_STAT_DICT[args.dataset]['tree_depth'],
+                                    n_leaf_labels=DATASET_FEATURE_STAT_DICT[args.dataset]['n_leaf_labels'],
+                                    h_dim=args.hid_size,
+                                    out_dim=args['num_classes'],
+                                    last_layer_fully_adjacent=False,
+                                    unroll=False,
+                                    layer_norm=False,
+                                    use_activation=False,
+                                    use_residual=False)
+
     else:
         raise NotImplementedError
 
@@ -120,6 +134,8 @@ def get_model(args, device, *_args):
             type_encoder = 'linear'
         elif args.dataset.lower().startswith('tree'):
             type_encoder = 'bi_embedding'
+        elif args.dataset.lower().startswith('leafcolor'):
+            type_encoder = 'bi_embedding_cat'
         else:
             raise ValueError
         if args.imle_configs.model.startswith('lin'):

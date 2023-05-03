@@ -6,7 +6,7 @@ from ml_collections import ConfigDict
 from ogb.utils.features import get_atom_feature_dims, get_bond_feature_dims
 from torch import nn as nn
 
-from models.nn_modules import BiEmbedding, MLP
+from models.nn_modules import BiEmbedding, MLP, BiEmbedding_cat
 
 full_atom_feature_dims = get_atom_feature_dims()
 full_bond_feature_dims = get_bond_feature_dims()
@@ -93,6 +93,10 @@ class FeatureEncoder(torch.nn.Module):
             self.linear_embed = nn.Linear(dim_in, lin_hidden)
         elif type_encoder == 'bi_embedding':
             self.linear_embed = BiEmbedding(dim_in, lin_hidden)
+        elif type_encoder == 'bi_embedding_cat':
+            assert lin_hidden % 2 == 0, 'lin_hidden must be even'
+            # n_features hardcoded right now
+            self.linear_embed = BiEmbedding_cat(n_nodes=dim_in, n_features=2, hidden=lin_hidden//2)
         elif type_encoder == 'embedding':
             # https://github.com/rampasek/GraphGPS/blob/28015707cbab7f8ad72bed0ee872d068ea59c94b/graphgps/encoder/type_dict_encoder.py#L82
             raise NotImplementedError

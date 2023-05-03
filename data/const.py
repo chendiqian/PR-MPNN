@@ -21,6 +21,15 @@ DATASET_FEATURE_STAT_DICT = {
     'tree_6': {'node': 64, 'edge': 0, 'num_class': 64},
     'tree_7': {'node': 128, 'edge': 0, 'num_class': 128},
     'tree_8': {'node': 256, 'edge': 0, 'num_class': 256},
+
+    # maybe we can make the labels const and add the n_labels here
+    'leafcolor_2': {'node': 7, 'tree_depth': 2, 'n_leaf_labels': 2},
+    'leafcolor_3': {'node': 15, 'tree_depth': 3, 'n_leaf_labels': 2},
+    'leafcolor_4': {'node': 31, 'tree_depth': 4, 'n_leaf_labels': 2},
+    'leafcolor_5': {'node': 63, 'tree_depth': 5, 'n_leaf_labels': 2},
+    'leafcolor_6': {'node': 127, 'tree_depth': 6, 'n_leaf_labels': 2},
+    'leafcolor_7': {'node': 255, 'tree_depth': 7, 'n_leaf_labels': 2},
+    'leafcolor_8': {'node': 511, 'tree_depth': 8, 'n_leaf_labels': 2},
 }
 
 MAX_NUM_NODE_DICT = {
@@ -36,6 +45,14 @@ MAX_NUM_NODE_DICT = {
     'tree_6': 127,
     'tree_7': 255,
     'tree_8': 511,
+
+    'leafcolor_2': 7,
+    'leafcolor_3': 15,
+    'leafcolor_4': 31,
+    'leafcolor_5': 63,
+    'leafcolor_6': 127,
+    'leafcolor_7': 255,
+    'leafcolor_8': 511,
 }
 
 TASK_TYPE_DICT = {
@@ -57,6 +74,14 @@ TASK_TYPE_DICT = {
     'tree_6': 'acc',
     'tree_7': 'acc',
     'tree_8': 'acc',
+
+    'leafcolor_2': 'acc',
+    'leafcolor_3': 'acc',
+    'leafcolor_4': 'acc',
+    'leafcolor_5': 'acc',
+    'leafcolor_6': 'acc',
+    'leafcolor_7': 'acc',
+    'leafcolor_8': 'acc',
 }
 
 CRITERION_DICT = {
@@ -78,4 +103,12 @@ CRITERION_DICT = {
     'tree_6': nn.CrossEntropyLoss(),
     'tree_7': nn.CrossEntropyLoss(),
     'tree_8': nn.CrossEntropyLoss(),
+
+    'leafcolor_2': nn.CrossEntropyLoss(),
+    'leafcolor_3': nn.CrossEntropyLoss(),
+    'leafcolor_4': nn.CrossEntropyLoss(),
+    'leafcolor_5': nn.CrossEntropyLoss(),
+    'leafcolor_6': nn.CrossEntropyLoss(),
+    'leafcolor_7': nn.CrossEntropyLoss(),
+    'leafcolor_8': nn.CrossEntropyLoss(),
 }

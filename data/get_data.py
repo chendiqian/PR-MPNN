@@ -32,7 +32,7 @@ from .data_utils import AttributedDataLoader
 
 NUM_WORKERS = 0
 
-DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyTUDataset)
+DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyLeafColorDataset, MyTUDataset)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -356,7 +356,7 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
     transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
