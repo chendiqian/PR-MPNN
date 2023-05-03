@@ -1,0 +1,53 @@
+fixed:
+  dataset: alchemy
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "alchemy_trans"
+
+  sample_configs:
+    sample_policy: null
+    sample_k: null
+    ensemble: 0   # config just for plots
+    include_original_graph: True   # config just for plots
+
+  imle_configs: null
+
+  rwse:
+    kernel: 20
+    layers: 2
+    dim_pe: 16
+    raw_norm_type: 'BatchNorm'
+
+  lap:
+    max_freqs: 4
+    dim_pe: 16
+    layers: 2
+    raw_norm_type: null
+
+  model: alchemy_trans+gin
+  hid_size: 64
+  tf_hid_size: 64
+  tf_layers: 2
+  tf_head: 4
+  lr: 1.e-3
+  tf_dropout: 0.
+  attn_dropout: 0.5
+  optim: adam
+  lr_decay:
+    scheduler: step
+    steps: '[ 400, 600 ]'
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 6
+  mlp_layers_intragraph: 2
+  mlp_layers_intergraph: 0
+  inter_graph_pooling: null
+  batch_size: 128
+  min_epochs: 700
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 3

@@ -1,0 +1,87 @@
+fixed:
+  dataset: alchemy
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "alchemy_rewire"
+
+  sample_configs:
+    sample_policy: global_topk_directed
+    sample_k: 40
+    ensemble: 1
+    include_original_graph: True
+
+  imle_configs:
+    sampler: simple
+    logits_activation: 'None'
+    weight_edges: marginals
+    marginals_mask: True
+    negative_sample: 'full'  # full: include all the negative edges, zero: rm all the negative edges, same: same as top-k positive samples
+    num_train_ensemble: 1
+    num_val_ensemble: 1
+
+    model: "transformer"
+    heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51
+    rwse:
+      kernel: 20
+      layers: 2
+      dim_pe: 16
+      raw_norm_type: 'BatchNorm'
+
+    lap:
+      max_freqs: 4
+      dim_pe: 16
+      layers: 2
+      raw_norm_type: null
+
+    emb_hid_size: 64
+    emb_optim: "adamw"
+    emb_scheduler: "cosine"
+    tf_layer: 2
+    dropout: 0.
+    attn_dropout: 0.5
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    layernorm: False
+    batchnorm: True
+    spectral_norm: True   # spectral normalization
+    micro_batch_embd: 1
+
+    auxloss:
+      variance: 0.
+      degree: 0.
+      origin_bias: 0.01
+
+  input_feature: 64
+  rwse:
+    kernel: 20
+    layers: 2
+    dim_pe: 16
+    raw_norm_type: 'BatchNorm'
+  lap:
+    max_freqs: 4
+    dim_pe: 16
+    layers: 2
+    raw_norm_type: null
+
+  optim: "adam"
+  model: alchemy_gin
+  hid_size: 64
+  lr: 1.e-3
+  lr_decay:
+    scheduler: step
+    steps: '[ 400, 600 ]'
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 6
+  mlp_layers_intragraph: 2
+  mlp_layers_intergraph: 0
+  inter_graph_pooling: null
+  batch_size: 128
+  min_epochs: 700
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 3

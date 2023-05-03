@@ -6,6 +6,7 @@ from models.downstream_models.zinc_gin import ZINC_GIN
 from models.downstream_models.alchemy_gin import AL_GIN
 from models.downstream_models.tree_gnn import TreeGraphModel
 from models.downstream_models.zinc_halftransformer import ZINC_HalfTransformer
+from models.downstream_models.alchemy_halftransformer import AL_HalfTransformer
 from models.upstream_models.linear_embed import LinearEmbed
 from models.upstream_models.transformer import Transformer
 from models.my_encoder import FeatureEncoder
@@ -70,14 +71,20 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             mlp_layers_intergraph=args.mlp_layers_intergraph,
             inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'zinc_trans+gin':
+    elif args.model.lower().endswith('trans+gin'):
         encoder = FeatureEncoder(
             dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
             hidden=args.tf_hid_size,
             type_encoder='linear',
             lap_encoder=args.lap if hasattr(args, 'lap') else None,
             rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-        model = ZINC_HalfTransformer(
+        if args.model.lower().split('_')[0] == 'zinc':
+            model_class = ZINC_HalfTransformer
+        elif args.model.lower().split('_')[0] == 'alchemy':
+            model_class = AL_HalfTransformer
+        else:
+            raise ValueError
+        model = model_class(
             encoder=encoder,
             head=args.tf_head,
             gnn_in_features=args.tf_hid_size,
