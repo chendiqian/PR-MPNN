@@ -60,6 +60,25 @@ class BiEmbedding(torch.nn.Module):
         self.layer0_keys.reset_parameters()
         self.layer0_values.reset_parameters()
 
+class BiEmbedding_cat(torch.nn.Module):
+    def __init__(self,
+                 n_nodes,
+                 n_features,
+                 hidden,):
+        super(BiEmbedding_cat, self).__init__()
+        self.emb_node = nn.Embedding(num_embeddings=n_nodes, embedding_dim=hidden)
+        self.emb_feature = nn.Embedding(num_embeddings=n_features, embedding_dim=hidden)
+
+    def forward(self, x):
+        x_node, x_feature = x[:, 0], x[:, 1]
+        node_emb = self.emb_node(x_node)
+        feature_emb = self.emb_feature(x_feature)
+        x = torch.cat([node_emb, feature_emb], dim=-1)
+        return x
+
+    def reset_parameters(self):
+        self.layer0_keys.reset_parameters()
+        self.layer0_values.reset_parameters()
 
 class AttentionLayer(torch.nn.Module):
     def __init__(self, in_dim, hidden, head, attention_dropout, use_spectral_norm = False):

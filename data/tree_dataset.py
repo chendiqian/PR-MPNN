@@ -197,14 +197,14 @@ class LeafColorDataset(TreeDataset):
         label_binary = bin(leaf_label)[2:].zfill(n_bits)
         root_label = sum([int(bit) for bit in label_binary])
 
-        nodes = [(1, 0)]
+        nodes = [(0, 0)]
 
         for i in range(1, self.num_nodes):
             if i in self.leaf_indices:
                 leaf_num = self.leaf_indices.index(i)
-                node = (leaf_num+2, int(label_binary[leaf_num]))
+                node = (i, int(label_binary[leaf_num]))
             else:
-                node = (0, 0)
+                node = (i, 0)
             nodes.append(node)
         return nodes, root_label
     
@@ -215,9 +215,9 @@ class LeafColorDataset(TreeDataset):
             edge_index = self.create_blank_tree(add_self_loops=True)
             nodes, label = self.get_nodes_features(leaf_label)
             nodes = torch.tensor(nodes, dtype=torch.long)
-            data_list.append(Data(x=nodes, edge_index=edge_index, y=label))
+            root_mask = torch.tensor([True] + [False] * (len(nodes) - 1))
+            data_list.append(Data(x=nodes, edge_index=edge_index, y=label, root_mask=root_mask))
 
-        dim0, out_dim = self.get_dims()
 
         labels = [data.y for data in data_list]
         lens, labels_idx = [], set(labels)
@@ -240,12 +240,10 @@ class LeafColorDataset(TreeDataset):
         for data in reduced_data:
             data.y = data.y - start_class
 
-        dim0, out_dim = num_classes, num_classes
-
         X_train, X_test = train_test_split(
             reduced_data, train_size=train_fraction, shuffle=True, stratify=[data.y for data in reduced_data])
-
-        return X_train, X_test, dim0, out_dim
+        
+        return X_train, X_test
 
 class MyLeafColorDataset(InMemoryDataset):
     def __init__(self, root, train, seed, depth, transform=None, pre_transform=None, pre_filter=None):
@@ -261,7 +259,7 @@ class MyLeafColorDataset(InMemoryDataset):
 
     def process(self):
         # Read data into huge `Data` list.
-        X_train, X_test, dim0, out_dim = LeafColorDataset(self.depth, self.seed).generate_data(0.8)
+        X_train, X_test = LeafColorDataset(self.depth, self.seed).generate_data(0.8)
 
         print('Dataset generated!')
 
