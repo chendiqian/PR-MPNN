@@ -1,0 +1,38 @@
+fixed:
+  dataset: leafcolor_4
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "leafcolor4-20"
+  wandb_prefix: "normalgnn_"
+
+  sample_configs:
+    sample_policy: null
+    sample_k: null
+    ensemble: 0
+    include_original_graph: False
+
+  imle_configs: null
+  
+  model: leafcolor_gin
+  hid_size: 128
+  lr: 1.e-3
+  optim: adam
+  lr_decay:
+    scheduler: plateau
+    decay_rate: 0.5
+    patience: 10000
+    mode: max
+    target: train_metric
+  early_stop:
+    patience: 20000
+    target: train_metric
+  reg: 0.
+  num_convlayers: 5
+  inter_graph_pooling: null
+  batch_size: 1024
+  min_epochs: 0
+  max_epochs: 50000
+  data_path: './datasets'
+  debug: False
+  num_runs: 3

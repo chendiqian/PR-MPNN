@@ -373,4 +373,6 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
         val_set = val_set[:16]
         test_set = test_set[:16]
 
+    args['num_classes'] = max([s.y.item() for s in train_set]) + 1
+
     return train_set, val_set, test_set, None, None
