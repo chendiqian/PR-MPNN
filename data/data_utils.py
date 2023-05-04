@@ -15,6 +15,15 @@ AttributedDataLoader = namedtuple(
         'std'
     ])
 
+DuoDataStructure = namedtuple(
+    'DuoDataStructure', [
+        'data1',
+        'data2',
+        'y',
+        'num_graphs',
+    ]
+)
+
 
 def get_cosine_schedule_with_warmup(
         optimizer: Optimizer,

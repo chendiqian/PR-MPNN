@@ -6,7 +6,7 @@ import torch
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax, MyPlateau
+from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax, MyPlateau, DuoDataStructure
 from data.plot_utils import plot_score, plot_rewired_graphs
 from data.metrics import get_eval
 from imle.noise import GumbelDistribution
@@ -16,6 +16,7 @@ from training.aux_loss import get_degree_regularization, get_variance_regulariza
 from training.gumbel_scheme import GumbelSampler
 from training.imle_scheme import IMLEScheme
 from training.simple_scheme import EdgeSIMPLEBatched
+from training.construct import sparsify_edge_weight
 
 LARGE_NUMBER = 1.e10
 Optimizer = Union[torch.optim.Adam,
@@ -207,44 +208,46 @@ class Trainer:
         edge_weight = sampled_edge_weights.permute((1, 2, 3, 4, 0))[real_node_node_mask]
         edge_weight = edge_weight.permute(2, 1, 0).flatten()
 
-        if self.include_original_graph:
-            edge_weight = torch.cat([edge_weight, edge_weight.new_ones(VE * E * dat_batch.num_edges)], dim=0)
-
         new_graphs = [g.clone() for g in graphs]
         for g in new_graphs:
             g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
         new_graphs = new_graphs * (E * VE)
-        if self.include_original_graph:
-            new_graphs += graphs * (E * VE)
-        new_batch = Batch.from_data_list(new_graphs)
-        new_batch.y = new_batch.y[:B * E * VE]
-        new_batch.inter_graph_idx = torch.arange(B * E * VE).to(self.device).repeat(1 + int(self.include_original_graph))
 
-        if train:
-            if self.imle_configs.negative_sample == 'full':
-                new_batch.edge_weight = edge_weight
-            elif self.imle_configs.negative_sample == 'zero':
-                assert self.imle_configs.marginals_mask
-                nonzero_idx = edge_weight.nonzero().reshape(-1)
-                new_batch.edge_index = new_batch.edge_index[:, nonzero_idx]
-                new_batch.edge_weight = edge_weight[nonzero_idx]
-            elif self.imle_configs.negative_sample == 'same':
-                assert self.imle_configs.marginals_mask
-                zero_idx = torch.where(edge_weight == 0.)[0]
-                zero_idx = zero_idx[torch.randint(low=0, high=zero_idx.shape[0], size=(B * E * VE * self.sample_k,), device=self.device)]
-                nonzero_idx = edge_weight.nonzero().reshape(-1)
-                idx = torch.cat((zero_idx, nonzero_idx), dim=0).unique()
-                new_batch.edge_index = new_batch.edge_index[:, idx]
-                new_batch.edge_weight = edge_weight[idx]
+        if merge_original_graph:
+            if self.include_original_graph:
+                new_graphs += graphs * (E * VE)
+                edge_weight = torch.cat(
+                    [edge_weight, edge_weight.new_ones(VE * E * dat_batch.num_edges)],
+                    dim=0)
+
+            new_batch = Batch.from_data_list(new_graphs)
+            new_batch.y = new_batch.y[:B * E * VE]
+            new_batch.inter_graph_idx = torch.arange(B * E * VE).to(self.device).repeat(1 + int(self.include_original_graph))
+
+            if train:
+                new_batch = sparsify_edge_weight(new_batch,
+                                                 edge_weight,
+                                                 self.imle_configs.negative_sample,
+                                                 B * E * VE * self.sample_k,
+                                                 self.device)
             else:
-                raise ValueError
+                new_batch = sparsify_edge_weight(new_batch, edge_weight, 'zero')
+            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
         else:
-            # we have majority voting batching
-            nonzero_idx = edge_weight.nonzero().reshape(-1)
-            new_batch.edge_index = new_batch.edge_index[:, nonzero_idx]
-            new_batch.edge_weight = edge_weight[nonzero_idx]
+            rewired_batch = Batch.from_data_list(new_graphs)
+            original_batch = Batch.from_data_list(graphs * (E * VE))
 
-        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+            if train:
+                rewired_batch = sparsify_edge_weight(rewired_batch,
+                                                     edge_weight,
+                                                     self.imle_configs.negative_sample,
+                                                     B * E * VE * self.sample_k,
+                                                     self.device)
+            else:
+                rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, 'zero')
+
+            new_batch = DuoDataStructure(data1=rewired_batch, data2=original_batch, y=rewired_batch.y, num_graphs=rewired_batch.num_graphs)
+            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
     def train(self,
               dataloader: AttributedDataLoader,
