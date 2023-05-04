@@ -9,7 +9,6 @@ from models.nn_modules import MLP
 class ZINC_GIN(torch.nn.Module):
     def __init__(self,
                  encoder,
-                 ensemble,
                  in_features,
                  num_layers,
                  hidden,
@@ -50,7 +49,7 @@ class ZINC_GIN(torch.nn.Module):
             assert mlp_layers_intergraph > 0
             self.mlp1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
             self.inter_pool = cat_pooling
-            self.mlp2 = MLP([hidden * ensemble] + [hidden] * (mlp_layers_intergraph - 1) + [num_classes], dropout=0.)
+            self.mlp2 = MLP([hidden * 2] + [hidden] * (mlp_layers_intergraph - 1) + [num_classes], dropout=0.)
         elif inter_graph_pooling == 'set2set':
             assert mlp_layers_intergraph > 0
             self.mlp1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)

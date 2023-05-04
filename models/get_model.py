@@ -40,7 +40,6 @@ def get_model(args, device, *_args):
 
         model = ZINC_GIN(
             encoder=encoder,
-            ensemble=args.sample_configs.ensemble + int(args.sample_configs.include_original_graph),
             in_features=input_feature,
             num_layers=args.num_convlayers,
             hidden=args.hid_size,
@@ -64,7 +63,6 @@ def get_model(args, device, *_args):
 
         model = AL_GIN(
             encoder=encoder,
-            ensemble=args.sample_configs.ensemble + int(args.sample_configs.include_original_graph),
             in_features=input_feature,
             num_layers=args.num_convlayers,
             hidden=args.hid_size,
