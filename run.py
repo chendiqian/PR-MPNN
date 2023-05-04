@@ -112,6 +112,7 @@ def run(wandb, args):
                       patience_target=args.early_stop.target,
                       criterion=criterion,
                       device=device,
+                      merge_original_graph=not 'duo' in args.model.lower(),
                       imle_configs=args.imle_configs,
                       sample_configs=args.sample_configs,
                       auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs,

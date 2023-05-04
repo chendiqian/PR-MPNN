@@ -1,18 +1,13 @@
-import os
-import pdb
-from math import ceil, sqrt
 from typing import Any, Optional, Union, Tuple, List
+from functools import partial
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-import networkx as nx
 import numpy as np
 import torch
-from torch_geometric.utils import to_networkx, degree
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
 
 from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax, MyPlateau
+from data.plot_utils import plot_score, plot_rewired_graphs
 from data.metrics import get_eval
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
@@ -40,6 +35,7 @@ class Trainer:
                  patience_target: str,
                  criterion: Loss,
                  device: Union[str, torch.device],
+                 merge_original_graph: bool,
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
                  auxloss: ConfigDict,
@@ -54,26 +50,41 @@ class Trainer:
         self.criterion = criterion
         self.device = device
 
-        self.sample_configs = sample_configs
         self.imle_configs = imle_configs
 
-        self.best_val_loss = 1e5
-        self.best_train_loss = 1e5
-        self.best_val_metric = None
-        self.best_train_metric = None
-        self.patience = 0
         self.max_patience = max_patience
         self.patience_target = patience_target
         self.auxloss = auxloss
 
+        # clear best scores
+        self.clear_stats()
+
         self.wandb = wandb
         self.use_wandb = use_wandb
-        self.plot_args = plot_args
+
+        # plot functions
+        if plot_args is None:
+            self.plot = None
+            self.plot_score = None
+        else:
+            self.plot = partial(plot_rewired_graphs,
+                                wandb=wandb,
+                                use_wandb=use_wandb,
+                                plot_args=plot_args,
+                                ensemble=sample_configs.ensemble,
+                                num_train_ensemble=imle_configs.num_train_ensemble,
+                                num_val_ensemble=imle_configs.num_val_ensemble,
+                                include_original_graph=sample_configs.include_original_graph)
+            self.plot_score = partial(plot_score,
+                                      plot_args=plot_args,
+                                      wandb=wandb,
+                                      use_wandb=use_wandb)
 
         self.epoch = None
 
         self.sample_policy = sample_configs.sample_policy
         self.include_original_graph = sample_configs.include_original_graph
+        self.sample_k = sample_configs.sample_k
         if imle_configs is not None:
             # upstream may have micro batching
             self.micro_batch_embd = imle_configs.micro_batch_embd
@@ -124,7 +135,7 @@ class Trainer:
         elif imle_configs is None:
             self.construct_duplicate_data = lambda x, *args: (x[0], None, None)
         elif imle_configs is not None:
-            self.construct_duplicate_data = self.diffable_rewire
+            self.construct_duplicate_data = partial(self.diffable_rewire, merge_original_graph=merge_original_graph)
 
 
     def check_datatype(self, data):
@@ -136,7 +147,7 @@ class Trainer:
             raise TypeError(f"Unexpected dtype {type(data)}")
 
 
-    def diffable_rewire(self, collate_data: Tuple[Data, List[Data]], emb_model: Emb_model, ):
+    def diffable_rewire(self, collate_data: Tuple[Data, List[Data]], emb_model: Emb_model, merge_original_graph: bool = True):
 
         dat_batch, graphs = collate_data
 
@@ -220,7 +231,7 @@ class Trainer:
             elif self.imle_configs.negative_sample == 'same':
                 assert self.imle_configs.marginals_mask
                 zero_idx = torch.where(edge_weight == 0.)[0]
-                zero_idx = zero_idx[torch.randint(low=0, high=zero_idx.shape[0], size=(B * E * VE * self.sample_configs.sample_k,), device=self.device)]
+                zero_idx = zero_idx[torch.randint(low=0, high=zero_idx.shape[0], size=(B * E * VE * self.sample_k,), device=self.device)]
                 nonzero_idx = edge_weight.nonzero().reshape(-1)
                 idx = torch.cat((zero_idx, nonzero_idx), dim=0).unique()
                 new_batch.edge_index = new_batch.edge_index[:, idx]
@@ -234,124 +245,6 @@ class Trainer:
             new_batch.edge_weight = edge_weight[nonzero_idx]
 
         return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
-
-
-    def plot(self, new_batch: Batch, train: bool):
-        """Plot graphs and edge weights.        
-        Inputs: Batch of graphs from list.
-        Outputs: None"""
-        if hasattr(self.plot_args, 'plot_folder'):
-            plot_folder = self.plot_args.plot_folder
-            if not os.path.exists(plot_folder):
-                os.makedirs(plot_folder)
-
-        # in this case, the batch indices are already modified for inter-subgraph graph pooling,
-        # use the original batch instead for compatibility of `to_data_list`
-        del new_batch.y  # without repitition, so might be incompatible
-
-        new_batch_plot = new_batch.to_data_list()
-        if hasattr(new_batch, 'edge_weight') and new_batch.edge_weight is not None:
-            src, dst = new_batch.edge_index
-            sections = degree(new_batch.batch[src], dtype=torch.long).tolist()
-            weights_split = torch.split(new_batch.edge_weight, split_size_or_sections=sections)
-        else:
-            weights_split = [None] * len(new_batch_plot)
-
-        n_ensemble = self.sample_configs.ensemble * (self.imle_configs.num_train_ensemble if train
-                                                     else self.imle_configs.num_val_ensemble)
-        unique_graphs = len(new_batch_plot) // n_ensemble // (2 if self.include_original_graph else 1)
-        total_plotted_graphs = min(self.plot_args.n_graphs, unique_graphs)
-
-        nrows = round(sqrt(n_ensemble + int(self.include_original_graph)))
-        ncols = ceil(sqrt(n_ensemble + int(self.include_original_graph)))
-        is_only_one_plot = ncols * nrows == 1
-
-        for graph_id in range(total_plotted_graphs):
-            g_nx = to_networkx(new_batch_plot[graph_id])
-
-            original_graphs_pos_np = new_batch_plot[graph_id].nx_layout.cpu().numpy()
-            original_graphs_pos_dict = {i: pos for i, pos in enumerate(original_graphs_pos_np)}
-
-            if 'dataset' in self.plot_args and self.plot_args.dataset == 'leafcolor':
-                node_colors = new_batch_plot[graph_id].x[:, 1].detach().cpu().unsqueeze(-1)
-            else:
-                node_colors = new_batch_plot[graph_id].x.detach().cpu().argmax(dim=1).unsqueeze(-1)
-
-            fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*7, nrows*7), gridspec_kw={'wspace': 0, 'hspace': 0.05})
-            if not is_only_one_plot:
-                axs = axs.flatten()
-                for ax in axs:
-                    ax.set_axis_off()
-            else:
-                axs.set_axis_off()
-
-            for variant_id in range(n_ensemble + int(self.include_original_graph)):
-                graph_version = 'original' if variant_id == n_ensemble else 'rewired'
-                lst_id = variant_id * unique_graphs + graph_id
-                g = new_batch_plot[lst_id]
-
-                weights = weights_split[lst_id]
-                if weights is not None:
-                    edges = g.edge_index[:, torch.where(weights)[0]].T.tolist()
-                else:
-                    edges = g.edge_index.T.tolist()
-
-                if not is_only_one_plot:
-                    ax = axs[variant_id]
-                else:
-                    ax = axs
-
-                nx.draw_networkx_nodes(g_nx, original_graphs_pos_dict, node_size=200, node_color=node_colors, alpha=0.7, ax=ax)
-                nx.draw_networkx_edges(g_nx, original_graphs_pos_dict, edgelist=edges, width=1, edge_color='k', ax=ax)
-                nx.draw_networkx_labels(g_nx, pos=original_graphs_pos_dict, labels={i: i for i in range(len(node_colors))}, ax=ax)
-                ax.set_title(f'Graph {graph_id}, Epoch {self.epoch}, Version: {graph_version}')
-
-            if hasattr(self.plot_args, 'plot_folder'):
-                fig.savefig(os.path.join(plot_folder, f'e_{self.epoch}_graph_{graph_id}.png'), bbox_inches='tight')
-
-            if self.wandb is not None and self.use_wandb:
-                self.wandb.log({f"graph_{graph_id}": self.wandb.Image(fig)}, step=self.epoch)
-
-            plt.close(fig)
-
-
-    def plot_score(self, scores: torch.Tensor):
-        scores = scores.cpu().numpy()
-        n_ensemble = scores.shape[-1]
-        unique_graphs = scores.shape[0]
-        total_plotted_graphs = min(self.plot_args.n_graphs, unique_graphs)
-
-        nrows = round(sqrt(n_ensemble))
-        ncols = ceil(sqrt(n_ensemble))
-        is_only_one_plot = ncols * nrows == 1
-
-        if hasattr(self.plot_args, 'plot_folder'):
-            plot_folder = self.plot_args.plot_folder
-            if not os.path.exists(plot_folder):
-                os.makedirs(plot_folder)
-
-        for graph_id in range(total_plotted_graphs):
-            fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*7, nrows*7), gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
-            if not is_only_one_plot:
-                axs = axs.flatten()
-                for ax in axs:
-                    ax.set_axis_off()
-            else:
-                axs.set_axis_off()
-
-            atten_scores = scores[graph_id, ...]
-            for e in range(n_ensemble):
-                sns.heatmap(atten_scores[..., e], ax=axs[e] if not is_only_one_plot else axs)
-
-            if hasattr(self.plot_args, 'plot_folder'):
-                fig.savefig(os.path.join(plot_folder,
-                                        f'scores_epoch_{self.epoch}_graph_{graph_id}.png'),
-                            bbox_inches='tight')
-
-            if self.wandb is not None and self.use_wandb:
-                self.wandb.log({f"scores_{graph_id}": self.wandb.Image(fig)}, step=self.epoch)
-
-            plt.close(fig)
 
     def train(self,
               dataloader: AttributedDataLoader,
@@ -398,11 +291,10 @@ class Trainer:
             preds.append(pred)
             labels.append(data.y)
 
-            if self.plot_args is not None:
-                if batch_id == self.plot_args.batch_id and self.epoch % self.plot_args.plot_every == 0:
-                    self.plot(data, train=True)
-                    if scores is not None:
-                        self.plot_score(scores)
+            if self.plot is not None:
+                self.plot(data, True, self.epoch, batch_id)
+            if self.plot_score is not None and scores is not None:
+                self.plot_score(scores, self.epoch, batch_id)
 
         train_loss = train_losses.item() / num_graphs
         self.best_train_loss = min(self.best_train_loss, train_loss)
