@@ -274,6 +274,11 @@ class Trainer:
 
             if 'dataset' in self.plot_args and self.plot_args.dataset == 'leafcolor':
                 node_colors = new_batch_plot[graph_id].x[:, 1].detach().cpu().unsqueeze(-1)
+            elif 'dataset' in self.plot_args and self.plot_args.dataset == 'trees':
+                idx_label = torch.where(new_batch_plot[graph_id].x[:, 1] == new_batch_plot[graph_id].x[0][0])[0].item()
+                node_colors = torch.tensor([0 for _ in range(new_batch_plot[graph_id].x.shape[0])])
+                node_colors[idx_label] = 1
+                node_colors = node_colors.unsqueeze(-1)
             else:
                 node_colors = new_batch_plot[graph_id].x.detach().cpu().argmax(dim=1).unsqueeze(-1)
 
