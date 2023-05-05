@@ -12,6 +12,7 @@ from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEig
 
 from .tudataset import MyTUDataset
 from .tree_dataset import MyTreeDataset, MyLeafColorDataset
+from .peptides_struct import PeptidesStructuralDataset
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
@@ -32,7 +33,7 @@ from .data_utils import AttributedDataLoader
 
 NUM_WORKERS = 0
 
-DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyLeafColorDataset, MyTUDataset)
+DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyLeafColorDataset, MyTUDataset, PeptidesStructuralDataset)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -149,6 +150,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_treedataset(args)
     elif args.dataset.lower().startswith('leafcolor'):
         train_set, val_set, test_set, mean, std = get_leafcolordataset(args)
+    elif args.dataset.lower().startswith('peptides-struct'):
+        train_set, val_set, test_set, mean, std = get_peptides_struct(args)
     else:
         raise ValueError
 
@@ -281,6 +284,17 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
 
     return train_set, val_set, test_set, None, None
 
+def get_peptides_struct(args: Union[Namespace, ConfigDict]):
+    datapath = args.data_path
+    pre_transform = get_pretransform(args, extra_pretransforms=None)
+    transform = get_transform(args)
+    dataset = PeptidesStructuralDataset(root=datapath, transform=transform, pre_transform=pre_transform)
+    
+    split_idx = dataset.get_idx_split()
+    
+    train_set, val_set, test_set = dataset[split_idx['train']], dataset[split_idx['val']], dataset[split_idx['test']]
+
+    return train_set, val_set, test_set, None, None
 
 def get_alchemy(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=None)
