@@ -16,7 +16,7 @@ fixed:
     logits_activation: 'None'
     weight_edges: marginals
     marginals_mask: True
-    negative_sample: 'same'  # full: include all the negative edges, zero: rm all the negative edges, same: same as top-k positive samples
+    negative_sample: 'zero'  # full: include all the negative edges, zero: rm all the negative edges, same: same as top-k positive samples
     num_train_ensemble: 1
     num_val_ensemble: 5
 

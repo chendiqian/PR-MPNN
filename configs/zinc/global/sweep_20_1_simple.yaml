@@ -43,7 +43,6 @@ parameters:
     value: None
   imle_configs.negative_sample:
     values:
-      - same
       - full
       - zero
     distribution: categorical
