@@ -1,11 +1,11 @@
 import torch
-from torch_geometric.nn import global_mean_pool, global_add_pool
+from torch_geometric.nn import Set2Set
 
 from models.my_convs import BaseGIN
 from models.nn_modules import MLP
 
 
-class ZINC_GIN_Duo(torch.nn.Module):
+class AL_GIN_Duo(torch.nn.Module):
     def __init__(self,
                  encoder,
                  in_features,
@@ -14,9 +14,8 @@ class ZINC_GIN_Duo(torch.nn.Module):
                  num_classes,
                  mlp_layers_intragraph,
                  mlp_layers_intergraph,
-                 graph_pooling='mean',
                  inter_graph_pooling=None):
-        super(ZINC_GIN_Duo, self).__init__()
+        super(AL_GIN_Duo, self).__init__()
 
         self.encoder = encoder
 
@@ -24,24 +23,20 @@ class ZINC_GIN_Duo(torch.nn.Module):
         self.gnn2 = BaseGIN(in_features, num_layers, hidden)
 
         # intra-graph pooling
-        if graph_pooling == "sum":
-            self.pool = global_add_pool
-        elif graph_pooling == "mean":
-            self.pool = global_mean_pool
-        else:
-            raise NotImplementedError
+        self.pool1 = Set2Set(hidden, processing_steps=6)
+        self.pool2 = Set2Set(hidden, processing_steps=6)
 
         self.inter_graph_pooling = inter_graph_pooling
         # inter-graph pooling
         if inter_graph_pooling == 'mean':
             assert mlp_layers_intergraph > 0
-            self.mlp1_1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
-            self.mlp1_2 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
+            self.mlp1_1 = MLP([2 * hidden] + [hidden] * mlp_layers_intragraph, dropout=0.)
+            self.mlp1_2 = MLP([2 * hidden] + [hidden] * mlp_layers_intragraph, dropout=0.)
             self.mlp2 = MLP([hidden] * mlp_layers_intergraph + [num_classes], dropout=0.)
         elif inter_graph_pooling == 'cat':
             assert mlp_layers_intergraph > 0
-            self.mlp1_1 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
-            self.mlp1_2 = MLP([hidden] * (mlp_layers_intragraph + 1), dropout=0.)
+            self.mlp1_1 = MLP([2 * hidden] + [hidden] * mlp_layers_intragraph, dropout=0.)
+            self.mlp1_2 = MLP([2 * hidden] + [hidden] * mlp_layers_intragraph, dropout=0.)
             self.mlp2 = MLP([hidden * 2] + [hidden] * (mlp_layers_intergraph - 1) + [num_classes], dropout=0.)
         else:
             raise NotImplementedError
@@ -51,6 +46,8 @@ class ZINC_GIN_Duo(torch.nn.Module):
             self.encoder.reset_parameters()
         self.gnn1.reset_parameters()
         self.gnn2.reset_parameters()
+        self.pool1.reset_parameters()
+        self.pool2.reset_parameters()
         self.mlp1_1.reset_parameters()
         self.mlp1_2.reset_parameters()
         self.mlp2.reset_parameters()
@@ -64,8 +61,8 @@ class ZINC_GIN_Duo(torch.nn.Module):
         h_node1 = self.gnn1(data1)
         h_node2 = self.gnn2(data2)
 
-        h_graph1 = self.pool(h_node1, data1.batch)
-        h_graph2 = self.pool(h_node2, data2.batch)
+        h_graph1 = self.pool1(h_node1, data1.batch)
+        h_graph2 = self.pool2(h_node2, data2.batch)
         h_graph1 = self.mlp1_1(h_graph1)
         h_graph2 = self.mlp1_2(h_graph2)
 
