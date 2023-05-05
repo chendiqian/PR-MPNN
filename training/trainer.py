@@ -85,7 +85,6 @@ class Trainer:
 
         self.sample_policy = sample_configs.sample_policy
         self.include_original_graph = sample_configs.include_original_graph
-        self.sample_k = sample_configs.sample_k
         if imle_configs is not None:
             # upstream may have micro batching
             self.micro_batch_embd = imle_configs.micro_batch_embd
@@ -225,11 +224,7 @@ class Trainer:
             new_batch.inter_graph_idx = torch.arange(B * E * VE).to(self.device).repeat(1 + int(self.include_original_graph))
 
             if train:
-                new_batch = sparsify_edge_weight(new_batch,
-                                                 edge_weight,
-                                                 self.imle_configs.negative_sample,
-                                                 B * E * VE * self.sample_k,
-                                                 self.device)
+                new_batch = sparsify_edge_weight(new_batch, edge_weight, self.imle_configs.negative_sample)
             else:
                 new_batch = sparsify_edge_weight(new_batch, edge_weight, 'zero')
             return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
@@ -238,11 +233,7 @@ class Trainer:
             original_batch = Batch.from_data_list(graphs * (E * VE))
 
             if train:
-                rewired_batch = sparsify_edge_weight(rewired_batch,
-                                                     edge_weight,
-                                                     self.imle_configs.negative_sample,
-                                                     B * E * VE * self.sample_k,
-                                                     self.device)
+                rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, self.imle_configs.negative_sample)
             else:
                 rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, 'zero')
 
