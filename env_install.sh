@@ -5,6 +5,7 @@ echo y | conda create -n nightly python=3.10
 source ${CONDA_PREFIX}/bin/activate nightly
 
 conda install pytorch  pytorch-cuda=11.7 -c pytorch-nightly -c nvidia
+conda install openbabel fsspec rdkit -c conda-forge
 pip install cmake
 pip install --verbose git+https://github.com/pyg-team/pyg-lib.git
 pip install --verbose torch_scatter
