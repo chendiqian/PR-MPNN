@@ -292,6 +292,9 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
 
 def get_peptides_struct(args: Union[Namespace, ConfigDict]):
     datapath = args.data_path
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
     pre_transform = get_pretransform(args, extra_pretransforms=None)
     transform = get_transform(args)
     dataset = PeptidesStructuralDataset(root=datapath, transform=transform, pre_transform=pre_transform)
@@ -299,6 +302,11 @@ def get_peptides_struct(args: Union[Namespace, ConfigDict]):
     split_idx = dataset.get_idx_split()
     
     train_set, val_set, test_set = dataset[split_idx['train']], dataset[split_idx['val']], dataset[split_idx['test']]
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
 
     return train_set, val_set, test_set, None, None
 
