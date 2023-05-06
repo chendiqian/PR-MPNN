@@ -198,6 +198,30 @@ class AugmentWithShortedPathDistance(GraphModification):
         return graph
 
 
+class AugmentWithLongestPathEdgeCandidate(GraphModification):
+    def __init__(self, num_candidate):
+        super(AugmentWithLongestPathEdgeCandidate, self).__init__()
+        self.num_candidate = num_candidate
+
+    def __call__(self, graph: Data):
+        assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
+        edge_index = graph.edge_index.numpy()
+        mat = csr_matrix((np.ones(edge_index.shape[1]), (edge_index[0], edge_index[1])),
+                         shape=(graph.num_nodes, graph.num_nodes))
+
+        g_dist_mat = shortest_path(mat, directed=False, return_predecessors=False)
+        g_dist_mat[np.isinf(g_dist_mat)] = -1.
+        g_dist_mat[g_dist_mat == -1] = g_dist_mat.max() + 1
+
+        triu_idx = np.vstack(np.triu_indices(graph.num_nodes, k=1))
+        distances = g_dist_mat[triu_idx[0], triu_idx[1]]
+        edge_candidate = triu_idx[:, np.argsort(distances)[-self.num_candidate:]]
+
+        graph.edge_candidate = torch.from_numpy(edge_candidate).T
+        graph.num_edge_candidate = edge_candidate.shape[1]
+        return graph
+
+
 class AugmentWithPPR(GraphModification):
     def __init__(self, max_num_nodes, alpha = 0.2, iters = 20):
         super(AugmentWithPPR, self).__init__()

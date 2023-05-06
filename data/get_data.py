@@ -19,7 +19,7 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentwithNNodes,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop, GraphAddSkipConnection, GraphRedirect,
-                              AugmentWithShortedPathDistance,
+                              AugmentWithShortedPathDistance, AugmentWithLongestPathEdgeCandidate,
                               AugmentWithPPR,
                               AugmentWithDirectedGlobalRewiredGraphs,
                               AugmentWithUndirectedGlobalRewiredGraphs,
@@ -46,6 +46,7 @@ PRETRANSFORM_PRIORITY = {
     AugmentwithNNodes: 0,  # low
     GraphAttrToOneHot: 0,  # low
     AugmentWithShortedPathDistance: 98,
+    AugmentWithLongestPathEdgeCandidate: 98,
     AugmentWithPPR: 98,
     AddRandomWalkPE: 98,
     AddLaplacianEigenvectorPE: 98,
@@ -56,6 +57,8 @@ PRETRANSFORM_PRIORITY = {
 
 def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
+    if args.sample_configs.sample_policy == 'edge_candid':
+        extra_path += f'EdgeCandidates{args.sample_configs.candid_pool}_'
     if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
         extra_path += 'SPDaug_'
     if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
@@ -122,6 +125,9 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
         pretransform.append(AugmentWithSpatialInfo(args.imle_configs.attenbias.num_spatial_types,
                                                    args.imle_configs.attenbias.num_in_degrees,
                                                    args.imle_configs.attenbias.num_out_degrees))
+
+    if args.sample_configs.sample_policy == 'edge_candid':
+        pretransform.append(AugmentWithLongestPathEdgeCandidate(args.sample_configs.candid_pool))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)
