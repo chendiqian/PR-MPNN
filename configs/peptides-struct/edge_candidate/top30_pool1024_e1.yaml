@@ -74,7 +74,7 @@ fixed:
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
   inter_graph_pooling: 'cat'
-  batch_size: 8
+  batch_size: 64
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
