@@ -25,16 +25,15 @@ fixed:
     rwse:
       kernel: 20
       layers: 2
-      dim_pe: 16
+      dim_pe: 32
       raw_norm_type: 'BatchNorm'
 
     lap:
       max_freqs: 4
-      dim_pe: 16
+      dim_pe: 32
       layers: 2
       raw_norm_type: null
 
-    input_feature: 64  # for input encoding
     emb_hid_size: 256
     emb_optim: "adamw"
     emb_scheduler: "cosine"

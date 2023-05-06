@@ -289,12 +289,12 @@ def get_model(args, device, *_args):
         elif args.imle_configs.model == 'edge_selector':
             encoder = FeatureEncoder(
                 dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.imle_configs.input_feature,
+                hidden=args.imle_configs.emb_hid_size,
                 type_encoder=type_encoder,
                 lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
                 rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
             emb_model = EdgeSelector(encoder,
-                                     in_dim=args.imle_configs.input_feature,
+                                     in_dim=args.imle_configs.emb_hid_size,
                                      hid_size=args.imle_configs.emb_hid_size,
                                      mlp_layer=args.imle_configs.num_layer,
                                      dropout=args.imle_configs.dropout,
