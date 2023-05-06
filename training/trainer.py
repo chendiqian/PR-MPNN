@@ -16,7 +16,7 @@ from training.aux_loss import get_degree_regularization, get_variance_regulariza
 from training.gumbel_scheme import GumbelSampler
 from training.imle_scheme import IMLEScheme
 from training.simple_scheme import EdgeSIMPLEBatched
-from training.construct import sparsify_edge_weight
+from training.construct import sparsify_edge_weight, construct_from_edge_candidates
 
 LARGE_NUMBER = 1.e10
 Optimizer = Union[torch.optim.Adam,
@@ -131,10 +131,24 @@ class Trainer:
                 raise ValueError
 
         if sample_configs.sample_policy is None:
+            # normal training
             self.construct_duplicate_data = lambda x, *args: (x, None, None)
+        elif sample_configs.sample_policy == 'edge_candid':
+            # sample from edge candidate, different from attention mask
+            self.construct_duplicate_data = partial(construct_from_edge_candidates,
+                                                    train_forward=self.train_forward,
+                                                    val_forward=self.val_forward,
+                                                    weight_edges=imle_configs.weight_edges,
+                                                    marginals_mask=imle_configs.marginals_mask,
+                                                    include_original_graph=sample_configs.include_original_graph,
+                                                    negative_sample=imle_configs.negative_sample,
+                                                    merge_original_graph=merge_original_graph,
+                                                    auxloss_dict=auxloss)
         elif imle_configs is None:
+            # random sampling
             self.construct_duplicate_data = lambda x, *args: (x[0], None, None)
         elif imle_configs is not None:
+            # learnable way with attention mask
             self.construct_duplicate_data = partial(self.diffable_rewire, merge_original_graph=merge_original_graph)
 
 
@@ -147,6 +161,7 @@ class Trainer:
             raise TypeError(f"Unexpected dtype {type(data)}")
 
 
+    # Todo: put this func into construct.py
     def diffable_rewire(self, collate_data: Tuple[Data, List[Data]], emb_model: Emb_model, merge_original_graph: bool = True):
 
         dat_batch, graphs = collate_data
@@ -229,6 +244,7 @@ class Trainer:
                 new_batch = sparsify_edge_weight(new_batch, edge_weight, 'zero')
             return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
         else:
+            assert self.include_original_graph
             rewired_batch = Batch.from_data_list(new_graphs)
             original_batch = Batch.from_data_list(graphs * (E * VE))
 

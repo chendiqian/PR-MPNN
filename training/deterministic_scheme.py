@@ -72,3 +72,14 @@ def rewire_global_semi(scores: torch.Tensor, k: int, adj: torch.Tensor):
     new_mask[:, triu_idx[0], triu_idx[1], :] = mask
     new_mask = new_mask + new_mask.transpose(1, 2) + adj
     return new_mask
+
+
+def select_from_edge_candidates(scores: torch.Tensor, k: int):
+    Batch, Nmax, ensemble = scores.shape
+    if k >= Nmax:
+        return scores.new_ones(scores.shape)
+
+    thresh = torch.topk(scores, k, dim=1, largest=True, sorted=True).values[:, -1,
+             :][:, None, :]
+    mask = (scores >= thresh).to(torch.float)
+    return mask
