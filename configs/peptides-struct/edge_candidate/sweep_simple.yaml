@@ -1,0 +1,169 @@
+program: main.py
+method: bayes
+entity: mls-stuttgart
+project: peptides-sweep
+name: peptides-sweep
+run_cap: 30
+
+metric:
+  goal: minimize
+  name: val_loss
+
+parameters:
+  # read data
+  dataset:
+    value: peptides-struct
+  log_path:
+    value: './logs'
+  data_path:
+    value: './datasets'
+
+  # debugger mode
+  num_runs:
+    value: 1
+  use_wandb:
+    value: True
+  debug:
+    value: False
+
+  # sample configs, shared by random and learnable sampling methods
+  sample_configs.sample_policy:
+    value: edge_candid
+  sample_configs.sample_k:
+    values:
+      - 20
+      - 40
+      - 80
+    distribution: categorical
+  sample_configs.candid_pool:
+    value: 1024
+  sample_configs.ensemble:
+    value: 1
+  sample_configs.include_original_graph:
+    value: True
+
+  # sampler and its hyperparams
+  imle_configs.sampler:
+    value: simple
+  imle_configs.logits_activation:
+    value: None
+  imle_configs.negative_sample:
+    value: full
+  imle_configs.num_train_ensemble:
+    value: 1
+  imle_configs.num_val_ensemble:
+    value: 1
+
+  # weighting the edges
+  imle_configs.weight_edges:
+    values: 
+      - marginals
+      - None
+    distribution: categorical
+  imle_configs.marginals_mask:
+    value: True
+
+  # upstream model
+  imle_configs.model:
+    value: "edge_selector"
+  imle_configs.rwse.kernel:
+    value: 20
+  imle_configs.rwse.layers:
+    value: 2
+  imle_configs.rwse.dim_pe:
+    value: 32
+  imle_configs.rwse.raw_norm_type:
+    value: 'BatchNorm'
+  imle_configs.lap.max_freqs:
+    value: 4
+  imle_configs.lap.dim_pe:
+    value: 32
+  imle_configs.lap.layers:
+    value: 2
+  imle_configs.lap.raw_norm_type:
+    value: None
+  imle_configs.emb_hid_size:
+    values:
+      - 512
+      - 256
+      - 128
+    distribution: categorical
+  imle_configs.num_layer:
+    values:
+      - 3
+      - 4
+      - 6
+    distribution: categorical
+  imle_configs.dropout:
+    value: 0.
+
+  # upstream training
+  imle_configs.embd_lr:
+    min: 1.e-4
+    max: 5.e-3
+    distribution: uniform
+  imle_configs.emb_optim:
+    value: adamw
+  imle_configs.emb_scheduler:
+    value: cosine
+  imle_configs.reg_embd:
+    value: 0.
+  imle_configs.batchnorm:
+    value: True
+  imle_configs.micro_batch_embd:
+    value: 1
+
+  # downstream model
+  rwse.kernel:
+    value: 20
+  rwse.layers:
+    value: 2
+  rwse.dim_pe:
+    value: 16
+  rwse.raw_norm_type:
+    value: 'BatchNorm'
+  lap.max_freqs:
+    value: 4
+  lap.dim_pe:
+    value: 16
+  lap.layers:
+    value: 2
+  lap.raw_norm_type:
+    value: None
+  input_feature:
+    value: 64
+
+  model:
+    value: pepstruct_gin_duo
+  hid_size:
+    value: 256
+  num_convlayers:
+    value: 4
+  mlp_layers_intragraph:
+    value: 3
+  mlp_layers_intergraph:
+    value: 2
+  inter_graph_pooling:
+    value: cat
+
+  # downstream training
+  lr:
+    value: 1.e-3
+  lr_decay.scheduler:
+    value: step
+  lr_decay.steps:
+    value: '[ 200, 400 ]'
+  optim:
+    value: adam
+  early_stop.patience:
+    value: 100
+  early_stop.target:
+    value: val_metric
+  reg:
+    value: 0.
+  batch_size:
+    value: 64
+  min_epochs:
+    value: 300
+  max_epochs:
+    value: 1000
