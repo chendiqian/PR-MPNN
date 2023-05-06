@@ -20,7 +20,7 @@ def sparsify_edge_weight(data, edge_weight, negative_sample):
         data.edge_weight = edge_weight[nonzero_idx]
         new_edges_per_graph = scatter((edge_weight > 0.).long(),
                                       torch.arange(len(edge_ptr) - 1, device=device).repeat_interleave(
-                                          edge_ptr[1:] - edge_ptr[:-1]), reduce='sum')
+                                          edge_ptr[1:] - edge_ptr[:-1]), reduce='sum', dim_size=len(edge_ptr) - 1)
         data._slice_dict['edge_index'] = torch.cumsum(
             torch.hstack([new_edges_per_graph.new_zeros(1), new_edges_per_graph]), dim=0)
     elif negative_sample == 'full':
@@ -87,29 +87,29 @@ def construct_from_edge_candidates(collate_data: Tuple[Data, List[Data]],
     # num_edges x E x VE
     edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)
 
-    new_edge_index = torch.split(dat_batch.edge_candidate.T, dat_batch.num_edge_candidate.cpu().tolist(), dim=1)
-    new_weight = list(torch.split(edge_weight, dat_batch.num_edge_candidate.cpu().tolist(), dim=0))
+    edge_index, edge_weight = to_undirected(edge_candidate_idx.T, edge_weight, num_nodes=dat_batch.num_nodes)
+    if E * VE > 1:
+        edge_index_rel = (torch.arange(E * VE, device=edge_weight.device) * dat_batch.num_nodes).repeat_interleave(edge_index.shape[1])
+        edge_index = edge_index.repeat(1, E * VE)
+        edge_index += edge_index_rel
 
-    new_graphs = [g.clone() for g in graphs]
-    for i, (g, edge_index, weight) in enumerate(zip(new_graphs, new_edge_index, new_weight)):
-        # weight: edges x (E * VE)
-        edge_index, weight = to_undirected(edge_index, weight)
-        g.edge_index = edge_index
-        new_weight[i] = weight
-    new_graphs = new_graphs * (E * VE)
-    new_weight = torch.cat(new_weight, dim=0).T.flatten()
+    new_graphs = graphs * (E * VE)
+    edge_weight = edge_weight.T.flatten()
 
     if merge_original_graph:
         raise NotImplementedError
     else:
         assert include_original_graph
         rewired_batch = Batch.from_data_list(new_graphs)
+        rewired_batch.edge_index = edge_index
+        rewired_batch._slice_dict['edge_index'] = torch.hstack([edge_index.new_zeros(1),
+                                                                (dat_batch.num_edge_candidate * 2).repeat(E * VE).cumsum(dim=0)])
         original_batch = Batch.from_data_list(graphs * (E * VE))
 
         if train:
-            rewired_batch = sparsify_edge_weight(rewired_batch, new_weight, negative_sample)
+            rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
         else:
-            rewired_batch = sparsify_edge_weight(rewired_batch, new_weight, 'zero')
+            rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, 'zero')
 
         new_batch = DuoDataStructure(data1=rewired_batch, data2=original_batch, y=rewired_batch.y, num_graphs=rewired_batch.num_graphs)
         return new_batch, None, auxloss
