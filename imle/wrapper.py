@@ -71,11 +71,12 @@ def imle(function: Callable[[Tensor], Tensor] = None,
             def forward(ctx, input: Tensor, *args):
                 # [BATCH_SIZE, ...]
                 input_shape = input.shape
+                dims = input.dim()
 
                 batch_size = input_shape[0]
                 instance_shape = input_shape[1:]
 
-                # [BATCH_SIZE, N_SAMPLES, ...]
+                # (B x n_sample x N x N x E) or (B x n_sample x N x E)
                 perturbed_input_shape = [batch_size, nb_samples] + list(instance_shape)
 
                 if noise_distribution is None:
@@ -85,8 +86,9 @@ def imle(function: Callable[[Tensor], Tensor] = None,
 
                 input_noise = noise * input_noise_temperature
 
-                # B, VE, N, N, E
-                perturbed_input_3d = input[:, None, ...].repeat(1, nb_samples, 1, 1, 1).view(perturbed_input_shape)
+                repeats = [1] * len(perturbed_input_shape)
+                repeats[1] = nb_samples
+                perturbed_input_3d = input[:, None, ...].repeat(repeats).view(perturbed_input_shape)
                 perturbed_input_3d = perturbed_input_3d + input_noise
 
                 # [BATCH_SIZE * N_SAMPLES, ...]
@@ -100,7 +102,12 @@ def imle(function: Callable[[Tensor], Tensor] = None,
                 ctx.save_for_backward(input, noise, perturbed_output)
 
                 # [BATCH_SIZE * N_SAMPLES, ...]
-                res = perturbed_output.permute((1, 0, 2, 3, 4))
+                if dims == 4:
+                    res = perturbed_output.permute((1, 0, 2, 3, 4))
+                elif dims == 3:
+                    res = perturbed_output.permute((1, 0, 2, 3))
+                else:
+                    raise ValueError(f"Unexpected shape {perturbed_output.shape}")
                 return res, aux_outputs
 
             @staticmethod
@@ -112,14 +119,21 @@ def imle(function: Callable[[Tensor], Tensor] = None,
 
                 input_shape = input.shape
 
-                dy = dy.permute((1, 0, 2, 3, 4))
+                dims = input.dim()
+                if dims == 4:
+                    dy = dy.permute((1, 0, 2, 3, 4))
+                elif dims == 3:
+                    dy = dy.permute((1, 0, 2, 3))
+                else:
+                    raise ValueError(f"Unexpected shape {dy.shape}")
                 # B x VE x N x N x E
                 dy_shape = dy.shape
                 # B x VE x N x N x E
                 noise_shape = noise.shape
 
-                # B x VE x N x N x E
-                input_2d = input[:, None, ...].repeat(1, nb_samples, 1, 1, 1).view(dy_shape)
+                repeats = [1] * len(noise_shape)
+                repeats[1] = nb_samples
+                input_2d = input[:, None, ...].repeat(repeats).view(dy_shape)
                 target_input_2d = target_distribution.params(input_2d, dy)
 
                 # [BATCH_SIZE, NB_SAMPLES, ...]
