@@ -195,17 +195,21 @@ class Trainer:
         node_mask, marginals = self.train_forward(logits) if train else self.val_forward(logits)
         VE, B, N, _, E = node_mask.shape
 
+        # if self.imle_configs.sampler == 'imle':
+        #     node_mask = node_mask.squeeze(0)
+
         if self.imle_configs.weight_edges == 'logits':
             # (#sampled, B, N, N, E)
-            sampled_edge_weights = torch.vmap(
-                torch.vmap(
-                    torch.vmap(
-                        self_defined_softmax,
-                        in_dims=(None, 0),
-                        out_dims=0),
-                    in_dims=0, out_dims=0),
-                in_dims=-1,
-                out_dims=-1)(logits, node_mask)
+            # sampled_edge_weights = torch.vmap(
+            #     torch.vmap(
+            #         torch.vmap(
+            #             self_defined_softmax,
+            #             in_dims=(None, 0),
+            #             out_dims=0),
+            #         in_dims=0, out_dims=0),
+            #     in_dims=-1,
+            #     out_dims=-1)(logits, node_mask)
+            sampled_edge_weights = logits
         elif self.imle_configs.weight_edges == 'marginals':
             assert self.imle_configs.sampler == 'simple'
             # Maybe we should also try this with softmax?

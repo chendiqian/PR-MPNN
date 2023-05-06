@@ -14,6 +14,8 @@ DATASET_FEATURE_STAT_DICT = {
     'exp': {'node': 1, 'edge': 0, 'num_class': 1},  # bin classification
     'protein': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
 
+    'peptides-struct': {'node': 9, 'edge': 4, 'num_class': 11},  # regression, but 11 labels
+
     'tree_2': {'node': 4, 'edge': 0, 'num_class': 4},
     'tree_3': {'node': 8, 'edge': 0, 'num_class': 8},
     'tree_4': {'node': 16, 'edge': 0, 'num_class': 16},
@@ -59,6 +61,7 @@ TASK_TYPE_DICT = {
     'zinc': 'mae',
     # 'zinc_full': 'regression',
     'alchemy': 'mae',
+    'peptides-struct': 'mae',
     'ogbg-molesol': 'rmse',
     'ogbg-molbace': 'rocauc',
     'ogbg-molhiv': 'rocauc',
@@ -88,6 +91,7 @@ CRITERION_DICT = {
     'zinc': nn.L1Loss(),
     'zinc_full': nn.L1Loss(),
     'alchemy': nn.L1Loss(),
+    'peptides-struct': nn.L1Loss(),
     'ogbg-molesol': nn.MSELoss(),
     'ogbg-molbace': nn.BCEWithLogitsLoss(),
     'ogbg-molhiv': nn.BCEWithLogitsLoss(),
