@@ -1,7 +1,6 @@
 import torch.nn
 
 from data.const import DATASET_FEATURE_STAT_DICT
-from models.downstream_models.ogb_mol_gnn import OGBGNN
 from models.downstream_models.zinc_gin import ZINC_GIN
 from models.downstream_models.zinc_gin_duo import ZINC_GIN_Duo
 from models.downstream_models.alchemy_gin import AL_GIN
@@ -12,21 +11,13 @@ from models.downstream_models.zinc_halftransformer import ZINC_HalfTransformer
 from models.downstream_models.alchemy_halftransformer import AL_HalfTransformer
 from models.upstream_models.linear_embed import LinearEmbed
 from models.upstream_models.transformer import Transformer
+from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.my_encoder import FeatureEncoder
 from models.upstream_models.graphormer import BiasEncoder, NodeEncoder, Graphormer
 
 
 def get_model(args, device, *_args):
-    if args.model.lower() == 'ogb_gin':
-        model = OGBGNN(
-            num_tasks=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            num_layer=args.num_convlayers,
-            emb_dim=args.hid_size,
-            gnn_type='gin',
-            virtual_node=False,
-            drop_ratio=args.dropout,
-        )
-    elif args.model.lower() == 'zinc_gin':
+    if args.model.lower() == 'zinc_gin':
         if hasattr(args, 'lap') or hasattr(args, 'rwse'):
             # we encode the lap and rwse to the downstream model
             encoder = FeatureEncoder(
@@ -249,6 +240,20 @@ def get_model(args, device, *_args):
                                    attn_dropout=args.imle_configs.attn_dropout,
                                    mlp_dropout=args.imle_configs.mlp_dropout,
                                    use_spectral_norm=spectral_norm)
+        elif args.imle_configs.model == 'edge_selector':
+            encoder = FeatureEncoder(
+                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                hidden=args.imle_configs.emb_hid_size,
+                type_encoder=type_encoder,
+                lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
+                rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
+            emb_model = EdgeSelector(encoder,
+                                     in_dim=args.imle_configs.emb_hid_size,
+                                     hid_size=args.imle_configs.emb_hid_size,
+                                     mlp_layer=args.imle_configs.num_layer,
+                                     dropout=args.imle_configs.dropout,
+                                     ensemble=args.sample_configs.ensemble,
+                                     use_bn=args.imle_configs.batchnorm)
         else:
             raise NotImplementedError
     else:
