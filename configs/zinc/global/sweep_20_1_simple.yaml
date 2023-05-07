@@ -151,14 +151,37 @@ parameters:
     value: None
 
   # downstream training
+  rwse.kernel:
+    value: 20
+  rwse.layers:
+    value: 2
+  rwse.dim_pe:
+    value: 16
+  rwse.raw_norm_type:
+    value: 'BatchNorm'
+  lap.max_freqs:
+    value: 4
+  lap.dim_pe:
+    value: 16
+  lap.layers:
+    value: 2
+  lap.raw_norm_type:
+    value: None
+  input_feature:
+    value: 64
+
   lr:
     value: 1.e-3
-  lr_steps:
-    value: '[400, 600]'
+  lr_decay.scheduler:
+    value: step
+  lr_decay.steps:
+    value: '[ 400, 600 ]'
   optim:
     value: adam
-  patience:
+  early_stop.patience:
     value: 100
+  early_stop.target:
+    value: val_metric
   reg:
     value: 0.
   batch_size:
