@@ -66,6 +66,9 @@ class AL_GIN_Duo(torch.nn.Module):
         h_graph1 = self.mlp1_1(h_graph1)
         h_graph2 = self.mlp1_2(h_graph2)
 
+        assert not h_graph1.shape[0] % h_graph2.shape[0]
+        h_graph2 = h_graph2.repeat((h_graph1.shape[0] // h_graph2.shape[0], 1))
+
         # inter graph pooling
         if self.inter_graph_pooling == 'mean':
             h_graph = (h_graph1 + h_graph2) / 2.

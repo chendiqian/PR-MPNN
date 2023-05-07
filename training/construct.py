@@ -106,14 +106,13 @@ def construct_from_edge_candidates(collate_data: Tuple[Data, List[Data]],
         rewired_batch.edge_index = edge_index
         rewired_batch._slice_dict['edge_index'] = torch.hstack([edge_index.new_zeros(1),
                                                                 (dat_batch.num_edge_candidate * 2).repeat(E * VE).cumsum(dim=0)])
-        original_batch = Batch.from_data_list(graphs * (E * VE))
 
         if train:
             rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
         else:
             rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, 'zero')
 
-        new_batch = DuoDataStructure(data1=rewired_batch, data2=original_batch, y=rewired_batch.y, num_graphs=rewired_batch.num_graphs)
+        new_batch = DuoDataStructure(data1=rewired_batch, data2=dat_batch, y=rewired_batch.y, num_graphs=rewired_batch.num_graphs)
         return new_batch, None, auxloss
 
 
@@ -214,12 +213,11 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
     else:
         assert include_original_graph
         rewired_batch = Batch.from_data_list(new_graphs)
-        original_batch = Batch.from_data_list(graphs * (E * VE))
 
         if train:
             rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
         else:
             rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, 'zero')
 
-        new_batch = DuoDataStructure(data1=rewired_batch, data2=original_batch, y=rewired_batch.y, num_graphs=rewired_batch.num_graphs)
+        new_batch = DuoDataStructure(data1=rewired_batch, data2=dat_batch, y=rewired_batch.y, num_graphs=rewired_batch.num_graphs)
         return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
