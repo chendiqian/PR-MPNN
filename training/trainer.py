@@ -1,22 +1,21 @@
-from typing import Any, Optional, Union, Tuple, List
 from functools import partial
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
 from ml_collections import ConfigDict
-from torch_geometric.data import Batch, Data
+from torch_geometric.data import Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, batched_edge_index_to_batched_adj, self_defined_softmax, MyPlateau, DuoDataStructure
-from data.plot_utils import plot_score, plot_rewired_graphs
+from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, MyPlateau
 from data.metrics import get_eval
+from data.plot_utils import plot_score, plot_rewired_graphs
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from training.aux_loss import get_degree_regularization, get_variance_regularization, get_original_bias
+from training.construct import construct_from_edge_candidates, construct_from_attention_mat
 from training.gumbel_scheme import GumbelSampler
 from training.imle_scheme import IMLEScheme
 from training.simple_scheme import EdgeSIMPLEBatched
-from training.construct import sparsify_edge_weight, construct_from_edge_candidates
 
 LARGE_NUMBER = 1.e10
 Optimizer = Union[torch.optim.Adam,
@@ -50,8 +49,6 @@ class Trainer:
         self.metric_comparator = IsBetter(self.task_type)
         self.criterion = criterion
         self.device = device
-
-        self.imle_configs = imle_configs
 
         self.max_patience = max_patience
         self.patience_target = patience_target
@@ -149,7 +146,18 @@ class Trainer:
             self.construct_duplicate_data = lambda x, *args: (x[0], None, None)
         elif imle_configs is not None:
             # learnable way with attention mask
-            self.construct_duplicate_data = partial(self.diffable_rewire, merge_original_graph=merge_original_graph)
+            self.construct_duplicate_data = partial(construct_from_attention_mat,
+                                                    sample_policy=sample_configs.sample_policy,
+                                                    auxloss_dict=auxloss,
+                                                    sampler_class=self.sampler_class,
+                                                    train_forward=self.train_forward,
+                                                    val_forward=self.val_forward,
+                                                    weight_edges=imle_configs.weight_edges,
+                                                    marginals_mask=imle_configs.marginals_mask,
+                                                    device=self.device,
+                                                    include_original_graph=sample_configs.include_original_graph,
+                                                    negative_sample=imle_configs.negative_sample,
+                                                    merge_original_graph=merge_original_graph)
 
 
     def check_datatype(self, data):
@@ -160,105 +168,6 @@ class Trainer:
         else:
             raise TypeError(f"Unexpected dtype {type(data)}")
 
-
-    # Todo: put this func into construct.py
-    def diffable_rewire(self, collate_data: Tuple[Data, List[Data]], emb_model: Emb_model, merge_original_graph: bool = True):
-
-        dat_batch, graphs = collate_data
-
-        train = emb_model.training
-        output_logits, real_node_node_mask = emb_model(dat_batch)
-
-        if self.sample_policy == 'global_topk_semi' or (train and self.auxloss is not None and self.auxloss.origin_bias > 0.):
-            # need to compute the dense adj matrix
-            adj = batched_edge_index_to_batched_adj(dat_batch, torch.float)
-            self.sampler_class.adj = adj
-
-        padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
-        logits = output_logits - padding_bias
-
-        auxloss = 0.
-        if train and self.auxloss is not None:
-            if self.auxloss.degree > 0:
-                raise NotImplementedError
-                # auxloss = auxloss + get_degree_regularization(node_mask, self.auxloss.degree, real_node_node_mask)
-            if self.auxloss.variance > 0:
-                auxloss = auxloss + get_variance_regularization(logits,
-                                                                self.auxloss.variance,
-                                                                real_node_node_mask)
-            if self.auxloss.origin_bias > 0.:
-                auxloss = auxloss + get_original_bias(adj, logits,
-                                                      self.auxloss.origin_bias,
-                                                      real_node_node_mask)
-
-        # (#sampled, B, N, N, E), (B, N, N, E)
-        node_mask, marginals = self.train_forward(logits) if train else self.val_forward(logits)
-        VE, B, N, _, E = node_mask.shape
-
-        # if self.imle_configs.sampler == 'imle':
-        #     node_mask = node_mask.squeeze(0)
-
-        if self.imle_configs.weight_edges == 'logits':
-            # (#sampled, B, N, N, E)
-            # sampled_edge_weights = torch.vmap(
-            #     torch.vmap(
-            #         torch.vmap(
-            #             self_defined_softmax,
-            #             in_dims=(None, 0),
-            #             out_dims=0),
-            #         in_dims=0, out_dims=0),
-            #     in_dims=-1,
-            #     out_dims=-1)(logits, node_mask)
-            sampled_edge_weights = logits
-        elif self.imle_configs.weight_edges == 'marginals':
-            assert self.imle_configs.sampler == 'simple'
-            # Maybe we should also try this with softmax?
-            sampled_edge_weights = marginals[None].repeat(node_mask.shape[0], 1, 1, 1, 1)
-        elif self.imle_configs.weight_edges == 'None' or self.imle_configs.weight_edges is None:
-            sampled_edge_weights = node_mask
-        else:
-            raise ValueError(f"{self.imle_configs.weight_edges} not supported")
-
-        if self.imle_configs.marginals_mask or not train:
-            sampled_edge_weights = sampled_edge_weights * node_mask
-
-        # B x E x VE
-        edge_weight = sampled_edge_weights.permute((1, 2, 3, 4, 0))[real_node_node_mask]
-        edge_weight = edge_weight.permute(2, 1, 0).flatten()
-
-        new_graphs = [g.clone() for g in graphs]
-        for g in new_graphs:
-            g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(self.device)
-        new_graphs = new_graphs * (E * VE)
-
-        if merge_original_graph:
-            if self.include_original_graph:
-                new_graphs += graphs * (E * VE)
-                edge_weight = torch.cat(
-                    [edge_weight, edge_weight.new_ones(VE * E * dat_batch.num_edges)],
-                    dim=0)
-
-            new_batch = Batch.from_data_list(new_graphs)
-            new_batch.y = new_batch.y[:B * E * VE]
-            new_batch.inter_graph_idx = torch.arange(B * E * VE).to(self.device).repeat(1 + int(self.include_original_graph))
-
-            if train:
-                new_batch = sparsify_edge_weight(new_batch, edge_weight, self.imle_configs.negative_sample)
-            else:
-                new_batch = sparsify_edge_weight(new_batch, edge_weight, 'zero')
-            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
-        else:
-            assert self.include_original_graph
-            rewired_batch = Batch.from_data_list(new_graphs)
-            original_batch = Batch.from_data_list(graphs * (E * VE))
-
-            if train:
-                rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, self.imle_configs.negative_sample)
-            else:
-                rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, 'zero')
-
-            new_batch = DuoDataStructure(data1=rewired_batch, data2=original_batch, y=rewired_batch.y, num_graphs=rewired_batch.num_graphs)
-            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
 
     def train(self,
               dataloader: AttributedDataLoader,
