@@ -1,7 +1,7 @@
 import torch.nn
 
 from data.const import DATASET_FEATURE_STAT_DICT
-from models.downstream_models.zinc_gin import ZINC_GIN
+from models.downstream_models.zinc_gin import ZINC_GIN, ZINC_GIN as PepStruct_GIN
 from models.downstream_models.zinc_gin_duo import ZINC_GIN_Duo, ZINC_GIN_Duo as PepStruct_GIN_Duo
 from models.downstream_models.alchemy_gin import AL_GIN
 from models.downstream_models.alchemy_gin_duo import AL_GIN_Duo
@@ -51,6 +51,9 @@ def get_model(args, device, *_args):
                 lap_encoder=args.lap if hasattr(args, 'lap') else None,
                 rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
             input_feature = args.input_feature
+        else:
+            encoder = None
+            input_feature = DATASET_FEATURE_STAT_DICT['zinc']['node']
 
         model = ZINC_GIN_Duo(
             encoder=encoder,
@@ -61,7 +64,30 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             mlp_layers_intergraph=args.mlp_layers_intergraph,
             inter_graph_pooling=args.inter_graph_pooling)
+    elif args.model.lower() == 'pepstruct_gin':
+        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
+            # we encode the lap and rwse to the downstream model
+            encoder = FeatureEncoder(
+                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                hidden=args.input_feature,
+                type_encoder='peptides',
+                lap_encoder=args.lap if hasattr(args, 'lap') else None,
+                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
+            input_feature = args.input_feature
+        else:
+            encoder = None
+            input_feature = DATASET_FEATURE_STAT_DICT['peptides-struct']['node']
 
+        model = PepStruct_GIN(
+            encoder=encoder,
+            ensemble=2 if args.sample_configs.include_original_graph else 1,
+            in_features=input_feature,
+            num_layers=args.num_convlayers,
+            hidden=args.hid_size,
+            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+            mlp_layers_intragraph=args.mlp_layers_intragraph,
+            mlp_layers_intergraph=args.mlp_layers_intergraph,
+            inter_graph_pooling=args.inter_graph_pooling)
     elif args.model.lower() == 'pepstruct_gin_duo':
         if hasattr(args, 'lap') or hasattr(args, 'rwse'):
             # we encode the lap and rwse to the downstream model
