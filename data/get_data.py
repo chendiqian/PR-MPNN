@@ -102,7 +102,7 @@ def get_transform(args: Union[Namespace, ConfigDict]):
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):
-    pretransform = [AugmentwithNNodes(), AugmentWithPlotCoordinates()]
+    pretransform = [AugmentwithNNodes()]
     if extra_pretransforms is not None:
         pretransform = pretransform + extra_pretransforms
 
@@ -253,6 +253,7 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
 
 def get_zinc(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[
+        AugmentWithPlotCoordinates(),
         GraphAddRemainSelfLoop(),
         GraphToUndirected(),
         GraphExpandDim(),
@@ -311,7 +312,7 @@ def get_peptides_struct(args: Union[Namespace, ConfigDict]):
     return train_set, val_set, test_set, None, None
 
 def get_alchemy(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=None)
+    pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithPlotCoordinates()])
     transform = get_transform(args)
 
     data_path = args.data_path
@@ -360,7 +361,7 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), AugmentWithPlotCoordinates()])
     # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), GraphRedirect(depth)])
     transform = get_transform(args)
 
@@ -384,7 +385,7 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), AugmentWithPlotCoordinates()])
     transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
