@@ -13,6 +13,7 @@ from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEig
 from .tudataset import MyTUDataset
 from .tree_dataset import MyTreeDataset, MyLeafColorDataset
 from .peptides_struct import PeptidesStructuralDataset
+from .voc_superpixels import VOCSuperpixels
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
@@ -33,7 +34,13 @@ from .data_utils import AttributedDataLoader
 
 NUM_WORKERS = 0
 
-DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyLeafColorDataset, MyTUDataset, PeptidesStructuralDataset)
+DATASET = (PygGraphPropPredDataset,
+           ZINC,
+           MyTreeDataset,
+           MyLeafColorDataset,
+           MyTUDataset,
+           PeptidesStructuralDataset,
+           VOCSuperpixels)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -158,6 +165,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_leafcolordataset(args)
     elif args.dataset.lower().startswith('peptides-struct'):
         train_set, val_set, test_set, mean, std = get_peptides_struct(args)
+    elif args.dataset.lower() == 'edge_wt_region_boundary':
+        train_set, val_set, test_set, mean, std = get_vocsuperpixel(args)
     else:
         raise ValueError
 
@@ -403,5 +412,29 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
         test_set = test_set[:16]
 
     args['num_classes'] = max([s.y.item() for s in train_set]) + 1
+
+    return train_set, val_set, test_set, None, None
+
+
+def get_vocsuperpixel(args):
+    datapath = os.path.join(args.data_path, 'VOCSuperpixels')
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
+    pre_transform = get_pretransform(args, extra_pretransforms=None)
+    transform = get_transform(args)
+
+    splits = [VOCSuperpixels(root=datapath,
+                             name=args.dataset.lower(),
+                             split=sp,
+                             transform=transform,
+                             pre_transform=pre_transform) for sp in ['train', 'val', 'test']]
+
+    train_set, val_set, test_set = splits
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
 
     return train_set, val_set, test_set, None, None
