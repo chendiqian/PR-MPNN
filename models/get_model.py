@@ -64,7 +64,7 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             mlp_layers_intergraph=args.mlp_layers_intergraph,
             inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'pepstruct_gin':
+    elif args.model.lower() == 'pepstruct_gin' or args.model.lower() == 'pep_gin': # use the same model for both struct and func
         if hasattr(args, 'lap') or hasattr(args, 'rwse'):
             # we encode the lap and rwse to the downstream model
             encoder = FeatureEncoder(
@@ -88,7 +88,7 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             mlp_layers_intergraph=args.mlp_layers_intergraph,
             inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'pepstruct_gin_duo':
+    elif args.model.lower() == 'pepstruct_gin_duo' or args.model.lower() == 'pep_gin_duo': # use the same model for both struct and func
         if hasattr(args, 'lap') or hasattr(args, 'rwse'):
             # we encode the lap and rwse to the downstream model
             encoder = FeatureEncoder(
@@ -158,7 +158,7 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             mlp_layers_intergraph=args.mlp_layers_intergraph,
             inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'pepstruct_gin_duo':
+    elif args.model.lower() == 'pepstruct_gin_duo' or args.model.lower() == 'pep_gin_duo': # use same model for both struct and func
         if hasattr(args, 'lap') or hasattr(args, 'rwse'):
             # we encode the lap and rwse to the downstream model
             encoder = FeatureEncoder(

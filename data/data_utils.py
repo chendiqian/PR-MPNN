@@ -90,7 +90,7 @@ class IsBetter:
             better = val1 < val2
             the_better = val1 if better else val2
             return better, the_better
-        elif self.task_type in ['rocauc', 'acc']:
+        elif self.task_type in ['rocauc', 'acc', 'ap']:
             better = val1 > val2
             the_better = val1 if better else val2
             return better, the_better

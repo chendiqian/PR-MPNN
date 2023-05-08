@@ -13,6 +13,7 @@ from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEig
 from .tudataset import MyTUDataset
 from .tree_dataset import MyTreeDataset, MyLeafColorDataset
 from .peptides_struct import PeptidesStructuralDataset
+from .peptides_func import PeptidesFunctionalDataset
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
@@ -33,7 +34,7 @@ from .data_utils import AttributedDataLoader
 
 NUM_WORKERS = 0
 
-DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyLeafColorDataset, MyTUDataset, PeptidesStructuralDataset)
+DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyLeafColorDataset, MyTUDataset, PeptidesStructuralDataset, PeptidesFunctionalDataset)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -157,7 +158,9 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     elif args.dataset.lower().startswith('leafcolor'):
         train_set, val_set, test_set, mean, std = get_leafcolordataset(args)
     elif args.dataset.lower().startswith('peptides-struct'):
-        train_set, val_set, test_set, mean, std = get_peptides_struct(args)
+        train_set, val_set, test_set, mean, std = get_peptides(args, set='struct')
+    elif args.dataset.lower().startswith('peptides-func'):
+        train_set, val_set, test_set, mean, std = get_peptides(args, set='func')
     else:
         raise ValueError
 
@@ -291,15 +294,21 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
 
     return train_set, val_set, test_set, None, None
 
-def get_peptides_struct(args: Union[Namespace, ConfigDict]):
+def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
     datapath = args.data_path
     extra_path = get_additional_path(args)
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
     pre_transform = get_pretransform(args, extra_pretransforms=None)
     transform = get_transform(args)
-    dataset = PeptidesStructuralDataset(root=datapath, transform=transform, pre_transform=pre_transform)
-    
+
+    if set == 'struct':
+        dataset = PeptidesStructuralDataset(root=datapath, transform=transform, pre_transform=pre_transform)
+    elif set == 'func':
+        dataset = PeptidesFunctionalDataset(root=datapath, transform=transform, pre_transform=pre_transform)
+    else:
+        raise ValueError(f"Unknown peptides set: {set}")
+
     split_idx = dataset.get_idx_split()
     
     train_set, val_set, test_set = dataset[split_idx['train']], dataset[split_idx['val']], dataset[split_idx['test']]

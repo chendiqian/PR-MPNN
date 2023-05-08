@@ -4,7 +4,7 @@
 import numpy as np
 import torch
 from sklearn.metrics import roc_auc_score
-
+from sklearn.metrics import average_precision_score
 
 def pre_proc(y1, y2):
     if len(y1.shape) == 1:
@@ -76,6 +76,36 @@ def eval_mae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
     return sum(mae_list) / len(mae_list)
 
+def eval_ap(y_true, y_pred):
+    '''
+        compute Average Precision (AP) averaged across tasks
+        From:
+        https://github.com/XiaoxinHe/Graph-MLPMixer/blob/48cd68f9e92a7ecbf15aea0baf22f6f338b2030e/train/peptides_func.py
+    '''
+
+    ap_list = []
+    # check if y_true and y_pred are torch tensors
+    if isinstance(y_true, torch.Tensor):
+        y_true = y_true.cpu().detach().numpy()
+    if isinstance(y_pred, torch.Tensor):
+        y_pred = y_pred.cpu().detach().numpy()
+
+    for i in range(y_true.shape[1]):
+        # AUC is only defined when there is at least one positive data.
+        if np.sum(y_true[:, i] == 1) > 0 and np.sum(y_true[:, i] == 0) > 0:
+            # ignore nan values
+            is_labeled = y_true[:, i] == y_true[:, i]
+            ap = average_precision_score(y_true[is_labeled, i],
+                                         y_pred[is_labeled, i])
+
+            ap_list.append(ap)
+
+    if len(ap_list) == 0:
+        raise RuntimeError(
+            'No positively labeled data available. Cannot compute Average Precision.')
+
+    return sum(ap_list) / len(ap_list)
+
 
 def get_eval(task_type: str, y_true: torch.Tensor, y_pred: torch.Tensor):
     if task_type == 'rocauc':
@@ -90,6 +120,8 @@ def get_eval(task_type: str, y_true: torch.Tensor, y_pred: torch.Tensor):
         func = eval_acc
     elif task_type == 'mae':
         func = eval_mae
+    elif task_type == 'ap':
+        func = eval_ap
     else:
         raise NotImplementedError
 
