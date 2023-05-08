@@ -28,10 +28,13 @@ class ZINC_GIN(torch.nn.Module):
             self.gnn = GNN_Placeholder()
 
         # intra-graph pooling
+        self.graph_pooling =graph_pooling
         if graph_pooling == "sum":
             self.pool = global_add_pool
         elif graph_pooling == "mean":
             self.pool = global_mean_pool
+        elif graph_pooling is None:  # node pred
+            self.pool = lambda x, *args: x
         else:
             raise NotImplementedError
 
@@ -68,6 +71,9 @@ class ZINC_GIN(torch.nn.Module):
             self.mlp2.reset_parameters()
 
     def forward(self, data):
+        if hasattr(data, 'inter_graph_idx') and self.graph_pooling is None:
+            raise NotImplementedError("Haven't implemented ensemble for node prediction, need to fix inter_graph_idx")
+
         if self.encoder is not None:
             data.x = self.encoder(data)
 

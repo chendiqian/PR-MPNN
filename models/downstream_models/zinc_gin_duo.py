@@ -28,6 +28,8 @@ class ZINC_GIN_Duo(torch.nn.Module):
             self.pool = global_add_pool
         elif graph_pooling == "mean":
             self.pool = global_mean_pool
+        elif graph_pooling is None:  # node pred
+            self.pool = lambda x, *args: x
         else:
             raise NotImplementedError
 
