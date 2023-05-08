@@ -109,7 +109,7 @@ class FeatureEncoder(torch.nn.Module):
 
         if lap_encoder is not None:
             self.lap_encoder = LapPENodeEncoder(hidden,
-                                                hidden - rw_encoder.dim_pe,
+                                                hidden - rw_encoder.dim_pe if rw_encoder is not None else hidden,
                                                 lap_encoder,
                                                 expand_x=False)
         else:
