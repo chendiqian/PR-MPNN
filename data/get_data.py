@@ -14,6 +14,7 @@ from .tudataset import MyTUDataset
 from .tree_dataset import MyTreeDataset, MyLeafColorDataset
 from .peptides_struct import PeptidesStructuralDataset
 from .peptides_func import PeptidesFunctionalDataset
+from .voc_superpixels import VOCSuperpixels
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
@@ -34,7 +35,14 @@ from .data_utils import AttributedDataLoader
 
 NUM_WORKERS = 0
 
-DATASET = (PygGraphPropPredDataset, ZINC, MyTreeDataset, MyLeafColorDataset, MyTUDataset, PeptidesStructuralDataset, PeptidesFunctionalDataset)
+DATASET = (PygGraphPropPredDataset,
+           ZINC,
+           MyTreeDataset,
+           MyLeafColorDataset,
+           MyTUDataset,
+           PeptidesStructuralDataset,
+           PeptidesFunctionalDataset,
+           VOCSuperpixels)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -147,6 +155,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     if not os.path.isdir(args.data_path):
         os.mkdir(args.data_path)
 
+    task = 'graph'
     if 'ogbg' in args.dataset.lower():
         train_set, val_set, test_set, mean, std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
@@ -159,6 +168,9 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_leafcolordataset(args)
     elif args.dataset.lower().startswith('peptides-struct'):
         train_set, val_set, test_set, mean, std = get_peptides(args, set='struct')
+    elif args.dataset.lower() == 'edge_wt_region_boundary':
+        train_set, val_set, test_set, mean, std = get_vocsuperpixel(args)
+        task = 'node'
     elif args.dataset.lower().startswith('peptides-func'):
         train_set, val_set, test_set, mean, std = get_peptides(args, set='func')
     else:
@@ -189,12 +201,14 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_loaders = [AttributedDataLoader(
             loader=dataloader(t),
             mean=mean,
-            std=std) for t in train_set]
+            std=std,
+            task=task) for t in train_set]
     elif isinstance(train_set, DATASET):
         train_loaders = [AttributedDataLoader(
             loader=dataloader(train_set),
             mean=mean,
-            std=std)]
+            std=std,
+            task=task)]
     else:
         raise TypeError
 
@@ -202,12 +216,14 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         val_loaders = [AttributedDataLoader(
             loader=dataloader(t),
             mean=mean,
-            std=std) for t in val_set]
+            std=std,
+            task=task) for t in val_set]
     elif isinstance(val_set, DATASET):
         val_loaders = [AttributedDataLoader(
             loader=dataloader(val_set),
             mean=mean,
-            std=std)]
+            std=std,
+            task=task)]
     else:
         raise TypeError
 
@@ -215,12 +231,14 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         test_loaders = [AttributedDataLoader(
             loader=dataloader(t),
             mean=mean,
-            std=std) for t in test_set]
+            std=std,
+            task=task) for t in test_set]
     elif isinstance(test_set, DATASET):
         test_loaders = [AttributedDataLoader(
             loader=dataloader(test_set),
             mean=mean,
-            std=std)]
+            std=std,
+            task=task)]
     else:
         raise TypeError
 
@@ -412,5 +430,29 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
         test_set = test_set[:16]
 
     args['num_classes'] = max([s.y.item() for s in train_set]) + 1
+
+    return train_set, val_set, test_set, None, None
+
+
+def get_vocsuperpixel(args):
+    datapath = os.path.join(args.data_path, 'VOCSuperpixels')
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
+    pre_transform = get_pretransform(args, extra_pretransforms=None)
+    transform = get_transform(args)
+
+    splits = [VOCSuperpixels(root=datapath,
+                             name=args.dataset.lower(),
+                             split=sp,
+                             transform=transform,
+                             pre_transform=pre_transform) for sp in ['train', 'val', 'test']]
+
+    train_set, val_set, test_set = splits
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
 
     return train_set, val_set, test_set, None, None

@@ -3,8 +3,7 @@
 
 import numpy as np
 import torch
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import roc_auc_score, f1_score, average_precision_score
 
 def pre_proc(y1, y2):
     if len(y1.shape) == 1:
@@ -84,11 +83,6 @@ def eval_ap(y_true, y_pred):
     '''
 
     ap_list = []
-    # check if y_true and y_pred are torch tensors
-    if isinstance(y_true, torch.Tensor):
-        y_true = y_true.cpu().detach().numpy()
-    if isinstance(y_pred, torch.Tensor):
-        y_pred = y_pred.cpu().detach().numpy()
 
     for i in range(y_true.shape[1]):
         # AUC is only defined when there is at least one positive data.
@@ -107,6 +101,17 @@ def eval_ap(y_true, y_pred):
     return sum(ap_list) / len(ap_list)
 
 
+def eval_F1macro(y_true: np.ndarray, y_pred: np.ndarray):
+    f1s = []
+
+    for i in range(y_true.shape[1]):
+        is_labeled = y_true[:, i] == y_true[:, i]
+        f1 = f1_score(y_true[is_labeled, i], y_pred[is_labeled, i], average='macro')
+        f1s.append(f1)
+
+    return sum(f1s) / len(f1s)
+
+
 def get_eval(task_type: str, y_true: torch.Tensor, y_pred: torch.Tensor):
     if task_type == 'rocauc':
         func = eval_rocauc
@@ -118,6 +123,10 @@ def get_eval(task_type: str, y_true: torch.Tensor, y_pred: torch.Tensor):
         else:
             y_pred = torch.argmax(y_pred, dim=1)
         func = eval_acc
+    elif task_type == 'f1_macro':
+        assert y_pred.shape[1] > 1, "assumed not binary"
+        y_pred = torch.argmax(y_pred, dim=1)
+        func = eval_F1macro
     elif task_type == 'mae':
         func = eval_mae
     elif task_type == 'ap':

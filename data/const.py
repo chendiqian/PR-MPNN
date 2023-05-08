@@ -1,5 +1,7 @@
 from torch import nn
 
+from data.data_utils import weighted_cross_entropy
+
 
 DATASET_FEATURE_STAT_DICT = {
     'zinc': {'node': 21, 'edge': 4, 'num_class': 1},  # regression
@@ -16,6 +18,8 @@ DATASET_FEATURE_STAT_DICT = {
 
     'peptides-struct': {'node': 9, 'edge': 4, 'num_class': 11},  # regression, but 11 labels
 
+    # VOC superpixels:
+    'edge_wt_region_boundary': {'node': 14, 'edge': 2, 'num_class': 21},
     'peptides-func': {'node': 9, 'edge': 4, 'num_class': 10},  # 10-way classification
 
     'tree_2': {'node': 4, 'edge': 0, 'num_class': 4},
@@ -73,6 +77,9 @@ TASK_TYPE_DICT = {
     'exp': 'acc',
     'protein': 'acc',
 
+    # VOC superpixels
+    'edge_wt_region_boundary': 'f1_macro',
+
     'tree_2': 'acc',
     'tree_3': 'acc',
     'tree_4': 'acc',
@@ -103,6 +110,8 @@ CRITERION_DICT = {
     'qm9': nn.L1Loss(),
     'exp': nn.BCEWithLogitsLoss(),
     'protein': nn.BCEWithLogitsLoss(),
+
+    'edge_wt_region_boundary': weighted_cross_entropy,
 
     'tree_2': nn.CrossEntropyLoss(),
     'tree_3': nn.CrossEntropyLoss(),

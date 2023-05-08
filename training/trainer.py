@@ -253,16 +253,26 @@ class Trainer:
         for data in dataloader.loader:
             data = self.check_datatype(data)
             if isinstance(data, Data):
-                num_graphs = data.num_graphs
+                if dataloader.task == 'graph':
+                    num_preds = data.num_graphs
+                elif dataloader.task == 'node':
+                    num_preds = data.x.shape[0]
+                else:
+                    raise NotImplementedError
             else:
-                num_graphs = len(data[1])
+                if dataloader.task == 'graph':
+                    num_preds = len(data[1])
+                elif dataloader.task == 'node':
+                    num_preds = data[0].x.shape[0]
+                else:
+                    raise NotImplementedError
             data, _, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
             label = data.y
-            label_ensemble = label[:num_graphs]
+            label_ensemble = label[:num_preds]
 
-            pred_ensemble = pred.reshape(*(-1, num_graphs) + pred.shape[1:]).transpose(0, 1)
+            pred_ensemble = pred.reshape(*(-1, num_preds) + pred.shape[1:]).transpose(0, 1)
 
             # For classification we should use something like the entropy of the mean prediction
             # i.e. we have (B_SZ, N_ENS, N_CLASSES)->(B_SZ, 1, N_CLASSES)->compute entropy over N_CLASSES
