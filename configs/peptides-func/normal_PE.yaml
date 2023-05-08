@@ -1,0 +1,49 @@
+fixed:
+  dataset: peptides-func
+  log_path: './logs'
+
+  use_wandb: False
+  wandb_name: "peptide-func"
+  wandb_prefix: "edge_candid"
+
+  sample_configs:
+    sample_policy: null
+    sample_k: null
+    ensemble: 0
+    include_original_graph: True
+
+  imle_configs: null
+
+  input_feature: 64
+  rwse:
+    kernel: 20
+    layers: 2
+    dim_pe: 16
+    raw_norm_type: 'BatchNorm'
+  lap:
+    max_freqs: 4
+    dim_pe: 16
+    layers: 2
+    raw_norm_type: null
+
+  optim: "adam"
+  model: pep_gin
+  hid_size: 256
+  lr: 1.e-3
+  lr_decay:
+    scheduler: step
+    steps: '[ 200, 400 ]'
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 0
+  inter_graph_pooling: null
+  batch_size: 64
+  min_epochs: 700
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 2
