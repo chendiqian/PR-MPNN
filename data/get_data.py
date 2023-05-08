@@ -153,6 +153,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     if not os.path.isdir(args.data_path):
         os.mkdir(args.data_path)
 
+    task = 'graph'
     if 'ogbg' in args.dataset.lower():
         train_set, val_set, test_set, mean, std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
@@ -167,6 +168,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_set, val_set, test_set, mean, std = get_peptides_struct(args)
     elif args.dataset.lower() == 'edge_wt_region_boundary':
         train_set, val_set, test_set, mean, std = get_vocsuperpixel(args)
+        task = 'node'
     else:
         raise ValueError
 
@@ -195,12 +197,14 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         train_loaders = [AttributedDataLoader(
             loader=dataloader(t),
             mean=mean,
-            std=std) for t in train_set]
+            std=std,
+            task=task) for t in train_set]
     elif isinstance(train_set, DATASET):
         train_loaders = [AttributedDataLoader(
             loader=dataloader(train_set),
             mean=mean,
-            std=std)]
+            std=std,
+            task=task)]
     else:
         raise TypeError
 
@@ -208,12 +212,14 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         val_loaders = [AttributedDataLoader(
             loader=dataloader(t),
             mean=mean,
-            std=std) for t in val_set]
+            std=std,
+            task=task) for t in val_set]
     elif isinstance(val_set, DATASET):
         val_loaders = [AttributedDataLoader(
             loader=dataloader(val_set),
             mean=mean,
-            std=std)]
+            std=std,
+            task=task)]
     else:
         raise TypeError
 
@@ -221,12 +227,14 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
         test_loaders = [AttributedDataLoader(
             loader=dataloader(t),
             mean=mean,
-            std=std) for t in test_set]
+            std=std,
+            task=task) for t in test_set]
     elif isinstance(test_set, DATASET):
         test_loaders = [AttributedDataLoader(
             loader=dataloader(test_set),
             mean=mean,
-            std=std)]
+            std=std,
+            task=task)]
     else:
         raise TypeError
 
