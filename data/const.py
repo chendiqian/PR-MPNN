@@ -76,7 +76,7 @@ TASK_TYPE_DICT = {
     'protein': 'acc',
 
     # VOC superpixels
-    'edge_wt_region_boundary': 'f1',
+    'edge_wt_region_boundary': 'f1_macro',
 
     'tree_2': 'acc',
     'tree_3': 'acc',

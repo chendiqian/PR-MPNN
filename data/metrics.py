@@ -77,12 +77,12 @@ def eval_mae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return sum(mae_list) / len(mae_list)
 
 
-def eval_F1(y_true: np.ndarray, y_pred: np.ndarray):
+def eval_F1macro(y_true: np.ndarray, y_pred: np.ndarray):
     f1s = []
 
     for i in range(y_true.shape[1]):
         is_labeled = y_true[:, i] == y_true[:, i]
-        f1 = f1_score(y_true[is_labeled, i], y_pred[is_labeled, i], average='micro')
+        f1 = f1_score(y_true[is_labeled, i], y_pred[is_labeled, i], average='macro')
         f1s.append(f1)
 
     return sum(f1s) / len(f1s)
@@ -99,10 +99,10 @@ def get_eval(task_type: str, y_true: torch.Tensor, y_pred: torch.Tensor):
         else:
             y_pred = torch.argmax(y_pred, dim=1)
         func = eval_acc
-    elif task_type == 'f1':
+    elif task_type == 'f1_macro':
         assert y_pred.shape[1] > 1, "assumed not binary"
         y_pred = torch.argmax(y_pred, dim=1)
-        func = eval_F1
+        func = eval_F1macro
     elif task_type == 'mae':
         func = eval_mae
     else:
