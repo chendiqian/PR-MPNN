@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 
 class PeptidesStructuralDataset(InMemoryDataset):
-    def __init__(self, root='dataset', smiles2graph=smiles2graph,
+    def __init__(self, root='datasets', smiles2graph=smiles2graph,
                  transform=None, pre_transform=None):
         """
         PyG dataset of 15,535 small peptides represented as their molecular
@@ -46,9 +46,14 @@ class PeptidesStructuralDataset(InMemoryDataset):
         self.smiles2graph = smiles2graph
         self.folder = osp.join(root, 'peptides-structural')
 
-        self.url = 'https://www.dropbox.com/s/464u3303eu2u4zp/peptide_structure_dataset.csv.gz?dl=1'
-        # MD5 hash of the intended dataset file
-        self.version = '9786061a34298a0684150f2e4ff13f47'
+        ## Unnormalized targets.
+        # self.url = 'https://www.dropbox.com/s/464u3303eu2u4zp/peptide_structure_dataset.csv.gz?dl=1'
+        # self.version = '9786061a34298a0684150f2e4ff13f47'
+
+        ## Standardized targets to zero mean and unit variance.
+        self.url = 'https://www.dropbox.com/s/0d4aalmq4b4e2nh/peptide_structure_normalized_dataset.csv.gz?dl=1'
+        self.version = 'c240c1c15466b5c907c63e180fa8aa89'  # MD5 hash of the intended dataset file
+
         self.url_stratified_split = 'https://www.dropbox.com/s/9dfifzft1hqgow6/splits_random_stratified_peptide_structure.pickle?dl=1'
         self.md5sum_stratified_split = '5a0114bdadc80b94fc7ae974f13ef061'
 
@@ -64,7 +69,7 @@ class PeptidesStructuralDataset(InMemoryDataset):
 
     @property
     def raw_file_names(self):
-        return 'peptide_structure_dataset.csv.gz'
+        return 'peptide_structure_normalized_dataset.csv.gz'
 
     @property
     def processed_file_names(self):
@@ -94,15 +99,15 @@ class PeptidesStructuralDataset(InMemoryDataset):
 
     def process(self):
         data_df = pd.read_csv(osp.join(self.raw_dir,
-                                       'peptide_structure_dataset.csv.gz'))
+                                       'peptide_structure_normalized_dataset.csv.gz'))
         smiles_list = data_df['smiles']
         target_names = ['Inertia_mass_a', 'Inertia_mass_b', 'Inertia_mass_c',
                         'Inertia_valence_a', 'Inertia_valence_b',
                         'Inertia_valence_c', 'length_a', 'length_b', 'length_c',
                         'Spherocity', 'Plane_best_fit']
-        # Normalize to zero mean and unit standard deviation.
-        data_df.loc[:, target_names] = data_df.loc[:, target_names].apply(
-            lambda x: (x - x.mean()) / x.std(), axis=0)
+        # Assert zero mean and unit standard deviation.
+        assert all(abs(data_df.loc[:, target_names].mean(axis=0)) < 1e-10)
+        assert all(abs(data_df.loc[:, target_names].std(axis=0) - 1.) < 1e-10)
 
         print('Converting SMILES strings into graphs...')
         data_list = []
