@@ -12,7 +12,7 @@ from data.plot_utils import plot_score, plot_rewired_graphs
 from imle.noise import GumbelDistribution
 from imle.target import TargetDistribution
 from imle.wrapper import imle
-from training.construct import construct_from_edge_candidates, construct_from_attention_mat
+from training.construct import construct_from_edge_candidates
 from training.gumbel_scheme import GumbelSampler
 from training.imle_scheme import IMLEScheme
 from training.simple_scheme import EdgeSIMPLEBatched
@@ -35,7 +35,6 @@ class Trainer:
                  patience_target: str,
                  criterion: Loss,
                  device: Union[str, torch.device],
-                 merge_original_graph: bool,
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
                  auxloss: ConfigDict,
@@ -139,25 +138,26 @@ class Trainer:
                                                     marginals_mask=imle_configs.marginals_mask,
                                                     include_original_graph=sample_configs.include_original_graph,
                                                     negative_sample=imle_configs.negative_sample,
-                                                    merge_original_graph=merge_original_graph,
+                                                    in_place=sample_configs.in_place,
                                                     auxloss_dict=auxloss)
         elif imle_configs is None:
             # random sampling
             self.construct_duplicate_data = lambda x, *args: (x[0], None, None)
         elif imle_configs is not None:
             # learnable way with attention mask
-            self.construct_duplicate_data = partial(construct_from_attention_mat,
-                                                    sample_policy=sample_configs.sample_policy,
-                                                    auxloss_dict=auxloss,
-                                                    sampler_class=self.sampler_class,
-                                                    train_forward=self.train_forward,
-                                                    val_forward=self.val_forward,
-                                                    weight_edges=imle_configs.weight_edges,
-                                                    marginals_mask=imle_configs.marginals_mask,
-                                                    device=self.device,
-                                                    include_original_graph=sample_configs.include_original_graph,
-                                                    negative_sample=imle_configs.negative_sample,
-                                                    merge_original_graph=merge_original_graph)
+            raise NotImplementedError
+            # self.construct_duplicate_data = partial(construct_from_attention_mat,
+            #                                         sample_policy=sample_configs.sample_policy,
+            #                                         auxloss_dict=auxloss,
+            #                                         sampler_class=self.sampler_class,
+            #                                         train_forward=self.train_forward,
+            #                                         val_forward=self.val_forward,
+            #                                         weight_edges=imle_configs.weight_edges,
+            #                                         marginals_mask=imle_configs.marginals_mask,
+            #                                         device=self.device,
+            #                                         include_original_graph=sample_configs.include_original_graph,
+            #                                         negative_sample=imle_configs.negative_sample,
+            #                                         merge_original_graph=merge_original_graph)
 
 
     def check_datatype(self, data):

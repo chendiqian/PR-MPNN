@@ -19,8 +19,8 @@ AttributedDataLoader = namedtuple(
 
 DuoDataStructure = namedtuple(
     'DuoDataStructure', [
-        'data1',
-        'data2',
+        'org',
+        'candidates',
         'y',
         'num_graphs',
     ]
