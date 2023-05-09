@@ -287,7 +287,7 @@ def get_model(args, device, *_args):
 
     if args.imle_configs is not None:
         spectral_norm = True if hasattr(args.imle_configs, 'spectral_norm') and args.imle_configs.spectral_norm else False
-        if args.dataset.lower() in ['zinc', 'alchemy']:
+        if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary']:
             type_encoder = 'linear'
         elif args.dataset.lower().startswith('tree'):
             type_encoder = 'bi_embedding'
