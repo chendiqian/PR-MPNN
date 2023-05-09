@@ -1,10 +1,10 @@
 fixed:
-  dataset: peptides-func
+  dataset: edge_wt_region_boundary
   log_path: './logs'
 
-  use_wandb: True
-  wandb_name: "peptides"
-  wandb_prefix: "peptides_normal"
+  use_wandb: False
+  wandb_name: "voc"
+  wandb_prefix: "normal"
 
   sample_configs:
     sample_policy: null
@@ -14,28 +14,41 @@ fixed:
 
   imle_configs: null
 
-  optim: "adam"
+  lap:
+    max_freqs: 10
+    dim_pe: 16
+    layers: 2
+    raw_norm_type: null
+
+  # down stream model
   model: gin_normal
-  hid_size: 256
+  hid_size: 166
   lr: 1.e-3
+  optim: adam
   lr_decay:
     scheduler: step
-    steps: '[ 200, 400 ]'
+    steps: '[ 400, 600 ]'
+  #  lr_decay:
+  #    scheduler: plateau
+  #    mode: min
+  #    decay_rate: 0.5
+  #    patience: 50
+  #    target: val_metric
   early_stop:
     patience: 100
     target: val_metric
   reg: 0.
-  num_convlayers: 4
+  num_convlayers: 8
   mlp_layers_intragraph: 3
   #  mlp_layers_intergraph: 0
-  graph_pooling: mean
+  graph_pooling: null  # THIS IS IMPORTANT, NODE LEVEL PREDICTION
   #  inter_graph_pooling: null
   dropout: 0.
   bn: True
   residual: True
-  batch_size: 64
+  batch_size: 128
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
   debug: False
-  num_runs: 2
+  num_runs: 3

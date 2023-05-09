@@ -14,24 +14,35 @@ fixed:
 
   imle_configs: null
 
-  optim: "adam"
-  model: voc_gin
+  # down stream model
+  model: gin_normal
   hid_size: 166
   lr: 1.e-3
+  optim: adam
   lr_decay:
     scheduler: step
     steps: '[ 400, 600 ]'
+  #  lr_decay:
+  #    scheduler: plateau
+  #    mode: min
+  #    decay_rate: 0.5
+  #    patience: 50
+  #    target: val_metric
   early_stop:
     patience: 100
     target: val_metric
   reg: 0.
   num_convlayers: 8
   mlp_layers_intragraph: 3
-  mlp_layers_intergraph: 0
-  inter_graph_pooling: null
-  batch_size: 64
+  #  mlp_layers_intergraph: 0
+  graph_pooling: null  # THIS IS IMPORTANT, NODE LEVEL PREDICTION
+  #  inter_graph_pooling: null
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 128
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
   debug: False
-  num_runs: 2
+  num_runs: 3
