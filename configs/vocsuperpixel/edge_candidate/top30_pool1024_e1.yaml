@@ -1,0 +1,71 @@
+fixed:
+  dataset: edge_wt_region_boundary
+  log_path: './logs'
+
+  use_wandb: False
+  wandb_name: "voc"
+  wandb_prefix: "edge_candid"
+
+  sample_configs:
+    sample_policy: edge_candid
+    sample_k: 512
+    candid_pool: 1024
+    ensemble: 1
+    include_original_graph: True
+
+  imle_configs:
+    sampler: imle
+    noise_scale: 0.3
+    beta: 10.
+    logits_activation: 'None'
+    weight_edges: None
+    marginals_mask: True
+    num_val_ensemble: 1
+    num_train_ensemble: 1
+    negative_sample: "full"
+
+    model: "edge_selector"
+
+    lap:
+      max_freqs: 10
+      dim_pe: 16
+      layers: 2
+      raw_norm_type: null
+
+    emb_hid_size: 256
+    emb_optim: "adamw"
+    emb_scheduler: "cosine"
+    num_layer: 4
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+    micro_batch_embd: 1
+
+  lap:
+    max_freqs: 10
+    dim_pe: 16
+    layers: 2
+    raw_norm_type: null
+
+  optim: "adam"
+  model: voc_gin_duo
+  hid_size: 166
+  lr: 1.e-3
+  lr_decay:
+    scheduler: step
+    steps: '[ 400, 600 ]'
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 8
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 2
+  inter_graph_pooling: 'cat'
+  batch_size: 64
+  min_epochs: 700
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 2
