@@ -1,200 +1,70 @@
-import torch.nn
-
-from data.const import DATASET_FEATURE_STAT_DICT
-from models.downstream_models.zinc_gin import ZINC_GIN
-from models.downstream_models.zinc_gin_duo import ZINC_GIN_Duo
-from models.downstream_models.alchemy_gin import AL_GIN
-from models.downstream_models.alchemy_gin_duo import AL_GIN_Duo
-from models.downstream_models.tree_gnn import TreeGraphModel
+from data.const import DATASET_FEATURE_STAT_DICT, NUM_CANDID_DICT
+from models.downstream_models.gin_duo import GIN_Duo
+from models.downstream_models.gin_halftransformer import GIN_HalfTransformer
+from models.downstream_models.gin_normal import GIN_Normal
 from models.downstream_models.leafcolor_gnn import LeafColorGraphModel
-from models.downstream_models.zinc_halftransformer import ZINC_HalfTransformer
-from models.downstream_models.alchemy_halftransformer import AL_HalfTransformer
-from models.upstream_models.linear_embed import LinearEmbed
-from models.upstream_models.transformer import Transformer
-from models.upstream_models.edge_candidate_selector import EdgeSelector
+from models.downstream_models.tree_gnn import TreeGraphModel
 from models.my_encoder import FeatureEncoder
-from models.upstream_models.graphormer import BiasEncoder, NodeEncoder, Graphormer
+from models.upstream_models.edge_candidate_selector import EdgeSelector
+from models.upstream_models.transformer import Transformer
 
 
 def get_model(args, device, *_args):
-    if args.model.lower() == 'zinc_gin':
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.input_feature,
-                type_encoder='linear',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.input_feature
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT['zinc']['node']
+    if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary']:
+        type_encoder = 'linear'
+    elif args.dataset.lower().startswith('tree'):
+        type_encoder = 'bi_embedding'
+    elif args.dataset.lower().startswith('leafcolor'):
+        type_encoder = 'bi_embedding_cat'
+    elif args.dataset.lower().startswith('peptides'):
+        type_encoder = 'peptides'
+    else:
+        raise ValueError
 
-        model = ZINC_GIN(
-            encoder=encoder,
-            ensemble=2 if args.sample_configs.include_original_graph else 1,
-            in_features=input_feature,
+    encoder = FeatureEncoder(
+        dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+        hidden=args.hid_size,
+        type_encoder=type_encoder,
+        lap_encoder=args.lap if hasattr(args, 'lap') else None,
+        rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
+
+    if args.model.lower() == 'gin_normal':
+        model = GIN_Normal(
+            encoder,
+            in_features=args.hid_size,
             num_layers=args.num_convlayers,
             hidden=args.hid_size,
             num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+            use_bn=args.bn,
+            dropout=args.dropout,
+            residual=args.residual,
             mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'zinc_gin_duo':
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.input_feature,
-                type_encoder='linear',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.input_feature
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT['zinc']['node']
-
-        model = ZINC_GIN_Duo(
-            encoder=encoder,
-            in_features=input_feature,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'pepstruct_gin' or args.model.lower() == 'pep_gin': # use the same model for both struct and func
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.input_feature,
-                type_encoder='peptides',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.input_feature
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT['peptides-struct']['node']
-
-        model = ZINC_GIN(
-            encoder=encoder,
-            ensemble=2 if args.sample_configs.include_original_graph else 1,
-            in_features=input_feature,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'pepstruct_gin_duo' or args.model.lower() == 'pep_gin_duo': # use the same model for both struct and func
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.input_feature,
-                type_encoder='peptides',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.input_feature
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT['zinc']['node']
-
-        model = ZINC_GIN_Duo(
-            encoder=encoder,
-            in_features=input_feature,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'alchemy_gin':
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.hid_size,
-                type_encoder='linear',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.hid_size
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT['alchemy']['node']
-
-        model = AL_GIN(
-            encoder=encoder,
-            ensemble=2 if args.sample_configs.include_original_graph else 1,
-            in_features=input_feature,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'alchemy_gin_duo':
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.hid_size,
-                type_encoder='linear',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.hid_size
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT['alchemy']['node']
-
-        model = AL_GIN_Duo(
-            encoder=encoder,
-            in_features=input_feature,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'pepstruct_gin_duo' or args.model.lower() == 'pep_gin_duo': # use same model for both struct and func
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.hid_size,
-                type_encoder='peptides',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.hid_size
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT['peptides-struct']['node']
-        model = ZINC_GIN_Duo(
-            encoder=encoder,
-            in_features=input_feature,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            inter_graph_pooling=args.inter_graph_pooling)
-
+            graph_pooling=args.graph_pooling)
+    elif args.model.lower().startswith('gin_duo'):
+        model = GIN_Duo(encoder,
+                        share_weights=args.model.lower().endswith('shared'),
+                        include_org=args.sample_configs.include_original_graph,
+                        num_candidates=NUM_CANDID_DICT[args.sample_configs.sample_policy],
+                        in_features=args.hid_size,
+                        num_layers=args.num_convlayers,
+                        hidden=args.hid_size,
+                        num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                        use_bn=args.bn,
+                        dropout=args.dropout,
+                        residual=args.residual,
+                        mlp_layers_intragraph=args.mlp_layers_intragraph,
+                        mlp_layers_intergraph=args.mlp_layers_intergraph,
+                        graph_pooling=args.graph_pooling,
+                        inter_graph_pooling=args.inter_graph_pooling)
     elif args.model.lower().endswith('trans+gin'):
+        # need to overwrite this
         encoder = FeatureEncoder(
             dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
             hidden=args.tf_hid_size,
-            type_encoder='linear',
+            type_encoder=type_encoder,
             lap_encoder=args.lap if hasattr(args, 'lap') else None,
             rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-        if args.model.lower().split('_')[0] == 'zinc':
-            model_class = ZINC_HalfTransformer
-        elif args.model.lower().split('_')[0] == 'alchemy':
-            model_class = AL_HalfTransformer
-        else:
-            raise ValueError
-        model = model_class(
+        model = GIN_HalfTransformer(
             encoder=encoder,
             head=args.tf_head,
             gnn_in_features=args.tf_hid_size,
@@ -202,13 +72,14 @@ def get_model(args, device, *_args):
             tf_layers=args.tf_layers,
             hidden=args.hid_size,
             tf_hidden=args.tf_hid_size,
-            dropout=args.tf_dropout,
+            tf_dropout=args.tf_dropout,
             attn_dropout=args.attn_dropout,
             num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             layer_norm=False,
             batch_norm=True,
             use_spectral_norm=True,
+            graph_pooling=args.graph_pooling,
         )
     elif args.model.lower().startswith('tree'):
         model = TreeGraphModel(gnn_type=args.model.lower().split('_')[1],
@@ -233,93 +104,11 @@ def get_model(args, device, *_args):
                                     layer_norm=False,
                                     use_activation=False,
                                     use_residual=False)
-    elif args.model.lower() == 'voc_gin_duo':
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.hid_size,
-                type_encoder='linear',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.hid_size
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node']
-
-        model = ZINC_GIN_Duo(
-            encoder=encoder,
-            in_features=input_feature,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            graph_pooling=None,  # THIS IS IMPORTANT, NODE LEVEL PREDICTION
-            inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() == 'voc_gin':
-        if hasattr(args, 'lap') or hasattr(args, 'rwse'):
-            # we encode the lap and rwse to the downstream model
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.hid_size,
-                type_encoder='linear',
-                lap_encoder=args.lap if hasattr(args, 'lap') else None,
-                rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-            input_feature = args.hid_size
-        else:
-            encoder = None
-            input_feature = DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node']
-
-        model = ZINC_GIN(
-            encoder=encoder,
-            ensemble=2 if args.sample_configs.include_original_graph else 1,
-            in_features=input_feature,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            mlp_layers_intergraph=args.mlp_layers_intergraph,
-            graph_pooling=None,  # THIS IS IMPORTANT, NODE LEVEL PREDICTION
-            inter_graph_pooling=args.inter_graph_pooling)
     else:
         raise NotImplementedError
 
     if args.imle_configs is not None:
-        spectral_norm = True if hasattr(args.imle_configs, 'spectral_norm') and args.imle_configs.spectral_norm else False
-        if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary']:
-            type_encoder = 'linear'
-        elif args.dataset.lower().startswith('tree'):
-            type_encoder = 'bi_embedding'
-        elif args.dataset.lower().startswith('leafcolor'):
-            type_encoder = 'bi_embedding_cat'        
-        elif args.dataset.lower().startswith('peptides'):
-            type_encoder = 'peptides'
-        else:
-            raise ValueError
-        if args.imle_configs.model.startswith('lin'):
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.imle_configs.emb_hid_size,
-                type_encoder=type_encoder,
-                lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
-                rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
-            emb_model = LinearEmbed(
-                encoder=encoder,
-                tuple_type=args.imle_configs.model.split('_')[-1],
-                heads=args.imle_configs.heads if hasattr(args.imle_configs, 'heads') else 1,
-                edge_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
-                hid_size=args.imle_configs.emb_hid_size,
-                gnn_layer=args.imle_configs.gnn_layer,
-                mlp_layer=args.imle_configs.mlp_layer,
-                dropout=args.imle_configs.dropout,
-                emb_edge=args.imle_configs.emb_edge,
-                emb_spd=args.imle_configs.emb_spd,
-                emb_ppr=args.imle_configs.emb_ppr,
-                ensemble=args.sample_configs.ensemble,
-                use_bn=args.imle_configs.bn,
-            )
-        elif args.imle_configs.model == 'transformer':
+        if args.imle_configs.model == 'transformer':
             encoder = FeatureEncoder(dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                                      hidden=args.imle_configs.emb_hid_size,
                                      type_encoder=type_encoder,
@@ -335,31 +124,7 @@ def get_model(args, device, *_args):
                                     attn_dropout=args.imle_configs.attn_dropout,
                                     layer_norm=args.imle_configs.layernorm,
                                     batch_norm=args.imle_configs.batchnorm,
-                                    use_spectral_norm=spectral_norm)
-        elif args.imle_configs.model == 'graphormer':
-            if args.dataset.lower() in ['zinc']:
-                encoder = torch.nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                                          args.imle_configs.emb_hid_size)
-            else:
-                raise ValueError
-            bias_encoder = BiasEncoder(num_heads=args.imle_configs.heads,
-                                       num_spatial_types=args.imle_configs.attenbias.num_spatial_types,
-                                       num_edge_types=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],)
-            node_encoder = NodeEncoder(embed_dim=args.imle_configs.emb_hid_size,
-                                       num_in_degree=args.imle_configs.attenbias.num_in_degrees,
-                                       num_out_degree=args.imle_configs.attenbias.num_in_degrees,
-                                       input_dropout=args.imle_configs.input_dropout,)
-            emb_model = Graphormer(encoder=encoder,
-                                   bias_conder=bias_encoder,
-                                   node_encoder=node_encoder,
-                                   hidden=args.imle_configs.emb_hid_size,
-                                   layers=args.imle_configs.tf_layer,
-                                   num_heads=args.imle_configs.heads,
-                                   ensemble=args.sample_configs.ensemble,
-                                   dropout=args.imle_configs.dropout,
-                                   attn_dropout=args.imle_configs.attn_dropout,
-                                   mlp_dropout=args.imle_configs.mlp_dropout,
-                                   use_spectral_norm=spectral_norm)
+                                    use_spectral_norm=True)
         elif args.imle_configs.model == 'edge_selector':
             encoder = FeatureEncoder(
                 dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
