@@ -102,7 +102,7 @@ CRITERION_DICT = {
     'zinc_full': nn.L1Loss(),
     'alchemy': nn.L1Loss(),
     'peptides-struct': nn.L1Loss(),
-    'peptides-func': nn.CrossEntropyLoss(),
+    'peptides-func': nn.BCEWithLogitsLoss(),
     'ogbg-molesol': nn.MSELoss(),
     'ogbg-molbace': nn.BCEWithLogitsLoss(),
     'ogbg-molhiv': nn.BCEWithLogitsLoss(),
