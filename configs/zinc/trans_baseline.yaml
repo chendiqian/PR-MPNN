@@ -3,7 +3,7 @@ fixed:
   log_path: './logs'
 
   use_wandb: True
-  wandb_name: "imle_ablate"
+  wandb_name: "zinc_halftrans"
 
   sample_configs:
     sample_policy: null
@@ -25,7 +25,8 @@ fixed:
     layers: 2
     raw_norm_type: null
 
-  model: zinc_trans+gin
+  # down stream model
+  model: trans+gin
   hid_size: 256
   tf_hid_size: 64
   tf_layers: 2
@@ -37,14 +38,21 @@ fixed:
   lr_decay:
     scheduler: step
     steps: '[ 400, 600 ]'
+#  lr_decay:
+#    scheduler: plateau
+#    mode: min
+#    decay_rate: 0.5
+#    patience: 50
+#    target: val_metric
   early_stop:
     patience: 100
     target: val_metric
   reg: 0.
   num_convlayers: 4
   mlp_layers_intragraph: 3
-  mlp_layers_intergraph: 0
-  inter_graph_pooling: null
+#  mlp_layers_intergraph: 0
+  graph_pooling: mean
+#  inter_graph_pooling: null
   batch_size: 128
   min_epochs: 700
   max_epochs: 1000
