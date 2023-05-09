@@ -119,9 +119,15 @@ def get_eval(task_type: str, y_true: torch.Tensor, y_pred: torch.Tensor):
         func = eval_rmse
     elif task_type == 'acc':
         if y_pred.shape[1] == 1:
+            # binary
             y_pred = (y_pred > 0.).to(torch.int)
         else:
-            y_pred = torch.argmax(y_pred, dim=1)
+            if y_true.dim() == 1 or y_true.shape[1] == 1:
+                # multi class
+                y_pred = torch.argmax(y_pred, dim=1)
+            else:
+                # multi label
+                raise NotImplementedError
         func = eval_acc
     elif task_type == 'f1_macro':
         assert y_pred.shape[1] > 1, "assumed not binary"
