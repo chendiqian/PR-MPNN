@@ -129,3 +129,8 @@ CRITERION_DICT = {
     'leafcolor_7': nn.CrossEntropyLoss(),
     'leafcolor_8': nn.CrossEntropyLoss(),
 }
+
+NUM_CANDID_DICT = {
+    'edge_candid': 1,
+    'global_topk_directed': 1,
+}
