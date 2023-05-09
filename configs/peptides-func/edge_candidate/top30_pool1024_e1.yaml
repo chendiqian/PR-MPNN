@@ -8,6 +8,7 @@ fixed:
 
   sample_configs:
     sample_policy: edge_candid
+    in_place: False
     sample_k: 30
     candid_pool: 1024
     ensemble: 1
@@ -47,7 +48,6 @@ fixed:
     noise_scale: 0.3
     beta: 10.
 
-  input_feature: 64
   rwse:
     kernel: 20
     layers: 2
@@ -60,7 +60,7 @@ fixed:
     raw_norm_type: null
 
   optim: "adam"
-  model: pep_gin_duo
+  model: gin_duo
   hid_size: 256
   lr: 1.e-3
   lr_decay:
@@ -73,7 +73,11 @@ fixed:
   num_convlayers: 4
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
-  inter_graph_pooling: 'cat'
+  graph_pooling: mean
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
   batch_size: 64
   min_epochs: 700
   max_epochs: 1000

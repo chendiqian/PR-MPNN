@@ -7,6 +7,7 @@ fixed:
 
   sample_configs:
     sample_policy: edge_candid
+    in_place: False
     sample_k: 10
     candid_pool: 30
     ensemble: 1
@@ -44,7 +45,6 @@ fixed:
     batchnorm: True
     micro_batch_embd: 1
 
-  input_feature: 64
   rwse:
     kernel: 20
     layers: 2
@@ -57,7 +57,7 @@ fixed:
     raw_norm_type: null
 
   optim: "adam"
-  model: zinc_gin_duo
+  model: gin_duo
   hid_size: 256
   lr: 1.e-3
   lr_decay:
@@ -68,9 +68,13 @@ fixed:
     target: val_metric
   reg: 0.
   num_convlayers: 4
-  mlp_layers_intragraph: 2
+  mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
+  graph_pooling: mean
   inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
   batch_size: 128
   min_epochs: 700
   max_epochs: 1000
