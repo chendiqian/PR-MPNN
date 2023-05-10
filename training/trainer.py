@@ -53,6 +53,8 @@ class Trainer:
         self.patience_target = patience_target
         self.auxloss = auxloss
 
+        self.imle_configs = imle_configs
+
         # clear best scores
         self.clear_stats()
 
@@ -337,6 +339,9 @@ class Trainer:
                 if self.patience > self.max_patience:
                     early_stop = True
 
+            if emb_model is not None:
+                up_lr = scheduler_embd.get_last_lr()[-1] if scheduler_embd is not None else self.imle_configs.embd_lr
+
             if self.wandb is not None and self.use_wandb:
                 self.wandb.log({"train_loss": train_loss,
                                 "train_metric": train_metric,
@@ -345,7 +350,7 @@ class Trainer:
                                 "val_loss_ensemble": val_loss_ensemble,
                                 "val_metric_ensemble": val_metric_ensemble,
                                 "down_lr": scheduler.get_last_lr()[-1],
-                                "up_lr": scheduler_embd.get_last_lr()[-1] if emb_model is not None else 0.,
+                                "up_lr": up_lr,
                                 "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty)})
 
         return val_loss, val_metric, val_loss_ensemble, val_metric_ensemble, early_stop
