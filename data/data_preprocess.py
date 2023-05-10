@@ -215,6 +215,13 @@ class AugmentWithLongestPathEdgeCandidate(GraphModification):
 
         triu_idx = np.vstack(np.triu_indices(graph.num_nodes, k=1))
         distances = g_dist_mat[triu_idx[0], triu_idx[1]]
+
+        # exclude original edges
+        triu_idx_id = triu_idx[0] * graph.num_nodes + triu_idx[1]
+        org_edge_index_id = edge_index[0] * graph.num_nodes + edge_index[1]
+        multi_hop_idx = np.setdiff1d(triu_idx_id, org_edge_index_id)
+        triu_idx = triu_idx[:, multi_hop_idx]
+
         edge_candidate = triu_idx[:, np.argsort(distances)[-self.num_candidate:]]
 
         graph.edge_candidate = torch.from_numpy(edge_candidate).T
