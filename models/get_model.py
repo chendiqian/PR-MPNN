@@ -78,7 +78,7 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             layer_norm=False,
             batch_norm=True,
-            use_spectral_norm=True,
+            use_spectral_norm=args.imle_configs.spectral_norm,
             graph_pooling=args.graph_pooling,
         )
     elif args.model.lower().startswith('tree'):
@@ -124,7 +124,7 @@ def get_model(args, device, *_args):
                                     attn_dropout=args.imle_configs.attn_dropout,
                                     layer_norm=args.imle_configs.layernorm,
                                     batch_norm=args.imle_configs.batchnorm,
-                                    use_spectral_norm=True)
+                                    use_spectral_norm=args.imle_configs.spectral_norm)
         elif args.imle_configs.model == 'edge_selector':
             encoder = FeatureEncoder(
                 dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
