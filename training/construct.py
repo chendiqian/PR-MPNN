@@ -4,10 +4,10 @@ import numpy as np
 import torch
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
-from torch_geometric.utils import to_dense_batch, to_undirected, coalesce
+from torch_geometric.utils import to_dense_batch, to_undirected
 from torch_scatter import scatter
 
-from data.data_utils import DuoDataStructure, batched_edge_index_to_batched_adj
+from data.data_utils import DuoDataStructure, batched_edge_index_to_batched_adj, non_merge_coalesce
 from training.aux_loss import get_variance_regularization, get_original_bias
 
 LARGE_NUMBER = 1.e10
@@ -109,9 +109,10 @@ def construct_from_edge_candidates(collate_data: Tuple[Data, List[Data]],
         merged_edge_index = torch.cat([original_edge_index, edge_index], dim=1)
         merged_edge_weight = torch.cat([edge_weight.new_ones(original_edge_index.shape[1]), edge_weight], dim=0)
 
-        merged_edge_index, merged_edge_weight = coalesce(edge_index=merged_edge_index,
-                                                         edge_attr=merged_edge_weight,
-                                                         num_nodes=dat_batch.num_nodes * VE * E)
+        # pyg coalesce force to merge duplicate edges, which is in conflict with our _slice_dict calculation
+        merged_edge_index, merged_edge_weight = non_merge_coalesce(edge_index=merged_edge_index,
+                                                                   edge_attr=merged_edge_weight,
+                                                                   num_nodes=dat_batch.num_nodes * VE * E)
         rewired_batch = Batch.from_data_list(new_graphs)
         rewired_batch.edge_index = merged_edge_index
 

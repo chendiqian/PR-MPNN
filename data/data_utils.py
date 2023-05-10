@@ -8,6 +8,7 @@ import torch.optim as optim
 from torch.optim import Optimizer
 import torch.nn.functional as F
 from torch_geometric.data import Data
+from torch_geometric.utils import index_sort
 
 AttributedDataLoader = namedtuple(
     'AttributedDataLoader', [
@@ -264,3 +265,30 @@ def weighted_cross_entropy(pred, true):
     else:
         loss = F.binary_cross_entropy_with_logits(pred, true.float(), weight=weight[true])
         return loss
+
+
+def non_merge_coalesce(
+    edge_index,
+    edge_attr,
+    num_nodes,
+    is_sorted: bool = False,
+    sort_by_row: bool = True,
+):
+    nnz = edge_index.size(1)
+
+    idx = edge_index.new_empty(nnz + 1)
+    idx[0] = -1
+    idx[1:] = edge_index[1 - int(sort_by_row)]
+    idx[1:].mul_(num_nodes).add_(edge_index[int(sort_by_row)])
+
+    if not is_sorted:
+        idx[1:], perm = index_sort(idx[1:], max_value=num_nodes * num_nodes)
+        edge_index = edge_index[:, perm]
+        if isinstance(edge_attr, torch.Tensor):
+            edge_attr = edge_attr[perm]
+        elif isinstance(edge_attr, (list, tuple)):
+            edge_attr = [e[perm] for e in edge_attr]
+
+    if edge_attr is None or isinstance(edge_attr, (torch.Tensor, list, tuple)):
+        return edge_index, edge_attr
+    return edge_index
