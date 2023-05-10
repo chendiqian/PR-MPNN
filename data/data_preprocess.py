@@ -219,7 +219,7 @@ class AugmentWithLongestPathEdgeCandidate(GraphModification):
         # exclude original edges
         triu_idx_id = triu_idx[0] * graph.num_nodes + triu_idx[1]
         org_edge_index_id = edge_index[0] * graph.num_nodes + edge_index[1]
-        multi_hop_idx = np.setdiff1d(triu_idx_id, org_edge_index_id)
+        multi_hop_idx = np.in1d(triu_idx_id, org_edge_index_id)
         triu_idx = triu_idx[:, multi_hop_idx]
 
         edge_candidate = triu_idx[:, np.argsort(distances)[-self.num_candidate:]]
