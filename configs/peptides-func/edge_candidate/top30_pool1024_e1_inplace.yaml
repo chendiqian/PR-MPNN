@@ -4,7 +4,7 @@ fixed:
 
   use_wandb: True
   wandb_name: "peptides-func"
-  wandb_prefix: "edge_candid_inplace"
+  wandb_prefix: "edge_candid_inplace_2layer"
 
   sample_configs:
     sample_policy: edge_candid
@@ -82,8 +82,8 @@ fixed:
   bn: True
   residual: True
   batch_size: 64
-  min_epochs: 700
+  min_epochs: 300
   max_epochs: 1000
   data_path: './datasets'
   debug: False
-  num_runs: 2
+  num_runs: 1

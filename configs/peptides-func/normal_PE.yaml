@@ -45,7 +45,7 @@ fixed:
   bn: True
   residual: True
   batch_size: 64
-  min_epochs: 700
+  min_epochs: 300
   max_epochs: 1000
   data_path: './datasets'
   debug: False
