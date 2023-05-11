@@ -67,7 +67,7 @@ PRETRANSFORM_PRIORITY = {
 
 def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
-    if args.sample_configs.sample_policy == 'edge_candid':
+    if 'edge_candid' in args.sample_configs.sample_policy:
         extra_path += f'EdgeCandidates{args.sample_configs.candid_pool}_'
     if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
         extra_path += 'SPDaug_'
@@ -136,7 +136,8 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
                                                    args.imle_configs.attenbias.num_in_degrees,
                                                    args.imle_configs.attenbias.num_out_degrees))
 
-    if args.sample_configs.sample_policy == 'edge_candid':
+    # add edge candidates or bidirectional
+    if 'edge_candid' in args.sample_configs.sample_policy:
         pretransform.append(AugmentWithLongestPathEdgeCandidate(args.sample_configs.candid_pool))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
