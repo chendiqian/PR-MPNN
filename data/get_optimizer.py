@@ -61,6 +61,13 @@ def make_get_opt(args):
             scheduler = optim.lr_scheduler.MultiStepLR(optimizer,
                                                        eval(args.lr_decay.steps),
                                                        gamma=0.1 ** 0.5)
+        elif args.lr_decay.scheduler == 'cyclic':
+            assert isinstance(optimizer, optim.SGD), "CyclicLR only works with SGD"
+            assert hasattr(args.lr_decay, "min_lr") and hasattr(args.lr_decay, "max_lr"), 'min_lr and max_lr must be defined'
+            assert args.lr_decay.min_lr < args.lr_decay.max_lr, "min_lr must be smaller than max_lr"
+            scheduler = optim.lr_scheduler.CyclicLR(optimizer,
+                                                    base_lr=args.lr_decay.min_lr,
+                                                    max_lr=args.lr_decay.max_lr)
         else:
             raise NotImplementedError
 
