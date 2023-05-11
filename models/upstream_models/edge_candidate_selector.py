@@ -48,7 +48,8 @@ class EdgeSelector(torch.nn.Module):
 
         select_edge_candidates = self.mlp1(edge_candidates)
         if self.use_deletion_head:
-            delete_edge_candidates = self.mlp2(edge_candidates)
+            cur_edges = torch.hstack([x[data.edge_index[0]], x[data.edge_index[1]]])
+            delete_edge_candidates = self.mlp2(cur_edges)
         else:
             delete_edge_candidates = None
 
