@@ -32,15 +32,13 @@ parameters:
   sample_configs.in_place:
     value: True
   sample_configs.sample_k:  # add edges
-    values:
-      min: 1
-      max: 512
-      distribition: int_uniform
+    distribution: int_uniform
+    min: 1
+    max: 512
   sample_configs.sample_k2:  # rm edges
-    values:
-      min: 1
-      max: 256
-      distribition: int_uniform
+    distribution: int_uniform
+    min: 1
+    max: 256
   sample_configs.candid_pool:
     value: 1024
   sample_configs.ensemble:
@@ -51,6 +49,10 @@ parameters:
   # sampler and its hyperparams
   imle_configs.sampler:
     value: simple
+#  imle_configs.beta:   # for imle
+#    value: 10
+#  imle_configs.noise_scale:
+#    value: 0.3
   imle_configs.logits_activation:
     value: None
   imle_configs.negative_sample:
