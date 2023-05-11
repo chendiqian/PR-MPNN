@@ -7,6 +7,7 @@ from torch_geometric.nn import MessagePassing
 
 from .nn_modules import MLP
 from .nn_utils import reset_sequential_parameters, residual
+from .my_encoder import BondEncoder
 
 
 class GINConv(MessagePassing):
@@ -132,61 +133,135 @@ class BaseGIN(torch.nn.Module):
         return x
 
 
-# class GINEConv(MessagePassing):
-#     def __init__(self, emb_dim: int = 64,
-#                  mlp: Optional[Union[MLP, torch.nn.Sequential]] = None,
-#                  bond_encoder: Optional[Union[MLP, torch.nn.Sequential]] = None):
-#
-#         super(GINEConv, self).__init__(aggr="add")
-#
-#         if mlp is not None:
-#             self.mlp = mlp
-#         else:
-#             self.mlp = MLP([emb_dim, emb_dim, emb_dim], batch_norm=True, dropout=0.)
-#
-#         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
-#
-#         if bond_encoder is None:
-#             self.bond_encoder = BondEncoder(emb_dim=emb_dim)
-#         else:
-#             self.bond_encoder = bond_encoder
-#
-#     def forward(self, x, edge_index, edge_attr, edge_weight):
-#         if edge_weight is not None and edge_weight.ndim < 2:
-#             edge_weight = edge_weight[:, None]
-#
-#         edge_embedding = self.bond_encoder(edge_attr)
-#         out = self.mlp((1 + self.eps) * x + self.propagate(edge_index,
-#                                                            x=x,
-#                                                            edge_attr=edge_embedding,
-#                                                            edge_weight=edge_weight))
-#         return out
-#
-#     def message(self, x_j, edge_attr, edge_weight):
-#         m = torch.relu(x_j + edge_attr)
-#         return m * edge_weight if edge_weight is not None else m
-#
-#     def update(self, aggr_out):
-#         return aggr_out
-#
-#     def reset_parameters(self):
-#         self.eps = torch.nn.Parameter(torch.Tensor([0.]).to(self.eps.device))
-#
-#         if isinstance(self.mlp, (MLP, torch.nn.Linear)):
-#             self.mlp.reset_parameters()
-#         elif isinstance(self.mlp, torch.nn.Sequential):
-#             reset_sequential_parameters(self.mlp)
-#         else:
-#             raise TypeError
-#
-#         if isinstance(self.bond_encoder, (BondEncoder, MLP, torch.nn.Linear)):
-#             self.bond_encoder.reset_parameters()
-#         elif isinstance(self.bond_encoder, torch.nn.Sequential):
-#             reset_sequential_parameters(self.bond_encoder)
-#         else:
-#             raise TypeError
-#
-#
+class GINEConv(MessagePassing):
+    def __init__(self, emb_dim: int = 64,
+                 mlp: Optional[Union[MLP, torch.nn.Sequential]] = None,
+                 bond_encoder: Optional[Union[MLP, torch.nn.Sequential]] = None):
+
+        super(GINEConv, self).__init__(aggr="add")
+
+        if mlp is not None:
+            self.mlp = mlp
+        else:
+            self.mlp = MLP([emb_dim, emb_dim, emb_dim], batch_norm=True, dropout=0.)
+
+        self.eps = torch.nn.Parameter(torch.Tensor([0.]))
+
+        if bond_encoder is None:
+            self.bond_encoder = BondEncoder(emb_dim=emb_dim)
+        else:
+            self.bond_encoder = bond_encoder
+
+    def forward(self, x, edge_index, edge_attr, edge_weight):
+        if edge_weight is not None and edge_weight.ndim < 2:
+            edge_weight = edge_weight[:, None]
+
+        edge_embedding = self.bond_encoder(edge_attr) if edge_attr is not None else None
+        out = self.mlp((1 + self.eps) * x + self.propagate(edge_index,
+                                                           x=x,
+                                                           edge_attr=edge_embedding,
+                                                           edge_weight=edge_weight))
+        return out
+
+    def message(self, x_j, edge_attr, edge_weight):
+        m = torch.relu(x_j + edge_attr) if edge_attr is not None else x_j
+        return m * edge_weight if edge_weight is not None else m
+
+    def update(self, aggr_out):
+        return aggr_out
+
+    def reset_parameters(self):
+        raise NotImplementedError
+
+
+class BaseGINE(torch.nn.Module):
+    def __init__(self, in_features, num_layers, hidden, out_feature, edge_encoder, use_bn, dropout, use_residual):
+        super(BaseGINE, self).__init__()
+
+        self.use_bn = use_bn
+        self.dropout = dropout
+        self.use_residual = use_residual
+
+        if num_layers == 1:
+            self.convs = torch.nn.ModuleList([GINEConv(
+                in_features,
+                Sequential(
+                    Linear(in_features, hidden),
+                    ReLU(),
+                    Linear(hidden, out_feature),
+                ),
+                edge_encoder,
+            )])
+            if use_bn:
+                self.bns = torch.nn.ModuleList([BN(out_feature)])
+        else:
+            self.convs = torch.nn.ModuleList()
+            self.bns = torch.nn.ModuleList()
+
+            # first layer
+            self.convs.append(
+                GINEConv(
+                    in_features,
+                    Sequential(
+                        Linear(in_features, hidden),
+                        ReLU(),
+                        Linear(hidden, hidden),
+                    ),
+                    edge_encoder,
+                )
+            )
+            if use_bn:
+                self.bns.append(BN(hidden))
+
+            # middle layer
+            for i in range(num_layers - 2):
+                self.convs.append(
+                    GINEConv(
+                        hidden,
+                        Sequential(
+                            Linear(hidden, hidden),
+                            ReLU(),
+                            Linear(hidden, hidden),
+                        ),
+                        edge_encoder,
+                    )
+                )
+                if use_bn:
+                    self.bns.append(BN(hidden))
+
+            # last layer
+            self.convs.append(
+                GINEConv(
+                    hidden,
+                    Sequential(
+                        Linear(hidden, hidden),
+                        ReLU(),
+                        Linear(hidden, out_feature),
+                    ),
+                    edge_encoder,
+                )
+            )
+            if use_bn:
+                self.bns.append(BN(out_feature))
+
+    def reset_parameters(self):
+        raise NotImplementedError
+
+    def forward(self, x, edge_index, edge_attr, edge_weight=None):
+        for i, conv in enumerate(self.convs):
+            x_new = conv(x, edge_index, edge_attr, edge_weight)
+            if self.use_bn:
+                x_new = self.bns[i](x_new)
+            x_new = F.relu(x_new)
+            x_new = F.dropout(x_new, p=self.dropout, training=self.training)
+            if self.use_residual:
+                x = residual(x, x_new)
+            else:
+                x = x_new
+
+        return x
+
+
 # class SAGEConv(MessagePassing):
 #     def __init__(
 #         self,
@@ -236,16 +311,16 @@ class BaseGIN(torch.nn.Module):
 #         return x_j * edge_weight if edge_weight is not None else x_j
 #
 #
-# class GNN_Placeholder(torch.nn.Module):
-#     def __init__(self, *args, **kwargs):
-#         super(GNN_Placeholder, self).__init__()
-#         pass
-#
-#     def forward(self, data):
-#         return data.x
-#
-#     def reset_parameters(self):
-#         pass
+class GNN_Placeholder(torch.nn.Module):
+    def __init__(self, *args, **kwargs):
+        super(GNN_Placeholder, self).__init__()
+        pass
+
+    def forward(self, x, *args):
+        return x
+
+    def reset_parameters(self):
+        pass
 #
 #
 # class GCNConv(MessagePassing):
