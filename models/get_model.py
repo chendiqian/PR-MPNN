@@ -1,3 +1,4 @@
+import torch.nn as nn
 from data.const import DATASET_FEATURE_STAT_DICT, NUM_CANDID_DICT
 from models.downstream_models.gin_duo import GIN_Duo
 from models.downstream_models.gin_halftransformer import GIN_HalfTransformer
@@ -107,13 +108,15 @@ def get_model(args, device, *_args):
     else:
         raise NotImplementedError
 
+    # not shared with the downstream
+    encoder = FeatureEncoder(
+        dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+        hidden=args.imle_configs.emb_hid_size,
+        type_encoder=type_encoder,
+        lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
+        rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
     if args.imle_configs is not None:
         if args.imle_configs.model == 'transformer':
-            encoder = FeatureEncoder(dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                                     hidden=args.imle_configs.emb_hid_size,
-                                     type_encoder=type_encoder,
-                                     lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
-                                     rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
             emb_model = Transformer(encoder=encoder,
                                     hidden=args.imle_configs.emb_hid_size,
                                     layers=args.imle_configs.tf_layer,
@@ -126,16 +129,19 @@ def get_model(args, device, *_args):
                                     batch_norm=args.imle_configs.batchnorm,
                                     use_spectral_norm=args.imle_configs.spectral_norm)
         elif args.imle_configs.model == 'edge_selector':
-            encoder = FeatureEncoder(
-                dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                hidden=args.imle_configs.emb_hid_size,
-                type_encoder=type_encoder,
-                lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
-                rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
+            if args.dataset.lower() in ['zinc']:
+                edge_encoder = nn.Sequential(nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], args.imle_configs.emb_hid_size),
+                                             nn.ReLU(),
+                                             nn.Linear(args.imle_configs.emb_hid_size, args.imle_configs.emb_hid_size))
+            else:
+                edge_encoder = None
             emb_model = EdgeSelector(encoder,
+                                     edge_encoder,
                                      in_dim=args.imle_configs.emb_hid_size,
                                      hid_size=args.imle_configs.emb_hid_size,
-                                     mlp_layer=args.imle_configs.num_layer,
+                                     gnn_layer=args.imle_configs.gnn_layer,
+                                     mlp_layer=args.imle_configs.mlp_layer,
+                                     use_deletion_head=True if args.sample_configs.sample_policy == 'edge_candid_bi' else False,
                                      dropout=args.imle_configs.dropout,
                                      ensemble=args.sample_configs.ensemble,
                                      use_bn=args.imle_configs.batchnorm)
