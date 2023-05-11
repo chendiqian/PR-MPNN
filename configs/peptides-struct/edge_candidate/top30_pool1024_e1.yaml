@@ -39,7 +39,8 @@ fixed:
     emb_hid_size: 256
     emb_optim: "adamw"
     emb_scheduler: "cosine"
-    num_layer: 4
+    gnn_layer: 0
+    mlp_layer: 4
     dropout: 0.
     embd_lr: 1.e-3
     reg_embd: 0.
