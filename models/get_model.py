@@ -129,7 +129,7 @@ def get_model(args, device, *_args):
                                     batch_norm=args.imle_configs.batchnorm,
                                     use_spectral_norm=args.imle_configs.spectral_norm)
         elif args.imle_configs.model == 'edge_selector':
-            if args.dataset.lower() in ['zinc']:
+            if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary']:
                 edge_encoder = nn.Sequential(nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], args.imle_configs.emb_hid_size),
                                              nn.ReLU(),
                                              nn.Linear(args.imle_configs.emb_hid_size, args.imle_configs.emb_hid_size))
