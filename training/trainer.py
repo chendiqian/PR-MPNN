@@ -14,6 +14,7 @@ from imle.target import TargetDistribution
 from imle.wrapper import imle
 from training.construct import (construct_from_edge_candidates,
                                 construct_add_delete_edge,
+                                construct_delete_then_add_edge,
                                 construct_from_attention_mat)
 from training.gumbel_scheme import GumbelSampler
 from training.imle_scheme import IMLEScheme
@@ -150,6 +151,21 @@ class Trainer:
                 # essentially the same as 'edge_candid', but sample twice
                 self.sampler_class.policy = 'edge_candid'
                 self.construct_duplicate_data = partial(construct_add_delete_edge,
+                                                        samplek_dict={'add_k': sample_configs.sample_k,
+                                                                      'del_k': sample_configs.sample_k2},
+                                                        sampler_class=self.sampler_class,
+                                                        train_forward=self.train_forward,
+                                                        val_forward=self.val_forward,
+                                                        weight_edges=imle_configs.weight_edges,
+                                                        marginals_mask=imle_configs.marginals_mask,
+                                                        include_original_graph=sample_configs.include_original_graph,
+                                                        negative_sample=imle_configs.negative_sample,
+                                                        in_place=sample_configs.in_place,
+                                                        auxloss_dict=auxloss)
+            elif sample_configs.sample_policy == 'edge_candid_seq':
+                # essentially the same as 'edge_candid', but sample twice
+                self.sampler_class.policy = 'edge_candid'
+                self.construct_duplicate_data = partial(construct_delete_then_add_edge,
                                                         samplek_dict={'add_k': sample_configs.sample_k,
                                                                       'del_k': sample_configs.sample_k2},
                                                         sampler_class=self.sampler_class,
