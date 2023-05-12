@@ -6,11 +6,12 @@ import networkx as nx
 import seaborn as sns
 import torch
 from ml_collections import ConfigDict
-from torch_geometric.data import Batch
 from torch_geometric.utils import to_networkx, degree
 
+from data.data_utils import DuoDataStructure
 
-def plot_rewired_graphs(new_batch: Batch,
+
+def plot_rewired_graphs(new_batch: DuoDataStructure,
                         train: bool,
                         epoch,
                         batch_id,
@@ -25,6 +26,8 @@ def plot_rewired_graphs(new_batch: Batch,
     if batch_id != plot_args.batch_id or epoch % plot_args.plot_every != 0:
         return
 
+    assert isinstance(new_batch, DuoDataStructure), f"unsupported dtype {type(new_batch)}"
+
     if hasattr(plot_args, 'plot_folder'):
         plot_folder = plot_args.plot_folder
         if not os.path.exists(plot_folder):
@@ -32,21 +35,24 @@ def plot_rewired_graphs(new_batch: Batch,
 
     # in this case, the batch indices are already modified for inter-subgraph graph pooling,
     # use the original batch instead for compatibility of `to_data_list`
-    del new_batch.y  # without repitition, so might be incompatible
+    candidates = new_batch.candidates
+    new_batch_plot = []
+    weights_split = []
+    for c in candidates:
+        del c.y   # might be incompatible without duplication
+        new_batch_plot += c.to_data_list()
+        src, dst = c.edge_index
+        sections = degree(c.batch[src], dtype=torch.long).tolist()
+        weights_split += torch.split(c.edge_weight, split_size_or_sections=sections)
 
-    new_batch_plot = new_batch.to_data_list()
-    if hasattr(new_batch, 'edge_weight') and new_batch.edge_weight is not None:
-        src, dst = new_batch.edge_index
-        sections = degree(new_batch.batch[src], dtype=torch.long).tolist()
-        weights_split = torch.split(new_batch.edge_weight,
-                                    split_size_or_sections=sections)
-    else:
-        weights_split = [None] * len(new_batch_plot)
-
-    n_ensemble = ensemble * (num_train_ensemble if train else num_val_ensemble)
-    unique_graphs = len(new_batch_plot) // n_ensemble // (
-        2 if include_original_graph else 1)
+    n_ensemble = ensemble * (num_train_ensemble if train else num_val_ensemble) * len(candidates)
+    unique_graphs = len(new_batch_plot) // n_ensemble
     total_plotted_graphs = min(plot_args.n_graphs, unique_graphs)
+
+    if new_batch.org is not None:
+        original_graph = new_batch.org.to_data_list()
+        new_batch_plot += original_graph
+        weights_split += [None] * len(original_graph)
 
     nrows = round(sqrt(n_ensemble + int(include_original_graph)))
     ncols = ceil(sqrt(n_ensemble + int(include_original_graph)))
@@ -67,8 +73,7 @@ def plot_rewired_graphs(new_batch: Batch,
             node_colors[idx_label] = 1
             node_colors = node_colors.unsqueeze(-1)
         else:
-            node_colors = new_batch_plot[graph_id].x.detach().cpu().argmax(
-                dim=1).unsqueeze(-1)
+            node_colors = new_batch_plot[graph_id].x.detach().cpu().argmax(dim=1).unsqueeze(-1)
 
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols * 7, nrows * 7),
                                 gridspec_kw={'wspace': 0, 'hspace': 0.05})
@@ -95,12 +100,9 @@ def plot_rewired_graphs(new_batch: Batch,
             else:
                 ax = axs
 
-            nx.draw_networkx_nodes(g_nx, original_graphs_pos_dict, node_size=200,
-                                   node_color=node_colors, alpha=0.7, ax=ax)
-            nx.draw_networkx_edges(g_nx, original_graphs_pos_dict, edgelist=edges,
-                                   width=1, edge_color='k', ax=ax)
-            nx.draw_networkx_labels(g_nx, pos=original_graphs_pos_dict,
-                                    labels={i: i for i in range(len(node_colors))}, ax=ax)
+            nx.draw_networkx_nodes(g_nx, original_graphs_pos_dict, node_size=200, node_color=node_colors, alpha=0.7, ax=ax)
+            nx.draw_networkx_edges(g_nx, original_graphs_pos_dict, edgelist=edges, width=1, edge_color='k', ax=ax)
+            nx.draw_networkx_labels(g_nx, pos=original_graphs_pos_dict, labels={i: i for i in range(len(node_colors))}, ax=ax)
             ax.set_title(f'Graph {graph_id}, Epoch {epoch}, Version: {graph_version}')
 
         if hasattr(plot_args, 'plot_folder'):
