@@ -75,15 +75,21 @@ def construct_from_edge_candidates(collate_data: Tuple[Data, List[Data]],
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     VE, B, N, E = node_mask.shape
 
-    if weight_edges == 'marginals':
-        # Maybe we should also try this with softmax?
-        sampled_edge_weights = marginals[None].repeat(VE, 1, 1, 1)
-        if marginals_mask or not train:
-            sampled_edge_weights = sampled_edge_weights * node_mask
-    elif weight_edges == 'None' or weight_edges is None:
+    if weight_edges == 'None' or weight_edges is None:
         sampled_edge_weights = node_mask
     else:
-        raise ValueError(f"{weight_edges} not supported")
+        if weight_edges == 'marginals':
+            # Maybe we should also try this with softmax?
+            sampled_edge_weights = marginals[None].repeat(VE, 1, 1, 1)
+        elif weight_edges == 'logits':
+            sampled_edge_weights = output_logits[None].repeat(VE, 1, 1, 1)
+        elif weight_edges == 'sigmoid_logits':
+            sampled_edge_weights = torch.sigmoid(output_logits)[None].repeat(VE, 1, 1, 1)
+        else:
+            raise ValueError(f"{weight_edges} not supported")
+
+        if marginals_mask or not train:
+            sampled_edge_weights = sampled_edge_weights * node_mask
 
     # num_edges x E x VE
     edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)
@@ -186,15 +192,21 @@ def construct_add_delete_edge(collate_data: Tuple[Data, List[Data]],
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     VE, B, N, E = node_mask.shape
 
-    if weight_edges == 'marginals':
-        # Maybe we should also try this with softmax?
-        sampled_edge_weights = marginals[None].repeat(VE, 1, 1, 1)
-        if marginals_mask or not train:
-            sampled_edge_weights = sampled_edge_weights * node_mask
-    elif weight_edges == 'None' or weight_edges is None:
+    if weight_edges == 'None' or weight_edges is None:
         sampled_edge_weights = node_mask
     else:
-        raise ValueError(f"{weight_edges} not supported")
+        if weight_edges == 'marginals':
+            # Maybe we should also try this with softmax?
+            sampled_edge_weights = marginals[None].repeat(VE, 1, 1, 1)
+        elif weight_edges == 'logits':
+            sampled_edge_weights = output_logits[None].repeat(VE, 1, 1, 1)
+        elif weight_edges == 'sigmoid_logits':
+            sampled_edge_weights = torch.sigmoid(output_logits)[None].repeat(VE, 1, 1, 1)
+        else:
+            raise ValueError(f"{weight_edges} not supported")
+
+        if marginals_mask or not train:
+            sampled_edge_weights = sampled_edge_weights * node_mask
 
     # num_edges x E x VE
     add_edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)
@@ -328,30 +340,21 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     VE, B, N, _, E = node_mask.shape
 
-    if weight_edges == 'logits':
-        # (#sampled, B, N, N, E)
-        # sampled_edge_weights = torch.vmap(
-        #     torch.vmap(
-        #         torch.vmap(
-        #             self_defined_softmax,
-        #             in_dims=(None, 0),
-        #             out_dims=0),
-        #         in_dims=0, out_dims=0),
-        #     in_dims=-1,
-        #     out_dims=-1)(logits, node_mask)
-        sampled_edge_weights = logits
-        if marginals_mask or not train:
-            sampled_edge_weights = sampled_edge_weights * node_mask
-    elif weight_edges == 'marginals':
-        assert marginals is not None
-        # Maybe we should also try this with softmax?
-        sampled_edge_weights = marginals[None].repeat(node_mask.shape[0], 1, 1, 1, 1)
-        if marginals_mask or not train:
-            sampled_edge_weights = sampled_edge_weights * node_mask
-    elif weight_edges == 'None' or weight_edges is None:
+    if weight_edges == 'None' or weight_edges is None:
         sampled_edge_weights = node_mask
     else:
-        raise ValueError(f"{weight_edges} not supported")
+        if weight_edges == 'marginals':
+            # Maybe we should also try this with softmax?
+            sampled_edge_weights = marginals[None].repeat(VE, 1, 1, 1, 1)
+        elif weight_edges == 'logits':
+            sampled_edge_weights = output_logits[None].repeat(VE, 1, 1, 1, 1)
+        elif weight_edges == 'sigmoid_logits':
+            sampled_edge_weights = torch.sigmoid(output_logits)[None].repeat(VE, 1, 1, 1, 1)
+        else:
+            raise ValueError(f"{weight_edges} not supported")
+
+        if marginals_mask or not train:
+            sampled_edge_weights = sampled_edge_weights * node_mask
 
     # B x E x VE
     edge_weight = sampled_edge_weights.permute((1, 2, 3, 4, 0))[real_node_node_mask]
