@@ -24,6 +24,7 @@ class GIN_Normal(torch.nn.Module):
         self.gnn = BaseGIN(in_features, num_layers, hidden, hidden, use_bn, dropout, residual)
 
         # intra-graph pooling
+        self.graph_pool_idx = 'batch'
         self.graph_pooling =graph_pooling
         if graph_pooling == "sum":
             self.pool = global_add_pool
@@ -33,6 +34,10 @@ class GIN_Normal(torch.nn.Module):
             self.pool = Set2Set(hidden, processing_steps=6)
         elif graph_pooling is None:  # node pred
             self.pool = lambda x, *args: x
+        elif graph_pooling == 'transductive':
+            self.pool = lambda x, transductive_mask: x[transductive_mask]
+            self.candid_pool = self.pool
+            self.graph_pool_idx = 'transductive_mask'
         else:
             raise NotImplementedError
 
@@ -46,6 +51,6 @@ class GIN_Normal(torch.nn.Module):
             data.x = self.encoder(data)
 
         h_node = self.gnn(data)
-        h_graph = self.pool(h_node, data.batch)
+        h_graph = self.pool(h_node, getattr(data, self.graph_pool_idx))
         h_graph = self.mlp(h_graph)
         return h_graph

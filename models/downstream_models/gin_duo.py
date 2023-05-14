@@ -35,6 +35,7 @@ class GIN_Duo(torch.nn.Module):
             self.candid_gnns = torch.nn.ModuleList([BaseGIN(in_features, num_layers, hidden, hidden, use_bn, dropout, residual) for _ in range(num_candidates)])
 
         # intra-graph pooling
+        self.graph_pool_idx = 'batch'
         if graph_pooling == "sum":
             self.pool = global_add_pool
             self.candid_pool = self.pool
@@ -44,6 +45,10 @@ class GIN_Duo(torch.nn.Module):
         elif graph_pooling is None:  # node pred
             self.pool = lambda x, *args: x
             self.candid_pool = self.pool
+        elif graph_pooling == 'transductive':
+            self.pool = lambda x, transductive_mask: x[transductive_mask]
+            self.candid_pool = self.pool
+            self.graph_pool_idx = 'transductive_mask'
         elif graph_pooling == 'set2set':
             self.pool = Set2Set(hidden, processing_steps=6)
             if share_weights:
@@ -84,7 +89,7 @@ class GIN_Duo(torch.nn.Module):
 
         if org is not None:
             h_node_org = self.gnn(org)
-            h_graph_org = self.pool(h_node_org, org.batch)
+            h_graph_org = self.pool(h_node_org, getattr(org, self.graph_pool_idx))
             h_graph_org = self.mlp(h_graph_org)
         else:
             h_graph_org = None
@@ -94,7 +99,7 @@ class GIN_Duo(torch.nn.Module):
             gnn = self.candid_gnns[i] if isinstance(self.candid_gnns, torch.nn.ModuleList) else self.candid_gnns
             h_node = gnn(c)
             pool = self.candid_pool[i] if isinstance(self.candid_pool, torch.nn.ModuleList) else self.candid_pool
-            h_graph = pool(h_node, c.batch)
+            h_graph = pool(h_node, getattr(c, self.graph_pool_idx))
             mlp = self.candid_mlps[i] if isinstance(self.candid_mlps, torch.nn.ModuleList) else self.candid_mlps
             h_graphs.append(mlp(h_graph))
 
