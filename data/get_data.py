@@ -15,6 +15,7 @@ from .tree_dataset import MyTreeDataset, MyLeafColorDataset
 from .peptides_struct import PeptidesStructuralDataset
 from .peptides_func import PeptidesFunctionalDataset
 from .voc_superpixels import VOCSuperpixels
+from .heterophilic import HeterophilicDataset
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
@@ -42,7 +43,8 @@ DATASET = (PygGraphPropPredDataset,
            MyTUDataset,
            PeptidesStructuralDataset,
            PeptidesFunctionalDataset,
-           VOCSuperpixels)
+           VOCSuperpixels,
+           HeterophilicDataset)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -172,8 +174,12 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     elif args.dataset.lower() == 'edge_wt_region_boundary':
         train_set, val_set, test_set, mean, std = get_vocsuperpixel(args)
         task = 'node'
+    elif args.dataset.lower().startswith('hetero'):
+        train_set, val_set, test_set, mean, std = get_heterophily(args)
+        task = 'node'
     elif args.dataset.lower().startswith('peptides-func'):
         train_set, val_set, test_set, mean, std = get_peptides(args, set='func')
+
     else:
         raise ValueError
 
@@ -448,6 +454,28 @@ def get_vocsuperpixel(args):
                              split=sp,
                              transform=transform,
                              pre_transform=pre_transform) for sp in ['train', 'val', 'test']]
+
+    train_set, val_set, test_set = splits
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
+
+    return train_set, val_set, test_set, None, None
+
+def get_heterophily(args):
+    dataset_name = args.dataset.lower().split('_')[1]
+    datapath = os.path.join(args.data_path, 'hetero_' + dataset_name)
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
+
+    pre_transforms = get_pretransform(args, extra_pretransforms=None)
+    transform = get_transform(args)
+
+    splits = [HeterophilicDataset(root=datapath, name=dataset_name, split=split, transform=transform,
+                                  pre_transform=pre_transforms) for split in ['train', 'val', 'test']]
 
     train_set, val_set, test_set = splits
 

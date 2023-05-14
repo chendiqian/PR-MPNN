@@ -38,6 +38,10 @@ DATASET_FEATURE_STAT_DICT = {
     'leafcolor_6': {'node': 127, 'tree_depth': 6, 'n_leaf_labels': 2},
     'leafcolor_7': {'node': 255, 'tree_depth': 7, 'n_leaf_labels': 2},
     'leafcolor_8': {'node': 511, 'tree_depth': 8, 'n_leaf_labels': 2},
+
+    'hetero_cornell': {'node': 1703, 'edge': 0, 'num_class': 5},
+    'hetero_texas': {'node': 1703, 'edge': 0, 'num_class': 5},
+    'hetero_wisconsin': {'node': 1703, 'edge': 0, 'num_class': 5},
 }
 
 MAX_NUM_NODE_DICT = {
@@ -76,6 +80,9 @@ TASK_TYPE_DICT = {
     # 'qm9': 'regression',
     'exp': 'acc',
     'protein': 'acc',
+    'hetero_cornell': 'acc',
+    'hetero_texas': 'acc',
+    'hetero_wisconsin': 'acc',
 
     # VOC superpixels
     'edge_wt_region_boundary': 'f1_macro',
@@ -128,6 +135,10 @@ CRITERION_DICT = {
     'leafcolor_6': nn.CrossEntropyLoss(),
     'leafcolor_7': nn.CrossEntropyLoss(),
     'leafcolor_8': nn.CrossEntropyLoss(),
+
+    'hetero_cornell': nn.CrossEntropyLoss(),
+    'hetero_texas': nn.CrossEntropyLoss(),
+    'hetero_wisconsin': nn.CrossEntropyLoss(),
 }
 
 NUM_CANDID_DICT = {

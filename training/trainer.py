@@ -218,6 +218,10 @@ class Trainer:
         preds = []
         labels = []
         num_graphs = 0
+        transductive_data = False
+
+        if hasattr(dataloader.loader.dataset, 'is_transductive') and dataloader.loader.dataset.is_transductive:
+            transductive_data = True
 
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
@@ -226,8 +230,14 @@ class Trainer:
 
             pred = model(data)
 
-            is_labeled = data.y == data.y
-            loss = self.criterion(pred[is_labeled], data.y[is_labeled])
+            #check if dataset is transductive
+            if transductive_data:
+                loss = self.criterion(
+                    pred[dataloader.loader.dataset.data.train_mask], data.y[dataloader.loader.dataset.data.train_mask])
+            else:
+                is_labeled = data.y == data.y
+                loss = self.criterion(pred[is_labeled], data.y[is_labeled])
+                
             train_losses += loss.detach() * data.num_graphs
 
             if auxloss is not None:
@@ -283,6 +293,11 @@ class Trainer:
 
         preds_uncertainty = []
 
+        transductive_data = False
+
+        if hasattr(dataloader.loader.dataset, 'is_transductive') and dataloader.loader.dataset.is_transductive:
+            transductive_data = True
+
         for data in dataloader.loader:
             data = self.check_datatype(data)
             if isinstance(data, Data):
@@ -302,6 +317,7 @@ class Trainer:
             data, _, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
+
             label = data.y
             label_ensemble = label[:num_preds]
 
@@ -325,13 +341,35 @@ class Trainer:
         labels_ensemble = torch.cat(labels_ensemble, dim=0)
         preds_uncertainty = np.concatenate(preds_uncertainty, axis=0)
 
-        is_labeled = labels == labels
-        is_labeled_ens = labels_ensemble == labels_ensemble
-        val_loss = self.criterion(preds[is_labeled], labels[is_labeled]).item()
-        val_loss_ensemble = self.criterion(preds_ensemble[is_labeled_ens], labels_ensemble[is_labeled_ens]).item()
+        if transductive_data:
+            if dataloader.loader.dataset.split == 'train':
+                split_ids = dataloader.loader.dataset.data.train_mask
+            elif dataloader.loader.dataset.split == 'val':
+                split_ids = dataloader.loader.dataset.data.val_mask
+            elif dataloader.loader.dataset.split == 'test':
+                split_ids = dataloader.loader.dataset.data.test_mask
 
-        val_metric = get_eval(self.task_type, labels, preds)
-        val_metric_ensemble = get_eval(self.task_type, labels_ensemble, preds_ensemble)
+            val_loss = self.criterion(
+                preds[split_ids], labels[split_ids]).item()
+            val_loss_ensemble = self.criterion(
+                pred_ensemble[split_ids], labels_ensemble[split_ids]).item()
+
+            #compute transductive acc
+            preds = pred.argmax(dim=-1)
+            preds_ensemble = pred_ensemble.argmax(dim=-1)
+            val_metric = (preds[split_ids] == labels[split_ids]).float().mean().item()
+            val_metric_ensemble = (preds_ensemble[split_ids] == labels_ensemble[split_ids]).float().mean().item()
+        else:
+            is_labeled = labels == labels
+            is_labeled_ens = labels_ensemble == labels_ensemble
+            val_loss = self.criterion(
+                preds[is_labeled], labels[is_labeled]).item()
+            val_loss_ensemble = self.criterion(
+                preds_ensemble[is_labeled_ens], labels_ensemble[is_labeled_ens]).item()
+
+            val_metric = get_eval(self.task_type, labels, preds)
+            val_metric_ensemble = get_eval(
+                self.task_type, labels_ensemble, preds_ensemble)
 
         early_stop = False
         if not test:
