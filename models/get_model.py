@@ -110,14 +110,15 @@ def get_model(args, device, *_args):
     else:
         raise NotImplementedError
 
-    # not shared with the downstream
-    encoder = FeatureEncoder(
-        dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-        hidden=args.imle_configs.emb_hid_size,
-        type_encoder=type_encoder,
-        lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
-        rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
     if args.imle_configs is not None:
+        # not shared with the downstream
+        encoder = FeatureEncoder(
+            dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+            hidden=args.imle_configs.emb_hid_size,
+            type_encoder=type_encoder,
+            lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
+            rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
+
         if args.imle_configs.model == 'transformer':
             emb_model = Transformer(encoder=encoder,
                                     hidden=args.imle_configs.emb_hid_size,
