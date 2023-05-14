@@ -80,7 +80,7 @@ fixed:
   num_convlayers: 4
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
-  graph_pooling: null  # THIS IS IMPORTANT, NODE LEVEL PREDICTION
+  graph_pooling: transductive
   inter_graph_pooling: cat
   dropout: 0.
   bn: True
