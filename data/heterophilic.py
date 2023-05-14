@@ -1,21 +1,17 @@
 import os
+
 import numpy as np
 import torch
-from torch.nn import functional as F
-from torch_geometric.utils import add_self_loops, degree
-from sklearn.metrics import roc_auc_score
-from torch_geometric.data import InMemoryDataset, Data, DataLoader
+from torch_geometric.data import InMemoryDataset
 from torch_geometric.data import Data, download_url
 
 
 class HeterophilicDataset(InMemoryDataset):
-    def __init__(self, root, name, split, transform=None, pre_transform=None, pre_filter=None):
+    def __init__(self, root, name, split, fold, transform=None, pre_transform=None, pre_filter=None):
         self.name = name
         self.split = split
-        super(HeterophilicDataset, self).__init__(
-            root, transform=transform, pre_transform=pre_transform)
-        self.data, self.slices = torch.load(self.processed_paths[0])
-        self.is_transductive = True
+        super(HeterophilicDataset, self).__init__(root, transform=transform, pre_transform=pre_transform)
+        self.data, self.slices = torch.load(os.path.join(self.processed_dir, split + str(fold) + '.pt'))
 
     @property
     def raw_file_names(self):
@@ -23,7 +19,7 @@ class HeterophilicDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return f'{self.name}_processed.pt'
+        return [split + str(fold) + '.pt' for split in ['train', 'val', 'test'] for fold in range(10)]
 
     def download(self):
         root_url = 'https://github.com/yandex-research/heterophilous-graphs/raw/main/data/'
@@ -66,29 +62,15 @@ class HeterophilicDataset(InMemoryDataset):
         if num_targets == 1:
             labels = labels.float()
 
-        fold = 0  # placeholder for now
+        for split in ['train', 'val', 'test']:
+            for fold in range(10):
+                print(f'processing {split} split {fold}th fold')
+                mask = torch.tensor(data[f'{split}_masks'][fold])
+                graph = Data(edge_index=edges,
+                            num_nodes=len(node_features),
+                            x=node_features,
+                            y=labels[mask],
+                            transductive_mask=mask)
 
-        train_masks = torch.tensor(data['train_masks'])[fold]
-        val_masks = torch.tensor(data['val_masks'])[fold]
-        test_masks = torch.tensor(data['test_masks'])[fold]
-
-        self.num_data_splits = train_masks[0]
-
-        train_idx_list = [torch.where(train_mask)[0]
-                          for train_mask in train_masks]
-        val_idx_list = [torch.where(val_mask)[0] for val_mask in val_masks]
-        test_idx_list = [torch.where(test_mask)[0] for test_mask in test_masks]
-
-        if self.split == 'train':
-            self.split_ids = train_idx_list[fold]
-        elif self.split == 'val':
-            self.split_ids = val_idx_list[fold]
-        elif self.split == 'test':
-            self.split_ids = test_idx_list[fold]
-
-        data = Data(edge_index=edges, num_nodes=len(node_features), x=node_features,
-                    y=labels, train_mask=train_masks, val_mask=val_masks, test_mask=test_masks)
-
-        data = data if self.pre_transform is None else self.pre_transform(data)
-
-        torch.save(self.collate([data]), self.processed_paths[0])
+                graph = graph if self.pre_transform is None else self.pre_transform(graph)
+                torch.save(self.collate([graph]), os.path.join(self.processed_dir, split + str(fold) + '.pt'))

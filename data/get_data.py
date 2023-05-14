@@ -474,14 +474,18 @@ def get_heterophily(args):
     pre_transforms = get_pretransform(args, extra_pretransforms=None)
     transform = get_transform(args)
 
-    splits = [HeterophilicDataset(root=datapath, name=dataset_name, split=split, transform=transform,
-                                  pre_transform=pre_transforms) for split in ['train', 'val', 'test']]
+    splits = [[HeterophilicDataset(root=datapath,
+                                   name=dataset_name,
+                                   split=split,
+                                   fold=fold,
+                                   transform=transform,
+                                   pre_transform=pre_transforms) for fold in range(10)] for split in ['train', 'val', 'test']]
 
     train_set, val_set, test_set = splits
 
     if args.debug:
-        train_set = train_set[:16]
-        val_set = val_set[:16]
-        test_set = test_set[:16]
+        train_set = train_set[0]
+        val_set = val_set[0]
+        test_set = test_set[0]
 
     return train_set, val_set, test_set, None, None
