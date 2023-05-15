@@ -270,6 +270,7 @@ def weighted_cross_entropy(pred, true):
 def non_merge_coalesce(
     edge_index,
     edge_attr,
+    edge_weight,
     num_nodes,
     is_sorted: bool = False,
     sort_by_row: bool = True,
@@ -286,9 +287,7 @@ def non_merge_coalesce(
         edge_index = edge_index[:, perm]
         if isinstance(edge_attr, torch.Tensor):
             edge_attr = edge_attr[perm]
-        elif isinstance(edge_attr, (list, tuple)):
-            edge_attr = [e[perm] for e in edge_attr]
+        if isinstance(edge_weight, torch.Tensor):
+            edge_weight = edge_weight[perm]
 
-    if edge_attr is None or isinstance(edge_attr, (torch.Tensor, list, tuple)):
-        return edge_index, edge_attr
-    return edge_index
+    return edge_index, edge_attr, edge_weight
