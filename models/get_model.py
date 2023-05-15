@@ -13,7 +13,7 @@ from models.upstream_models.transformer import Transformer
 def get_model(args, device, *_args):
     if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary',]:
         type_encoder = 'linear'
-    if args.dataset.lower().startswith('hetero'):
+    elif args.dataset.lower().startswith('hetero'):
         type_encoder = 'linear'
     elif args.dataset.lower().startswith('tree'):
         type_encoder = 'bi_embedding'
