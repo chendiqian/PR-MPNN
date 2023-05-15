@@ -48,9 +48,10 @@ class GINConv(MessagePassing):
 
 
 class BaseGIN(torch.nn.Module):
-    def __init__(self, in_features, num_layers, hidden, out_feature, use_bn, dropout, use_residual):
+    def __init__(self, in_features, num_layers, hidden, out_feature, use_bn, dropout, use_residual, edge_encoder=None):
         super(BaseGIN, self).__init__()
 
+        del edge_encoder
         self.use_bn = use_bn
         self.dropout = dropout
         self.use_residual = use_residual
@@ -174,7 +175,7 @@ class GINEConv(MessagePassing):
 
 
 class BaseGINE(torch.nn.Module):
-    def __init__(self, in_features, num_layers, hidden, out_feature, edge_encoder, use_bn, dropout, use_residual):
+    def __init__(self, in_features, num_layers, hidden, out_feature, use_bn, dropout, use_residual, edge_encoder=None):
         super(BaseGINE, self).__init__()
 
         self.use_bn = use_bn

@@ -1,13 +1,15 @@
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set
 
-from models.my_convs import BaseGIN
+from models.my_convs import BaseGIN, BaseGINE
 from models.nn_modules import MLP
 
 
-class GIN_Normal(torch.nn.Module):
+class GNN_Normal(torch.nn.Module):
     def __init__(self,
                  encoder,
+                 edge_encoder,
+                 base_gnn,
                  in_features,
                  num_layers,
                  hidden,
@@ -17,11 +19,18 @@ class GIN_Normal(torch.nn.Module):
                  residual,
                  mlp_layers_intragraph,
                  graph_pooling='mean'):
-        super(GIN_Normal, self).__init__()
+        super(GNN_Normal, self).__init__()
 
         self.encoder = encoder
 
-        self.gnn = BaseGIN(in_features, num_layers, hidden, hidden, use_bn, dropout, residual)
+        if base_gnn == 'gin':
+            model_class = BaseGIN
+        elif base_gnn == 'gine':
+            model_class = BaseGINE
+        else:
+            raise NotImplementedError
+
+        self.gnn = model_class(in_features, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
 
         # intra-graph pooling
         self.graph_pool_idx = 'batch'

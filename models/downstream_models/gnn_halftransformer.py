@@ -2,12 +2,14 @@ import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set
 
 from models.nn_modules import MLP, TransformerLayer
-from models.my_convs import BaseGIN
+from models.my_convs import BaseGIN, BaseGINE
 
 
-class GIN_HalfTransformer(torch.nn.Module):
+class GNN_HalfTransformer(torch.nn.Module):
     def __init__(self,
                  encoder,
+                 edge_encoder,
+                 base_gnn,
                  head,
                  gnn_in_features,
                  num_layers,
@@ -22,7 +24,7 @@ class GIN_HalfTransformer(torch.nn.Module):
                  batch_norm,
                  use_spectral_norm,
                  graph_pooling='mean'):
-        super(GIN_HalfTransformer, self).__init__()
+        super(GNN_HalfTransformer, self).__init__()
 
         self.encoder = encoder
 
@@ -37,7 +39,15 @@ class GIN_HalfTransformer(torch.nn.Module):
                                                    batch_norm,
                                                    use_spectral_norm))
 
-        self.gnn = BaseGIN(gnn_in_features, num_layers, hidden, hidden, True, 0., True)
+        if base_gnn == 'gin':
+            model_class = BaseGIN
+        elif base_gnn == 'gine':
+            model_class = BaseGINE
+        else:
+            raise NotImplementedError
+
+        self.lin = torch.nn.Linear(gnn_in_features, hidden)
+        self.gnn = model_class(hidden, num_layers, hidden, hidden, True, 0., True, edge_encoder)
 
         # intra-graph pooling
         if graph_pooling == "sum":
@@ -57,7 +67,7 @@ class GIN_HalfTransformer(torch.nn.Module):
         for l in self.tf_layers:
             h_node = l(h_node, data)
 
-        data.x = h_node
+        data.x = torch.relu(self.lin(h_node))
         h_node = self.gnn(data.x, data.edge_index, data.edge_attr, data.edge_weight)
 
         h_graph = self.pool(h_node, data.batch)

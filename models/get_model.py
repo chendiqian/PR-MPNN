@@ -1,8 +1,8 @@
 import torch.nn as nn
 from data.const import DATASET_FEATURE_STAT_DICT, NUM_CANDID_DICT
-from models.downstream_models.gin_duo import GIN_Duo
-from models.downstream_models.gin_halftransformer import GIN_HalfTransformer
-from models.downstream_models.gin_normal import GIN_Normal
+from models.downstream_models.gnn_duo import GNN_Duo
+from models.downstream_models.gnn_halftransformer import GNN_HalfTransformer
+from models.downstream_models.gnn_normal import GNN_Normal
 from models.downstream_models.leafcolor_gnn import LeafColorGraphModel
 from models.downstream_models.tree_gnn import TreeGraphModel
 from models.my_encoder import FeatureEncoder
@@ -10,7 +10,7 @@ from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.upstream_models.transformer import Transformer
 
 
-def get_model(args, device, *_args):
+def get_encoder(args, for_downstream):
     if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary',]:
         type_encoder = 'linear'
     elif args.dataset.lower().startswith('hetero'):
@@ -24,16 +24,47 @@ def get_model(args, device, *_args):
     else:
         raise ValueError
 
+    # some args vary from downstream and upstream
+    if for_downstream:
+        hidden = args.hid_size
+        lap = args.lap if hasattr(args, 'lap') else None
+        rwse = args.rwse if hasattr(args, 'rwse') else None
+    else:
+        hidden = args.imle_configs.emb_hid_size
+        lap = args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None
+        rwse = args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None
+    edge_hidden = hidden
+
+    if args.model.lower() in ['trans+gin', 'trans+gine']:
+        # need to overwrite
+        hidden = args.tf_hid_size
+
     encoder = FeatureEncoder(
         dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-        hidden=args.hid_size,
+        hidden=hidden,
         type_encoder=type_encoder,
-        lap_encoder=args.lap if hasattr(args, 'lap') else None,
-        rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
+        lap_encoder=lap,
+        rw_encoder=rwse)
+    if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary']:
+        edge_encoder = nn.Sequential(
+            nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], edge_hidden),
+            nn.ReLU(),
+            nn.Linear(edge_hidden, edge_hidden))
+    elif args.dataset.lower().startswith('hetero') or args.model.lower().startswith('tree') or args.model.lower().startswith('leafcolor'):
+        edge_encoder = None
+    else:
+        raise NotImplementedError("we need torch.nn.Embedding, to be implemented")
 
-    if args.model.lower() == 'gin_normal':
-        model = GIN_Normal(
+    return type_encoder, encoder, edge_encoder
+
+
+def get_model(args, device, *_args):
+    type_encoder, encoder, edge_encoder = get_encoder(args, for_downstream=True)
+    if args.model.lower() in ['gin_normal', 'gine_normal']:
+        model = GNN_Normal(
             encoder,
+            edge_encoder,
+            args.model.lower().split('_')[0],  # gin or gine
             in_features=args.hid_size,
             num_layers=args.num_convlayers,
             hidden=args.hid_size,
@@ -43,9 +74,12 @@ def get_model(args, device, *_args):
             residual=args.residual,
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             graph_pooling=args.graph_pooling)
-    elif args.model.lower().startswith('gin_duo'):
-        model = GIN_Duo(encoder,
-                        share_weights=args.model.lower().endswith('shared'),
+    elif 'duo' in args.model.lower():
+        share_weights = args.model.lower().endswith('shared')  # default False
+        model = GNN_Duo(encoder,
+                        edge_encoder,
+                        args.model.lower().split('_')[0],  # gin or gine
+                        share_weights=share_weights,
                         include_org=args.sample_configs.include_original_graph,
                         num_candidates=NUM_CANDID_DICT[args.sample_configs.sample_policy],
                         in_features=args.hid_size,
@@ -59,16 +93,11 @@ def get_model(args, device, *_args):
                         mlp_layers_intergraph=args.mlp_layers_intergraph,
                         graph_pooling=args.graph_pooling,
                         inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower().endswith('trans+gin'):
-        # need to overwrite this
-        encoder = FeatureEncoder(
-            dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-            hidden=args.tf_hid_size,
-            type_encoder=type_encoder,
-            lap_encoder=args.lap if hasattr(args, 'lap') else None,
-            rw_encoder=args.rwse if hasattr(args, 'rwse') else None)
-        model = GIN_HalfTransformer(
+    elif args.model.lower() in ['trans+gin', 'trans+gine']:
+        model = GNN_HalfTransformer(
             encoder=encoder,
+            edge_encoder=edge_encoder,
+            base_gnn=args.model.lower().split('+')[-1],
             head=args.tf_head,
             gnn_in_features=args.tf_hid_size,
             num_layers=args.num_convlayers,
@@ -81,7 +110,7 @@ def get_model(args, device, *_args):
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             layer_norm=False,
             batch_norm=True,
-            use_spectral_norm=args.imle_configs.spectral_norm,
+            use_spectral_norm=True,
             graph_pooling=args.graph_pooling,
         )
     elif args.model.lower().startswith('tree'):
@@ -112,13 +141,7 @@ def get_model(args, device, *_args):
 
     if args.imle_configs is not None:
         # not shared with the downstream
-        encoder = FeatureEncoder(
-            dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-            hidden=args.imle_configs.emb_hid_size,
-            type_encoder=type_encoder,
-            lap_encoder=args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None,
-            rw_encoder=args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None)
-
+        type_encoder, encoder, edge_encoder = get_encoder(args, for_downstream=False)
         if args.imle_configs.model == 'transformer':
             emb_model = Transformer(encoder=encoder,
                                     hidden=args.imle_configs.emb_hid_size,
@@ -132,12 +155,6 @@ def get_model(args, device, *_args):
                                     batch_norm=args.imle_configs.batchnorm,
                                     use_spectral_norm=args.imle_configs.spectral_norm)
         elif args.imle_configs.model == 'edge_selector':
-            if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary']:
-                edge_encoder = nn.Sequential(nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], args.imle_configs.emb_hid_size),
-                                             nn.ReLU(),
-                                             nn.Linear(args.imle_configs.emb_hid_size, args.imle_configs.emb_hid_size))
-            else:
-                edge_encoder = None
             emb_model = EdgeSelector(encoder,
                                      edge_encoder,
                                      in_dim=args.imle_configs.emb_hid_size,

@@ -1,15 +1,17 @@
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set
 
-from models.my_convs import BaseGIN
+from models.my_convs import BaseGIN, BaseGINE
 from models.nn_modules import MLP
 
 from data.data_utils import DuoDataStructure
 
 
-class GIN_Duo(torch.nn.Module):
+class GNN_Duo(torch.nn.Module):
     def __init__(self,
                  encoder,
+                 edge_encoder,
+                 base_gnn,
                  share_weights,
                  include_org,
                  num_candidates,
@@ -24,15 +26,22 @@ class GIN_Duo(torch.nn.Module):
                  mlp_layers_intergraph,
                  graph_pooling,
                  inter_graph_pooling):
-        super(GIN_Duo, self).__init__()
+        super(GNN_Duo, self).__init__()
 
         self.encoder = encoder
 
-        self.gnn = BaseGIN(in_features, num_layers, hidden, hidden, use_bn, dropout, residual)
+        if base_gnn == 'gin':
+            model_class = BaseGIN
+        elif base_gnn == 'gine':
+            model_class = BaseGINE
+        else:
+            raise NotImplementedError
+
+        self.gnn = model_class(in_features, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
         if share_weights:
             self.candid_gnns = self.gnn
         else:
-            self.candid_gnns = torch.nn.ModuleList([BaseGIN(in_features, num_layers, hidden, hidden, use_bn, dropout, residual) for _ in range(num_candidates)])
+            self.candid_gnns = torch.nn.ModuleList([model_class(in_features, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder) for _ in range(num_candidates)])
 
         # intra-graph pooling
         self.graph_pool_idx = 'batch'
