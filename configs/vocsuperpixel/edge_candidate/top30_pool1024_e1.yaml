@@ -8,7 +8,7 @@ fixed:
 
   sample_configs:
     sample_policy: edge_candid
-    in_place: False
+    in_place: True
     sample_k: 512
     candid_pool: 1024
     ensemble: 1
