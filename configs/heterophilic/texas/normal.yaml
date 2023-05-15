@@ -1,0 +1,58 @@
+fixed:
+  dataset: hetero_texas
+  log_path: './logs'
+
+  use_wandb: False
+  wandb_name: "TEST_DEBUG_HETERO"
+
+  sample_configs:
+    sample_policy: null
+    in_place: null
+    sample_k: null
+    ensemble: 0
+    include_original_graph: True
+
+  imle_configs: null
+
+  rwse:
+    kernel: 20
+    layers: 2
+    dim_pe: 16
+    raw_norm_type: 'BatchNorm'
+  lap:
+    max_freqs: 4
+    dim_pe: 16
+    layers: 2
+    raw_norm_type: null
+
+  optim: "adam"
+  model: gin_normal
+  hid_size: 256
+  lr: 1.e-3
+  lr_decay:
+    scheduler: step
+    steps: '[ 400, 600 ]'
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 2
+  graph_pooling: transductive
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 128
+  min_epochs: 700
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: True
+  num_runs: 5
+
+#  plot_graphs:
+#    batch_id: 0
+#    plot_every: 10
+#    n_graphs: 20
+#    plot_folder: './plots'
