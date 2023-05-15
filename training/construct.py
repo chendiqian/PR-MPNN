@@ -8,7 +8,7 @@ from torch_geometric.utils import to_dense_batch, to_undirected
 from torch_scatter import scatter
 
 from data.data_utils import DuoDataStructure, batched_edge_index_to_batched_adj, non_merge_coalesce
-from training.aux_loss import get_variance_regularization, get_original_bias
+from training.aux_loss import get_variance_regularization, get_original_bias, get_variance_regularization_3d
 
 LARGE_NUMBER = 1.e10
 
@@ -68,8 +68,8 @@ def construct_from_edge_candidates(collate_data: Tuple[Data, List[Data]],
     logits = output_logits - padding_bias
 
     auxloss = 0.
-    if train and auxloss_dict is not None:
-        raise NotImplementedError
+    if train and auxloss_dict is not None and auxloss_dict.variance > 0:
+        auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance,)
 
     # (#sampled, B, Nmax, E), (B, Nmax, E)
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
@@ -174,8 +174,6 @@ def construct_add_delete_edge(collate_data: Tuple[Data, List[Data]],
     addition_logits, deletion_logits, edge_candidate_idx = emb_model(dat_batch)
 
     auxloss = 0.
-    if train and auxloss_dict is not None:
-        raise NotImplementedError
 
     # ===============================edge addition======================================
     # (B x Nmax x E) (B x Nmax)
@@ -183,6 +181,9 @@ def construct_add_delete_edge(collate_data: Tuple[Data, List[Data]],
                    torch.arange(len(dat_batch.nnodes), device=addition_logits.device).repeat_interleave(
                        dat_batch.num_edge_candidate),
                    max_num_nodes=dat_batch.num_edge_candidate.max())
+
+    if train and auxloss_dict is not None and auxloss_dict.variance > 0:
+        auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance,)
 
     padding_bias = (~real_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
     logits = output_logits - padding_bias
@@ -228,6 +229,9 @@ def construct_add_delete_edge(collate_data: Tuple[Data, List[Data]],
                                                                 device=addition_logits.device).repeat_interleave(
                                                        num_edges),
                                                    max_num_nodes=num_edges.max())
+
+    if train and auxloss_dict is not None and auxloss_dict.variance > 0:
+        auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance,)
 
     # we select the least scores
     output_logits = -output_logits
@@ -314,8 +318,6 @@ def construct_delete_then_add_edge(collate_data: Tuple[Data, List[Data]],
     addition_logits, deletion_logits, edge_candidate_idx = emb_model(dat_batch)
 
     auxloss = 0.
-    if train and auxloss_dict is not None:
-        raise NotImplementedError
 
     # =============================edge deletion first===================================
     # edge addition
@@ -326,6 +328,9 @@ def construct_delete_then_add_edge(collate_data: Tuple[Data, List[Data]],
                                                                 device=addition_logits.device).repeat_interleave(
                                                        num_edges),
                                                    max_num_nodes=num_edges.max())
+
+    if train and auxloss_dict is not None and auxloss_dict.variance > 0:
+        auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance,)
 
     # we select the least scores
     output_logits = -output_logits
@@ -355,6 +360,9 @@ def construct_delete_then_add_edge(collate_data: Tuple[Data, List[Data]],
                    torch.arange(len(dat_batch.nnodes), device=addition_logits.device).repeat_interleave(
                        dat_batch.num_edge_candidate),
                    max_num_nodes=dat_batch.num_edge_candidate.max())
+
+    if train and auxloss_dict is not None and auxloss_dict.variance > 0:
+        auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance,)
 
     padding_bias = (~real_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
     logits = output_logits - padding_bias

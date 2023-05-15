@@ -40,6 +40,17 @@ def get_variance_regularization(logits: torch.Tensor, auxloss: float, real_node_
     return loss * auxloss
 
 
+def get_variance_regularization_3d(logits: torch.Tensor, auxloss: float):
+    B, N, E = logits.shape
+    if E == 1:
+        return 0.
+    logits = logits / torch.linalg.norm(logits.detach(), dim=1, keepdim=True)  # detach so that the virtual nodes don't play a role
+    dot = torch.einsum('bmh,bmf->bhf', logits, logits)
+    eye = torch.eye(E, dtype=torch.float, device=logits.device)[None]
+    loss = ((dot - eye) ** 2).mean()
+    return loss * auxloss
+
+
 def get_original_bias(adj: torch.Tensor, logits: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
     B, N, _, E = logits.shape
     diag_idx = np.diag_indices(N)
