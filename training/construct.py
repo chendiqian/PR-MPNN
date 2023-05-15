@@ -458,7 +458,7 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
             raise NotImplementedError
             # auxloss = auxloss + get_degree_regularization(node_mask, self.auxloss.degree, real_node_node_mask)
         if auxloss_dict.variance > 0:
-            auxloss = auxloss + get_variance_regularization(logits,
+            auxloss = auxloss + get_variance_regularization(output_logits,
                                                             auxloss_dict.variance,
                                                             real_node_node_mask)
         if auxloss_dict.origin_bias > 0.:
