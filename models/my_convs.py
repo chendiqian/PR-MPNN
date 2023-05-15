@@ -115,9 +115,8 @@ class BaseGIN(torch.nn.Module):
     def reset_parameters(self):
         raise NotImplementedError
 
-    def forward(self, data):
-        x, edge_index = data.x, data.edge_index
-        edge_weight = data.edge_weight
+    def forward(self, x, edge_index, edge_attr, edge_weight=None):
+        del edge_attr
 
         for i, conv in enumerate(self.convs):
             x_new = conv(x, edge_index, edge_weight)

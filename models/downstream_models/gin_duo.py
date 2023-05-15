@@ -88,7 +88,7 @@ class GIN_Duo(torch.nn.Module):
                 c.x = self.encoder(c)
 
         if org is not None:
-            h_node_org = self.gnn(org)
+            h_node_org = self.gnn(org.x, org.edge_index, org.edge_attr, org.edge_weight)
             h_graph_org = self.pool(h_node_org, getattr(org, self.graph_pool_idx))
             h_graph_org = self.mlp(h_graph_org)
         else:
@@ -97,7 +97,7 @@ class GIN_Duo(torch.nn.Module):
         h_graphs = []
         for i, c in enumerate(candidates):
             gnn = self.candid_gnns[i] if isinstance(self.candid_gnns, torch.nn.ModuleList) else self.candid_gnns
-            h_node = gnn(c)
+            h_node = gnn(c.x, c.edge_index, c.edge_attr, c.edge_weight)
             pool = self.candid_pool[i] if isinstance(self.candid_pool, torch.nn.ModuleList) else self.candid_pool
             h_graph = pool(h_node, getattr(c, self.graph_pool_idx))
             mlp = self.candid_mlps[i] if isinstance(self.candid_mlps, torch.nn.ModuleList) else self.candid_mlps

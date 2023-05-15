@@ -58,7 +58,7 @@ class GIN_HalfTransformer(torch.nn.Module):
             h_node = l(h_node, data)
 
         data.x = h_node
-        h_node = self.gnn(data)
+        h_node = self.gnn(data.x, data.edge_index, data.edge_attr, data.edge_weight)
 
         h_graph = self.pool(h_node, data.batch)
         h_graph = self.mlp(h_graph)

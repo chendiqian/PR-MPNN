@@ -50,7 +50,7 @@ class GIN_Normal(torch.nn.Module):
         if self.encoder is not None:
             data.x = self.encoder(data)
 
-        h_node = self.gnn(data)
+        h_node = self.gnn(data.x, data.edge_index, data.edge_attr, data.edge_weight)
         h_graph = self.pool(h_node, getattr(data, self.graph_pool_idx))
         h_graph = self.mlp(h_graph)
         return h_graph
