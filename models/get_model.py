@@ -5,7 +5,7 @@ from models.downstream_models.gnn_halftransformer import GNN_HalfTransformer
 from models.downstream_models.gnn_normal import GNN_Normal
 from models.downstream_models.leafcolor_gnn import LeafColorGraphModel
 from models.downstream_models.tree_gnn import TreeGraphModel
-from models.my_encoder import FeatureEncoder
+from models.my_encoder import FeatureEncoder, BondEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.upstream_models.transformer import Transformer
 
@@ -52,6 +52,8 @@ def get_encoder(args, for_downstream):
             nn.Linear(edge_hidden, edge_hidden))
     elif args.dataset.lower().startswith('hetero') or args.model.lower().startswith('tree') or args.model.lower().startswith('leafcolor'):
         edge_encoder = None
+    elif args.dataset.lower().startswith('peptides'):
+        edge_encoder = BondEncoder(edge_hidden)
     else:
         raise NotImplementedError("we need torch.nn.Embedding, to be implemented")
 
