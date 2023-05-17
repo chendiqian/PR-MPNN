@@ -2,13 +2,14 @@ fixed:
   dataset: tree_4
   log_path: './logs'
 
-  use_wandb: True
+  use_wandb: False
   wandb_name: "tree4"
 
   sample_configs:
     sample_policy: global_topk_directed
     sample_k: 10
     ensemble: 1
+    in_place: False
     include_original_graph: True
 
   imle_configs:
@@ -16,23 +17,12 @@ fixed:
     logits_activation: 'None'
     weight_edges: marginals
     marginals_mask: True
-    negative_sample: 'same'
+    negative_sample: 'full'
     num_train_ensemble: 1
     num_val_ensemble: 1
 
     model: "transformer"
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51
-#    rwse:
-#      kernel: 20
-#      layers: 2
-#      dim_pe: 16
-#      raw_norm_type: 'BatchNorm'
-#
-#    lap:
-#      max_freqs: 4
-#      dim_pe: 16
-#      layers: 2
-#      raw_norm_type: null
 
     emb_hid_size: 32
     emb_optim: "adamw"
@@ -52,7 +42,7 @@ fixed:
       degree: 0.
       origin_bias: 0.01
   
-  model: tree_gin
+  model: gin_duo
   hid_size: 32
   lr: 1.e-3
   optim: adam
@@ -66,8 +56,14 @@ fixed:
     patience: 20000
     target: train_metric
   reg: 0.
-  num_convlayers: 5   # depth + 1
-  inter_graph_pooling: null
+  num_convlayers: 1
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 1
+  graph_pooling: root
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: False
+  residual: False
   batch_size: 1024
   min_epochs: 0
   max_epochs: 50000

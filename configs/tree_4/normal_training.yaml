@@ -13,7 +13,7 @@ fixed:
 
   imle_configs: null
 
-  model: tree_gin
+  model: gin_normal
   hid_size: 32
   lr: 1.e-3
   optim: adam
@@ -27,8 +27,14 @@ fixed:
     patience: 20000
     target: train_metric
   reg: 0.
-  num_convlayers: 5   # depth + 1
-  inter_graph_pooling: null
+  num_convlayers: 4
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 1
+  graph_pooling: root
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: False
+  residual: False
   batch_size: 1024
   min_epochs: 0
   max_epochs: 50000
