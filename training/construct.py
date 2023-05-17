@@ -26,12 +26,17 @@ def sparsify_edge_weight(data, edge_weight, negative_sample):
                                       torch.arange(len(edge_ptr) - 1, device=device).repeat_interleave(
                                           edge_ptr[1:] - edge_ptr[:-1]), reduce='sum', dim_size=len(edge_ptr) - 1)
         data._slice_dict['edge_index'] = torch.cumsum(torch.hstack([new_edges_per_graph.new_zeros(1), new_edges_per_graph]), dim=0)
-        if data.edge_attr is not None:
-            data._slice_dict['edge_attr'] = data._slice_dict['edge_index']
     elif negative_sample == 'full':
         data.edge_weight = edge_weight
     else:
         raise ValueError
+
+    data._slice_dict['edge_weight'] = data._slice_dict['edge_index']
+    data._inc_dict['edge_weight'] = data._inc_dict['edge_index'].new_zeros(data._inc_dict['edge_index'].shape)
+    if data.edge_attr is not None:
+        data._slice_dict['edge_attr'] = data._slice_dict['edge_index']
+        data._inc_dict['edge_attr'] = data._inc_dict['edge_weight']
+
     return data
 
 
@@ -122,9 +127,6 @@ def construct_from_edge_candidates(collate_data: Tuple[Data, List[Data]],
         new_num_edges = (dat_batch.num_edge_candidate * 2).repeat(E * VE)
         rewired_batch._slice_dict['edge_index'] = torch.hstack([edge_index.new_zeros(1),
                                                                 (original_num_edges + new_num_edges).cumsum(dim=0)])
-        if merged_edge_attr is not None:
-            rewired_batch._slice_dict['edge_attr'] = rewired_batch._slice_dict['edge_index']
-            rewired_batch._inc_dict['edge_attr'] = rewired_batch._inc_dict['edge_index'].new_zeros(rewired_batch._inc_dict['edge_index'].shape)
 
         rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
 
@@ -274,9 +276,6 @@ def construct_add_delete_edge(collate_data: Tuple[Data, List[Data]],
         new_num_edges = (dat_batch.num_edge_candidate * 2).repeat(E * VE)
         add_rewired_batch._slice_dict['edge_index'] = torch.hstack([add_edge_index.new_zeros(1),
                                                                 (original_num_edges + new_num_edges).cumsum(dim=0)])
-        if merged_edge_attr is not None:
-            add_rewired_batch._slice_dict['edge_attr'] = add_rewired_batch._slice_dict['edge_index']
-            add_rewired_batch._inc_dict['edge_attr'] = add_rewired_batch._inc_dict['edge_index'].new_zeros(add_rewired_batch._inc_dict['edge_index'].shape)
 
         add_rewired_batch = sparsify_edge_weight(add_rewired_batch, merged_edge_weight, negative_sample)
         del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, negative_sample)
@@ -413,10 +412,6 @@ def construct_delete_then_add_edge(collate_data: Tuple[Data, List[Data]],
         rewired_batch._slice_dict['edge_index'] = torch.hstack([add_edge_index.new_zeros(1),
                                                                 (original_num_edges + new_num_edges).cumsum(dim=0)])
 
-        if merged_edge_attr is not None:
-            rewired_batch._slice_dict['edge_attr'] = rewired_batch._slice_dict['edge_index']
-            rewired_batch._inc_dict['edge_attr'] = rewired_batch._inc_dict['edge_index'].new_zeros(rewired_batch._inc_dict['edge_index'].shape)
-
         rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
 
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
@@ -531,9 +526,6 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
         # inc dict
         new_num_edges = (dat_batch.nnodes ** 2).repeat(E * VE)
         rewired_batch._slice_dict['edge_index'] = torch.hstack([merged_edge_index.new_zeros(1), (original_num_edges + new_num_edges).cumsum(dim=0)])
-        if merged_edge_attr is not None:
-            rewired_batch._slice_dict['edge_attr'] = rewired_batch._slice_dict['edge_index']
-            rewired_batch._inc_dict['edge_attr'] = rewired_batch._inc_dict['edge_index'].new_zeros(rewired_batch._inc_dict['edge_index'].shape)
 
         rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
 
@@ -551,8 +543,6 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
             fill_idx = np.in1d(new_edge_index_id, original_edge_index_id)
             new_edge_attr[fill_idx] = dat_batch.edge_attr.repeat(E * VE, 1)
             rewired_batch.edge_attr = new_edge_attr
-            rewired_batch._slice_dict['edge_attr'] = rewired_batch._slice_dict['edge_index']
-            rewired_batch._inc_dict['edge_attr'] = rewired_batch._inc_dict['edge_index'].new_zeros(rewired_batch._inc_dict['edge_index'].shape)
 
         rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
 

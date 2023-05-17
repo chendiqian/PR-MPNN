@@ -6,7 +6,7 @@ import networkx as nx
 import seaborn as sns
 import torch
 from ml_collections import ConfigDict
-from torch_geometric.utils import to_networkx, degree
+from torch_geometric.utils import to_networkx
 
 from data.data_utils import DuoDataStructure
 
@@ -40,10 +40,9 @@ def plot_rewired_graphs(new_batch: DuoDataStructure,
     weights_split = []
     for c in candidates:
         del c.y   # might be incompatible without duplication
-        new_batch_plot += c.to_data_list()
-        src, dst = c.edge_index
-        sections = degree(c.batch[src], dtype=torch.long).tolist()
-        weights_split += torch.split(c.edge_weight, split_size_or_sections=sections)
+        graph_list = c.to_data_list()
+        new_batch_plot += graph_list
+        weights_split += [g.edge_weight for g in graph_list]
 
     n_ensemble = ensemble * (num_train_ensemble if train else num_val_ensemble) * len(candidates)
     unique_graphs = len(new_batch_plot) // n_ensemble
