@@ -471,7 +471,7 @@ def get_heterophily(args):
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
 
-    pre_transforms = get_pretransform(args, extra_pretransforms=None)
+    pre_transforms = get_pretransform(args, extra_pretransforms=[GraphToUndirected()])
     transform = get_transform(args)
 
     splits = [[HeterophilicDataset(root=datapath,
