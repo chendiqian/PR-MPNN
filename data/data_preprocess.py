@@ -229,6 +229,37 @@ class AugmentWithLongestPathEdgeCandidate(GraphModification):
         return graph
 
 
+class AugmentWithNodeSimilarEdgeCandidate(GraphModification):
+    def __init__(self, num_candidate):
+        super(AugmentWithNodeSimilarEdgeCandidate, self).__init__()
+        self.num_candidate = num_candidate
+
+    def __call__(self, graph: Data):
+        assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
+        edge_index = graph.edge_index.numpy()
+        x = graph.x
+        if x.dtype == torch.long:
+            x = torch.nn.functional.one_hot(x).reshape(x.shape[0], -1).float()
+        x = torch.nn.functional.normalize(x, p=2.0, dim=1)
+        mat = x @ x.T
+        mat[np.arange(x.shape[0]), np.arange(x.shape[0])] = 0.
+
+        triu_idx = np.vstack(np.triu_indices(graph.num_nodes, k=1))
+
+        # exclude original edges
+        triu_idx_id = triu_idx[0] * graph.num_nodes + triu_idx[1]
+        org_edge_index_id = edge_index[0] * graph.num_nodes + edge_index[1]
+        multi_hop_idx = np.logical_not(np.in1d(triu_idx_id, org_edge_index_id))
+        triu_idx = triu_idx[:, multi_hop_idx]
+
+        similarity = mat[triu_idx[0], triu_idx[1]]
+        edge_candidate = triu_idx[:, np.argsort(similarity)[-self.num_candidate:]]
+
+        graph.edge_candidate = torch.from_numpy(edge_candidate).T
+        graph.num_edge_candidate = edge_candidate.shape[1]
+        return graph
+
+
 class AugmentWithPPR(GraphModification):
     def __init__(self, max_num_nodes, alpha = 0.2, iters = 20):
         super(AugmentWithPPR, self).__init__()

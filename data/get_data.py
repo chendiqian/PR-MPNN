@@ -23,7 +23,8 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentwithNNodes,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop, GraphAddSkipConnection, GraphRedirect,
-                              AugmentWithShortedPathDistance, AugmentWithLongestPathEdgeCandidate,
+                              AugmentWithShortedPathDistance,
+                              AugmentWithLongestPathEdgeCandidate, AugmentWithNodeSimilarEdgeCandidate,
                               AugmentWithPPR,
                               AugmentWithDirectedGlobalRewiredGraphs,
                               AugmentWithUndirectedGlobalRewiredGraphs,
@@ -59,6 +60,7 @@ PRETRANSFORM_PRIORITY = {
     GraphAttrToOneHot: 0,  # low
     AugmentWithShortedPathDistance: 98,
     AugmentWithLongestPathEdgeCandidate: 98,
+    AugmentWithNodeSimilarEdgeCandidate: 98,
     AugmentWithPPR: 98,
     AddRandomWalkPE: 98,
     AddLaplacianEigenvectorPE: 98,
@@ -70,7 +72,8 @@ PRETRANSFORM_PRIORITY = {
 def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
     if args.sample_configs.sample_policy is not None and 'edge_candid' in args.sample_configs.sample_policy:
-        extra_path += f'EdgeCandidates{args.sample_configs.candid_pool}_'
+        heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
+        extra_path += f'EdgeCandidates{heu}{args.sample_configs.candid_pool}_'
     if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
         extra_path += 'SPDaug_'
     if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
@@ -140,7 +143,14 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
 
     # add edge candidates or bidirectional
     if args.sample_configs.sample_policy is not None and 'edge_candid' in args.sample_configs.sample_policy:
-        pretransform.append(AugmentWithLongestPathEdgeCandidate(args.sample_configs.candid_pool))
+        heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
+        if heu == 'longest_path':
+            pretransform_class = AugmentWithLongestPathEdgeCandidate
+        elif heu == 'node_similarity':
+            pretransform_class = AugmentWithNodeSimilarEdgeCandidate
+        else:
+            raise NotImplementedError
+        pretransform.append(pretransform_class(args.sample_configs.candid_pool))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)
