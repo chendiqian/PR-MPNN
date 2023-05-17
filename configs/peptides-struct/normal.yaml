@@ -2,7 +2,7 @@ fixed:
   dataset: peptides-struct
   log_path: './logs'
 
-  use_wandb: True
+  use_wandb: False
   wandb_name: "peptides"
   wandb_prefix: "peptides_normal"
 

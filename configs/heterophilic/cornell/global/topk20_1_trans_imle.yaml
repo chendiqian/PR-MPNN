@@ -2,13 +2,13 @@ fixed:
   dataset: hetero_cornell
   log_path: './logs'
 
-  use_wandb: False
+  use_wandb: True
   wandb_name: "TEST_DEBUG_HETERO"
 
   sample_configs:
     sample_policy: global_topk_directed
-    in_place: False
-    sample_k: 20
+    in_place: True
+    sample_k: 256
     ensemble: 1
     include_original_graph: True
 
@@ -40,7 +40,7 @@ fixed:
     emb_hid_size: 64
     emb_optim: "adamw"
     emb_scheduler: "cosine"
-    tf_layer: 4
+    tf_layer: 2
     dropout: 0.
     attn_dropout: 0.5
     embd_lr: 1.e-3
@@ -68,16 +68,19 @@ fixed:
 
   optim: "adam"
   model: gin_duo
-  hid_size: 256
+  hid_size: 128
   lr: 1.e-3
   lr_decay:
-    scheduler: step
-    steps: '[ 400, 600 ]'
+    scheduler: plateau
+    mode: max
+    decay_rate: 0.5
+    patience: 50
+    target: val_metric
   early_stop:
     patience: 100
     target: val_metric
   reg: 0.
-  num_convlayers: 4
+  num_convlayers: 2
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
   graph_pooling: transductive
@@ -86,11 +89,11 @@ fixed:
   bn: True
   residual: True
   batch_size: 128
-  min_epochs: 700
+  min_epochs: 300
   max_epochs: 1000
   data_path: './datasets'
-  debug: True
-  num_runs: 5
+  debug: False
+  num_runs: 1
 
 #  plot_graphs:
 #    batch_id: 0

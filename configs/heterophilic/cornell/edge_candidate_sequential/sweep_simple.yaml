@@ -1,9 +1,9 @@
 program: main.py
 method: bayes
 entity: mls-stuttgart
-project: peptides-func-sweep
-name: peptides-func-sweep
-run_cap: 50
+project: sweep-seq-cornell
+name: sweep-seq-cornell
+run_cap: 30
 
 metric:
   goal: maximize
@@ -12,7 +12,7 @@ metric:
 parameters:
   # read data
   dataset:
-    value: peptides-func
+    value: hetero_cornell
   log_path:
     value: './logs'
   data_path:
@@ -28,25 +28,25 @@ parameters:
 
   # sample configs, shared by random and learnable sampling methods
   sample_configs.sample_policy:
-    value: edge_candid_bi
+    value: edge_candid_seq
   sample_configs.in_place:
     value: True
-  sample_configs.sample_k:  # add edges
+  sample_configs.sample_k: # add edges
     distribution: int_uniform
     min: 1
     max: 512
-  sample_configs.sample_k2:  # rm edges
+  sample_configs.sample_k2: # rm edges
     distribution: int_uniform
     min: 1
-    max: 256
+    max: 512
   sample_configs.candid_pool:
-    value: 1024
+    value: 2048
   sample_configs.heuristic:
     value: longest_path
   sample_configs.ensemble:
     value: 1
   sample_configs.include_original_graph:
-    value: True
+    value: False
 
   # sampler and its hyperparams
   imle_configs.sampler:
@@ -67,8 +67,8 @@ parameters:
   # weighting the edges
   imle_configs.weight_edges:
     values:
-      - marginals
       - None
+      - marginals
     distribution: categorical
   imle_configs.marginals_mask:
     value: True
@@ -81,13 +81,13 @@ parameters:
   imle_configs.rwse.layers:
     value: 2
   imle_configs.rwse.dim_pe:
-    value: 32
+    value: 16
   imle_configs.rwse.raw_norm_type:
     value: 'BatchNorm'
   imle_configs.lap.max_freqs:
     value: 4
   imle_configs.lap.dim_pe:
-    value: 32
+    value: 16
   imle_configs.lap.layers:
     value: 2
   imle_configs.lap.raw_norm_type:
@@ -122,6 +122,8 @@ parameters:
     value: None
   imle_configs.reg_embd:
     value: 0.
+  imle_configs.layernorm:
+    value: False
   imle_configs.batchnorm:
     value: True
   imle_configs.micro_batch_embd:
@@ -131,15 +133,15 @@ parameters:
   model:
     value: gin_duo
   hid_size:
-    value: 256
+    value: 128
   num_convlayers:
-    value: 4
+    value: 2
   mlp_layers_intragraph:
     value: 3
   mlp_layers_intergraph:
     value: 2
   graph_pooling:
-    value: mean
+    value: transductive
   dropout:
     value: 0.
   bn:
@@ -155,13 +157,13 @@ parameters:
   rwse.layers:
     value: 2
   rwse.dim_pe:
-    value: 32
+    value: 16
   rwse.raw_norm_type:
     value: 'BatchNorm'
   lap.max_freqs:
     value: 4
   lap.dim_pe:
-    value: 32
+    value: 16
   lap.layers:
     value: 2
   lap.raw_norm_type:
@@ -190,6 +192,6 @@ parameters:
   batch_size:
     value: 128
   min_epochs:
-    value: 400
+    value: 300
   max_epochs:
     value: 1000

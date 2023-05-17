@@ -1,50 +1,55 @@
 fixed:
-  dataset: zinc
+  dataset: hetero_cornell
   log_path: './logs'
 
-  use_wandb: True
-  wandb_name: "edge_candid"
+  use_wandb: False
+  wandb_name: "TEST_DEBUG_HETERO"
 
   sample_configs:
-    sample_policy: edge_candid
-    in_place: False
-    sample_k: 10
-    candid_pool: 30
+    sample_policy: edge_candid_seq
+    in_place: True
+    sample_k: 256
+    sample_k2: 256
+    candid_pool: 1024
+    heuristic: longest_path
     ensemble: 1
-    include_original_graph: True
+    include_original_graph: False
 
   imle_configs:
     sampler: simple
     logits_activation: 'None'
     weight_edges: marginals
     marginals_mask: True
-    negative_sample: 'full'
+    negative_sample: 'full'  # full: include all the negative edges, zero: rm all the negative edges, same: same as top-k positive samples
     num_train_ensemble: 1
     num_val_ensemble: 1
+    noise_scale: 0.3
+    beta: 10.
 
     model: "edge_selector"
     rwse:
-      kernel: 20
-      layers: 2
-      dim_pe: 32
-      raw_norm_type: 'BatchNorm'
+        kernel: 20
+        layers: 2
+        dim_pe: 32
+        raw_norm_type: 'BatchNorm'
 
     lap:
-      max_freqs: 4
-      dim_pe: 32
-      layers: 2
-      raw_norm_type: null
+        max_freqs: 4
+        dim_pe: 32
+        layers: 2
+        raw_norm_type: null
 
     emb_hid_size: 256
     emb_optim: "adamw"
     emb_scheduler: "cosine"
-    gnn_layer: 0
+    gnn_layer: 4
     mlp_layer: 4
     dropout: 0.
     embd_lr: 1.e-3
     reg_embd: 0.
     batchnorm: True
     micro_batch_embd: 1
+
 
   rwse:
     kernel: 20
@@ -59,26 +64,35 @@ fixed:
 
   optim: "adam"
   model: gin_duo
-  hid_size: 256
+  hid_size: 128
   lr: 1.e-3
   lr_decay:
-    scheduler: step
-    steps: '[ 400, 600 ]'
+    scheduler: plateau
+    mode: max
+    decay_rate: 0.5
+    patience: 50
+    target: val_metric
   early_stop:
     patience: 100
     target: val_metric
   reg: 0.
-  num_convlayers: 4
+  num_convlayers: 2
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
-  graph_pooling: mean
+  graph_pooling: transductive
   inter_graph_pooling: cat
   dropout: 0.
   bn: True
   residual: True
   batch_size: 128
-  min_epochs: 700
+  min_epochs: 300
   max_epochs: 1000
   data_path: './datasets'
   debug: False
-  num_runs: 2
+  num_runs: 1
+
+#  plot_graphs:
+#    batch_id: 0
+#    plot_every: 10
+#    n_graphs: 20
+#    plot_folder: './plots'

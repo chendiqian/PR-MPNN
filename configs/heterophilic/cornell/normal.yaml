@@ -27,16 +27,19 @@ fixed:
 
   optim: "adam"
   model: gin_normal
-  hid_size: 256
+  hid_size: 128
   lr: 1.e-3
   lr_decay:
-    scheduler: step
-    steps: '[ 400, 600 ]'
+    scheduler: plateau
+    mode: max
+    decay_rate: 0.5
+    patience: 50
+    target: val_metric
   early_stop:
     patience: 100
     target: val_metric
   reg: 0.
-  num_convlayers: 4
+  num_convlayers: 2
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
   graph_pooling: transductive

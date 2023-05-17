@@ -11,6 +11,7 @@ fixed:
     in_place: True
     sample_k: 256
     candid_pool: 1024
+    heuristic: longest_path
     ensemble: 1
     include_original_graph: True
 

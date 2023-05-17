@@ -12,6 +12,7 @@ fixed:
     sample_k: 512
     candid_pool: 1024
     ensemble: 1
+    heuristic: longest_path
     include_original_graph: True
 
   imle_configs:
