@@ -3,8 +3,6 @@ from data.const import DATASET_FEATURE_STAT_DICT, NUM_CANDID_DICT
 from models.downstream_models.gnn_duo import GNN_Duo
 from models.downstream_models.gnn_halftransformer import GNN_HalfTransformer
 from models.downstream_models.gnn_normal import GNN_Normal
-from models.downstream_models.leafcolor_gnn import LeafColorGraphModel
-from models.downstream_models.tree_gnn import TreeGraphModel
 from models.my_encoder import FeatureEncoder, BondEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.upstream_models.transformer import Transformer
@@ -50,7 +48,7 @@ def get_encoder(args, for_downstream):
             nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], edge_hidden),
             nn.ReLU(),
             nn.Linear(edge_hidden, edge_hidden))
-    elif args.dataset.lower().startswith('hetero') or args.model.lower().startswith('tree') or args.model.lower().startswith('leafcolor'):
+    elif args.dataset.lower().startswith('hetero') or args.dataset.lower().startswith('tree') or args.dataset.lower().startswith('leafcolor'):
         edge_encoder = None
     elif args.dataset.lower().startswith('peptides'):
         edge_encoder = BondEncoder(edge_hidden)
@@ -115,29 +113,6 @@ def get_model(args, device, *_args):
             use_spectral_norm=True,
             graph_pooling=args.graph_pooling,
         )
-    elif args.model.lower().startswith('tree'):
-        model = TreeGraphModel(gnn_type=args.model.lower().split('_')[1],
-                               num_layers=args.num_convlayers,
-                               dim0=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
-                               h_dim=args.hid_size,
-                               out_dim=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                               last_layer_fully_adjacent=False,
-                               unroll=False,
-                               layer_norm=False,
-                               use_activation=False,
-                               use_residual=False)
-    elif args.model.lower().startswith('leafcolor'):
-        model = LeafColorGraphModel(gnn_type=args.model.lower().split('_')[1],
-                                    num_layers=args.num_convlayers,
-                                    tree_depth=DATASET_FEATURE_STAT_DICT[args.dataset]['tree_depth'],
-                                    n_leaf_labels=DATASET_FEATURE_STAT_DICT[args.dataset]['n_leaf_labels'],
-                                    h_dim=args.hid_size,
-                                    out_dim=args['num_classes'],
-                                    last_layer_fully_adjacent=False,
-                                    unroll=False,
-                                    layer_norm=False,
-                                    use_activation=False,
-                                    use_residual=False)
     else:
         raise NotImplementedError
 

@@ -47,6 +47,10 @@ class GNN_Normal(torch.nn.Module):
             self.pool = lambda x, transductive_mask: x[transductive_mask]
             self.candid_pool = self.pool
             self.graph_pool_idx = 'transductive_mask'
+        elif graph_pooling == 'root':
+            self.pool = lambda x, root_mask: x[root_mask]
+            self.candid_pool = self.pool
+            self.graph_pool_idx = 'root_mask'
         else:
             raise NotImplementedError
 
