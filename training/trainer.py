@@ -224,6 +224,11 @@ class Trainer:
             data = self.check_datatype(data)
             data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
 
+            if self.plot is not None:
+                self.plot(data, True, self.epoch, batch_id)
+            if self.plot_score is not None and scores is not None:
+                self.plot_score(scores, self.epoch, batch_id)
+
             pred = model(data)
             is_labeled = data.y == data.y
             loss = self.criterion(pred[is_labeled], data.y[is_labeled])
@@ -245,11 +250,6 @@ class Trainer:
             num_graphs += data.num_graphs
             preds.append(pred)
             labels.append(data.y)
-
-            if self.plot is not None:
-                self.plot(data, True, self.epoch, batch_id)
-            if self.plot_score is not None and scores is not None:
-                self.plot_score(scores, self.epoch, batch_id)
 
         train_loss = train_losses.item() / num_graphs
         self.best_train_loss = min(self.best_train_loss, train_loss)
