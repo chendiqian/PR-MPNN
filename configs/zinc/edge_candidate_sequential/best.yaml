@@ -12,6 +12,7 @@ fixed:
     sample_k2: 20   # edge deletion
     candid_pool: 100
     ensemble: 1
+    heuristic: longest_path
     include_original_graph: True
 
   imle_configs:
