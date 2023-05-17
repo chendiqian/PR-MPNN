@@ -498,17 +498,19 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
     for g in new_graphs:
         g.edge_index = torch.from_numpy(np.vstack(np.triu_indices(g.num_nodes, k=-g.num_nodes))).to(device)
         del g.edge_attr
+
     new_graphs = new_graphs * (E * VE)
+    rewired_batch = Batch.from_data_list(new_graphs)
+
+    original_edge_index = dat_batch.edge_index
+    original_num_edges = (dat_batch._slice_dict['edge_index'][1:] -
+                          dat_batch._slice_dict['edge_index'][:-1]).to(original_edge_index.device).repeat(E * VE)
+    if E * VE > 1:
+        edge_index_rel = (torch.arange(E * VE, device=edge_weight.device) * dat_batch.num_nodes).repeat_interleave(original_edge_index.shape[1])
+        original_edge_index = original_edge_index.repeat(1, E * VE)
+        original_edge_index += edge_index_rel
 
     if in_place:
-        rewired_batch = Batch.from_data_list(new_graphs)
-
-        original_edge_index = dat_batch.edge_index
-        original_num_edges = (dat_batch._slice_dict['edge_index'][1:] - dat_batch._slice_dict['edge_index'][:-1]).to(original_edge_index.device)
-        if E * VE > 1:
-            edge_index_rel = (torch.arange(E * VE, device=edge_weight.device) * dat_batch.num_nodes).repeat_interleave(original_edge_index.shape[1])
-            original_edge_index = original_edge_index.repeat(1, E * VE)
-            original_edge_index += edge_index_rel
         merged_edge_index = torch.cat([original_edge_index, rewired_batch.edge_index], dim=1)
         merged_edge_weight = torch.cat([edge_weight.new_ones(original_edge_index.shape[1]), edge_weight], dim=0)
         if dat_batch.edge_attr is not None:
@@ -527,10 +529,8 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
         rewired_batch.edge_attr = merged_edge_attr
 
         # inc dict
-        original_num_edges = original_num_edges.repeat(E * VE)
         new_num_edges = (dat_batch.nnodes ** 2).repeat(E * VE)
-        rewired_batch._slice_dict['edge_index'] = torch.hstack([merged_edge_index.new_zeros(1),
-                                                                (original_num_edges + new_num_edges).cumsum(dim=0)])
+        rewired_batch._slice_dict['edge_index'] = torch.hstack([merged_edge_index.new_zeros(1), (original_num_edges + new_num_edges).cumsum(dim=0)])
         if merged_edge_attr is not None:
             rewired_batch._slice_dict['edge_attr'] = rewired_batch._slice_dict['edge_index']
             rewired_batch._inc_dict['edge_attr'] = rewired_batch._inc_dict['edge_index'].new_zeros(rewired_batch._inc_dict['edge_index'].shape)
@@ -543,13 +543,21 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                      num_graphs=rewired_batch.num_graphs)
         return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
     else:
-        raise NotImplementedError
-        # rewired_batch = Batch.from_data_list(new_graphs)
-        #
-        # rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
-        #
-        # new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
-        #                              candidates=[rewired_batch],
-        #                              y=rewired_batch.y,
-        #                              num_graphs=rewired_batch.num_graphs)
-        # return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+        if dat_batch.edge_attr is not None:
+            new_edge_index = rewired_batch.edge_index
+            new_edge_index_id = (new_edge_index[0] * rewired_batch.num_nodes + new_edge_index[1]).cpu().numpy()
+            original_edge_index_id = (original_edge_index[0] * rewired_batch.num_nodes + original_edge_index[1]).cpu().numpy()
+            new_edge_attr = dat_batch.edge_attr.new_zeros(new_edge_index.shape[1], dat_batch.edge_attr.shape[1])
+            fill_idx = np.in1d(new_edge_index_id, original_edge_index_id)
+            new_edge_attr[fill_idx] = dat_batch.edge_attr.repeat(E * VE, 1)
+            rewired_batch.edge_attr = new_edge_attr
+            rewired_batch._slice_dict['edge_attr'] = rewired_batch._slice_dict['edge_index']
+            rewired_batch._inc_dict['edge_attr'] = rewired_batch._inc_dict['edge_index'].new_zeros(rewired_batch._inc_dict['edge_index'].shape)
+
+        rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
+
+        new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
+                                     candidates=[rewired_batch],
+                                     y=rewired_batch.y,
+                                     num_graphs=rewired_batch.num_graphs)
+        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
