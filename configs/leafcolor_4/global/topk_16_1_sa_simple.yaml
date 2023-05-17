@@ -7,7 +7,7 @@ fixed:
   wandb_prefix: "trainens_5_128"
 
   sample_configs:
-    sample_policy: global_topk_undirected
+    sample_policy: global_topk_directed
     sample_k: 16
     ensemble: 1
     in_place: False
@@ -77,4 +77,4 @@ fixed:
     plot_every: 100
     n_graphs: 2
     dataset: 'leafcolor'
-    plot_folder: './plots'
+    plot_folder: './debugs'
