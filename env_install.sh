@@ -14,7 +14,7 @@ pip install --verbose torch_geometric
 
 pip install ogb
 pip install ml-collections
-#pip install numba
+pip install numba
 pip install sacred
 pip install PyYAML
 pip install wandb
