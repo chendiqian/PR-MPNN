@@ -1,14 +1,18 @@
 import math
 import time
 from collections import namedtuple
+from heapq import heappush, heappop
 from typing import Union, Optional, Dict, Any, Tuple
 
+import networkx as nx
+import numba
+import numpy as np
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim import Optimizer
-import torch.nn.functional as F
 from torch_geometric.data import Data
-from torch_geometric.utils import index_sort
+from torch_geometric.utils import index_sort, to_undirected
 
 AttributedDataLoader = namedtuple(
     'AttributedDataLoader', [
@@ -291,3 +295,63 @@ def non_merge_coalesce(
             edge_weight = edge_weight[perm]
 
     return edge_index, edge_attr, edge_weight
+
+
+@numba.njit(cache=True)
+def get_khop_neighbors(root: int, edge_index: list):
+    """
+
+    Args:
+        root:
+        edge_index: assumed to be [[0, 0, 0, ...], [0, 1, 2, ...]]
+
+    Returns:
+
+    """
+    neighbors = [[root]]
+    close_list = {root}
+
+    neighbors[0].pop()
+    h = [(0, root)]
+
+    while len(h):
+        l, node = heappop(h)
+
+        if l < len(neighbors):
+            neighbors[l].append(node)
+        else:
+            neighbors.append([node])
+
+        for i, n in enumerate(edge_index[0]):
+            if n > node:
+                break
+            if n == node and edge_index[1][i] not in close_list:
+                heappush(h, (l + 1, edge_index[1][i]))
+
+        close_list.add(node)
+
+    return neighbors
+
+
+def circular_tree_layout(graph: nx.DiGraph):
+    edge_index = torch.tensor(list(graph.edges)).T
+    edge_index = to_undirected(edge_index, num_nodes=len(graph.nodes))
+    edge_index = edge_index[:, edge_index[0] < edge_index[1]].cpu().numpy()
+
+    khop_neighbors = get_khop_neighbors(0, edge_index)
+    layout = dict()
+
+    def generate_dots(num_dots, r):
+        angle = math.pi / num_dots
+        dots = []
+        for i in range(num_dots):
+            dots.append([math.cos(angle) * r, math.sin(angle) * r])
+            angle += 2 * math.pi / num_dots
+        return dots
+
+    for i, neighbors in enumerate(khop_neighbors):
+        pos = generate_dots(len(neighbors), i * 0.1 * 1.1 ** i)
+        for j, n in enumerate(neighbors):
+            layout[n] = np.array(pos[j], dtype=np.float64)
+
+    return layout

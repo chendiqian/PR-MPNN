@@ -538,7 +538,7 @@ class AugmentWithPlotCoordinates(GraphModification):
     """
     for networkx plots, save the positions of the original graphs
     """
-    def __init__(self, layout = nx.kamada_kawai_layout):
+    def __init__(self, layout):
         super(AugmentWithPlotCoordinates, self).__init__()
         self.layout = layout
 

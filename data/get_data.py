@@ -4,27 +4,24 @@ from functools import partial
 from typing import Tuple, Union, List, Optional
 
 from ml_collections import ConfigDict
+from networkx import kamada_kawai_layout
 from ogb.graphproppred import PygGraphPropPredDataset
 from torch.utils.data import DataLoader as PTDataLoader
 from torch_geometric.datasets import ZINC
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 
-from .tudataset import MyTUDataset
-from .tree_dataset import MyTreeDataset, MyLeafColorDataset
-from .peptides_struct import PeptidesStructuralDataset
-from .peptides_func import PeptidesFunctionalDataset
-from .voc_superpixels import VOCSuperpixels
-from .heterophilic import HeterophilicDataset
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
                               GraphCanonicalYClass,
                               AugmentwithNNodes,
                               GraphAttrToOneHot,
-                              GraphAddRemainSelfLoop, GraphAddSkipConnection, GraphRedirect,
+                              GraphAddRemainSelfLoop, GraphAddSkipConnection,
+                              GraphRedirect,
                               AugmentWithShortedPathDistance,
-                              AugmentWithLongestPathEdgeCandidate, AugmentWithNodeSimilarEdgeCandidate,
+                              AugmentWithLongestPathEdgeCandidate,
+                              AugmentWithNodeSimilarEdgeCandidate,
                               AugmentWithPPR,
                               AugmentWithDirectedGlobalRewiredGraphs,
                               AugmentWithUndirectedGlobalRewiredGraphs,
@@ -33,7 +30,13 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithSpatialInfo,
                               AugmentWithPlotCoordinates,
                               my_collate_fn, collate_fn_with_origin_list)
-from .data_utils import AttributedDataLoader
+from .data_utils import AttributedDataLoader, circular_tree_layout
+from .heterophilic import HeterophilicDataset
+from .peptides_func import PeptidesFunctionalDataset
+from .peptides_struct import PeptidesStructuralDataset
+from .tree_dataset import MyTreeDataset, MyLeafColorDataset
+from .tudataset import MyTUDataset
+from .voc_superpixels import VOCSuperpixels
 
 NUM_WORKERS = 0
 
@@ -291,7 +294,7 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
 
 def get_zinc(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(),
+        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphAddRemainSelfLoop(),
         GraphToUndirected(),
         GraphExpandDim(),
@@ -356,7 +359,7 @@ def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
     return train_set, val_set, test_set, None, None
 
 def get_alchemy(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithPlotCoordinates()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithPlotCoordinates(layout=kamada_kawai_layout)])
     transform = get_transform(args)
 
     data_path = args.data_path
@@ -405,7 +408,7 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), AugmentWithPlotCoordinates()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), AugmentWithPlotCoordinates(layout=circular_tree_layout)])
     # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), GraphRedirect(depth)])
     transform = get_transform(args)
 
@@ -429,7 +432,7 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), AugmentWithPlotCoordinates()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), AugmentWithPlotCoordinates(layout=circular_tree_layout)])
     transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
