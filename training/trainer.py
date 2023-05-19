@@ -6,7 +6,7 @@ import torch
 from ml_collections import ConfigDict
 from torch_geometric.data import Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, MyPlateau
+from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, MyPlateau, DuoDataStructure
 from data.metrics import get_eval
 from data.plot_utils import plot_score, plot_rewired_graphs
 from imle.noise import GumbelDistribution
@@ -134,7 +134,7 @@ class Trainer:
             self.construct_duplicate_data = lambda x, *args: (x, None, None)
         elif imle_configs is None:
             # random sampling
-            self.construct_duplicate_data = lambda x, *args: (x[0], None, None)
+            self.construct_duplicate_data = lambda x, *args: (x, None, None)
         elif imle_configs is not None:
             if sample_configs.sample_policy == 'edge_candid':
                 # sample from edge candidate, different from attention mask
@@ -193,11 +193,36 @@ class Trainer:
                                                         in_place=sample_configs.in_place)
 
 
-    def check_datatype(self, data):
+    def check_datatype(self, data, task_type):
         if isinstance(data, Data):
-            return data.to(self.device)
+            if task_type == 'graph':
+                num_preds = data.num_graphs
+            elif task_type == 'node':
+                num_preds = data.y.shape[0]
+            else:
+                raise NotImplementedError
+            return data.to(self.device), num_preds
+        elif isinstance(data, DuoDataStructure):
+            # this must be before tuple type check, namedtuple is a subset of tuple
+            if task_type == 'graph':
+                num_preds = data.num_unique_graphs
+            elif task_type == 'node':
+                num_preds = data.candidates[0].x.shape[0] // (data.num_graphs // data.num_unique_graphs)
+            else:
+                raise NotImplementedError
+            return DuoDataStructure(org=data.org.to(self.device) if data.org is not None else None,
+                                    candidates=[g.to(self.device) for g in data.candidates],
+                                    y=data.y.to(self.device),
+                                    num_graphs=data.num_graphs,
+                                    num_unique_graphs=data.num_unique_graphs), num_preds
         elif isinstance(data, tuple) and isinstance(data[0], Data) and isinstance(data[1], list):
-            return data[0].to(self.device), [g.to(self.device) for g in data[1]]
+            if task_type == 'graph':
+                num_preds = len(data[1])
+            elif task_type == 'node':
+                num_preds = data[0].y.shape[0]
+            else:
+                raise NotImplementedError
+            return (data[0].to(self.device), [g.to(self.device) for g in data[1]]), num_preds
         else:
             raise TypeError(f"Unexpected dtype {type(data)}")
 
@@ -221,7 +246,7 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
-            data = self.check_datatype(data)
+            data, _ = self.check_datatype(data, dataloader.task)
             data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
 
             if self.plot is not None:
@@ -283,21 +308,7 @@ class Trainer:
         preds_uncertainty = []
 
         for data in dataloader.loader:
-            data = self.check_datatype(data)
-            if isinstance(data, Data):
-                if dataloader.task == 'graph':
-                    num_preds = data.num_graphs
-                elif dataloader.task == 'node':
-                    num_preds = data.y.shape[0]
-                else:
-                    raise NotImplementedError
-            else:
-                if dataloader.task == 'graph':
-                    num_preds = len(data[1])
-                elif dataloader.task == 'node':
-                    num_preds = data[0].y.shape[0]
-                else:
-                    raise NotImplementedError
+            data, num_preds = self.check_datatype(data, dataloader.task)
             data, _, _ = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
