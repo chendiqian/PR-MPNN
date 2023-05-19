@@ -2,7 +2,6 @@ from copy import deepcopy
 from functools import reduce
 from typing import Optional, List
 
-import networkx as nx
 import numpy as np
 import torch
 from scipy.sparse import csr_matrix
@@ -292,15 +291,6 @@ class AugmentWithPPR(GraphModification):
         return graph
 
 
-class AugmentWithPerNodeRewiredGraphs(GraphModification):
-    def __init__(self, sample_k, include_original_graph, ensemble):
-        super(AugmentWithPerNodeRewiredGraphs, self).__init__()
-        raise DeprecationWarning
-
-    def __call__(self, graph: Data):
-        pass
-
-
 class AugmentWithDirectedGlobalRewiredGraphs(GraphModification):
     def __init__(self, sample_k, include_original_graph, ensemble):
         super(AugmentWithDirectedGlobalRewiredGraphs, self).__init__()
@@ -453,85 +443,6 @@ class AugmentWithHybridRewiredGraphs(GraphModification):
         if self.include_original_graph:
             graphs.append(graph)
         return graphs
-
-
-class AugmentWithSpatialInfo(GraphModification):
-    """
-    adapted from https://github.com/rampasek/GraphGPS/blob/95a17d57767b34387907f42a43f91a0354feac05/graphgps/encoder/graphormer_encoder.py#L15
-    """
-    def __init__(self, distance: int, num_in_degrees: int, num_out_degrees: int):
-        super(AugmentWithSpatialInfo, self).__init__()
-        self.distance = distance
-        self.num_in_degrees = num_in_degrees
-        self.num_out_degrees = num_out_degrees
-
-    def __call__(self, data: Data):
-        graph: nx.DiGraph = to_networkx(data)
-
-        data.in_degrees = torch.tensor([d for _, d in graph.in_degree()])
-        data.out_degrees = torch.tensor([d for _, d in graph.out_degree()])
-
-        max_in_degree = torch.max(data.in_degrees)
-        max_out_degree = torch.max(data.out_degrees)
-        if max_in_degree >= self.num_in_degrees:
-            raise ValueError(
-                f"Encountered in_degree: {max_in_degree}, set posenc_"
-                f"GraphormerBias.num_in_degrees to at least {max_in_degree + 1}"
-            )
-        if max_out_degree >= self.num_out_degrees:
-            raise ValueError(
-                f"Encountered out_degree: {max_out_degree}, set posenc_"
-                f"GraphormerBias.num_out_degrees to at least {max_out_degree + 1}"
-            )
-
-        N = len(graph.nodes)
-        shortest_paths = nx.shortest_path(graph)
-
-        spatial_types = torch.empty(N ** 2, dtype=torch.long).fill_(self.distance)
-        graph_index = torch.empty(2, N ** 2, dtype=torch.long)
-
-        if hasattr(data, "edge_attr") and data.edge_attr is not None:
-            if data.edge_attr.dim() > 1 and data.edge_attr.shape[1] > 1 and set(data.edge_attr.unique().tolist()) == {0, 1}:
-                data_edge_attr = torch.where(data.edge_attr)[1]
-            else:
-                data_edge_attr = data.edge_attr
-        else:
-            data_edge_attr = None
-
-        if data_edge_attr is not None:
-            shortest_path_types = torch.zeros(N ** 2, self.distance, dtype=torch.long)
-            edge_attr = torch.zeros(N, N, dtype=torch.long)
-            edge_attr[data.edge_index[0], data.edge_index[1]] = data_edge_attr
-
-        for i in range(N):
-            for j in range(N):
-                graph_index[0, i * N + j] = i
-                graph_index[1, i * N + j] = j
-
-        for i, paths in shortest_paths.items():
-            for j, path in paths.items():
-                if len(path) > self.distance:
-                    path = path[:self.distance]
-
-                assert len(path) >= 1
-                spatial_types[i * N + j] = len(path) - 1
-
-                if len(path) > 1 and data_edge_attr is not None:
-                    path_attr = [
-                        edge_attr[path[k], path[k + 1]] for k in
-                        range(len(path) - 1)  # len(path) * (num_edge_types)
-                    ]
-
-                    # We map each edge-encoding-distance pair to a distinct value
-                    # and so obtain dist * num_edge_features many encodings
-                    shortest_path_types[i * N + j, :len(path) - 1] = torch.tensor(path_attr, dtype=torch.long)
-
-        data.spatial_types = spatial_types
-        data.graph_index = graph_index
-
-        if data_edge_attr is not None:
-            data.shortest_path_types = shortest_path_types
-        return data
 
 
 class AugmentWithPlotCoordinates(GraphModification):
