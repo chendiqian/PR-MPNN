@@ -133,7 +133,8 @@ def construct_from_edge_candidates(collate_data: Tuple[Data, List[Data]],
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                      candidates=[rewired_batch],
                                      y=rewired_batch.y,
-                                     num_graphs=rewired_batch.num_graphs)
+                                     num_graphs=rewired_batch.num_graphs,
+                                     num_unique_graphs=len(graphs))
         return new_batch, None, auxloss
     else:
         raise NotImplementedError
@@ -283,7 +284,8 @@ def construct_add_delete_edge(collate_data: Tuple[Data, List[Data]],
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                      candidates=[add_rewired_batch, del_rewired_batch],
                                      y=add_rewired_batch.y,
-                                     num_graphs=add_rewired_batch.num_graphs)
+                                     num_graphs=add_rewired_batch.num_graphs,
+                                     num_unique_graphs=len(graphs))
         return new_batch, None, auxloss
     else:
         raise NotImplementedError
@@ -417,7 +419,8 @@ def construct_delete_then_add_edge(collate_data: Tuple[Data, List[Data]],
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                      candidates=[rewired_batch],
                                      y=rewired_batch.y,
-                                     num_graphs=rewired_batch.num_graphs)
+                                     num_graphs=rewired_batch.num_graphs,
+                                     num_unique_graphs=len(graphs))
         return new_batch, None, auxloss
     else:
         raise NotImplementedError
@@ -532,7 +535,8 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                      candidates=[rewired_batch],
                                      y=rewired_batch.y,
-                                     num_graphs=rewired_batch.num_graphs)
+                                     num_graphs=rewired_batch.num_graphs,
+                                     num_unique_graphs=len(graphs))
         return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
     else:
         if dat_batch.edge_attr is not None:
@@ -549,5 +553,6 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                      candidates=[rewired_batch],
                                      y=rewired_batch.y,
-                                     num_graphs=rewired_batch.num_graphs)
+                                     num_graphs=rewired_batch.num_graphs,
+                                     num_unique_graphs=len(graphs))
         return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss

@@ -28,7 +28,8 @@ DuoDataStructure = namedtuple(
         'candidates',
         'y',
         'num_graphs',
-    ]
+        'num_unique_graphs',
+    ],
 )
 
 

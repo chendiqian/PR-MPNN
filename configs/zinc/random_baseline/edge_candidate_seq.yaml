@@ -6,14 +6,16 @@ fixed:
   wandb_name: "imle_ablate"
 
   sample_configs:
-    sample_policy: global_topk_directed
+    sample_policy: edge_candid_seq
+    in_place: True
     sample_k: 20
+    sample_k2: 1
     ensemble: 1
     include_original_graph: True
 
   imle_configs: null
 
-  model: zinc_gin
+  model: gine_duo
   hid_size: 256
   lr: 1.e-3
   optim: adam
@@ -26,11 +28,15 @@ fixed:
   reg: 0.
   num_convlayers: 4
   mlp_layers_intragraph: 3
-  mlp_layers_intergraph: 0
-  inter_graph_pooling: null
+  mlp_layers_intergraph: 2
+  graph_pooling: mean
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
   batch_size: 128
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
   debug: False
-  num_runs: 5
+  num_runs: 3
