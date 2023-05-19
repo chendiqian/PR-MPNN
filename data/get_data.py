@@ -23,13 +23,9 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithLongestPathEdgeCandidate,
                               AugmentWithNodeSimilarEdgeCandidate,
                               AugmentWithPPR,
-                              AugmentWithDirectedGlobalRewiredGraphs,
-                              AugmentWithUndirectedGlobalRewiredGraphs,
-                              AugmentWithExtraUndirectedGlobalRewiredGraphs,
-                              AugmentWithHybridRewiredGraphs,
-                              AugmentWithSpatialInfo,
+                              AugmentWithRandomRewiredGraphs,
                               AugmentWithPlotCoordinates,
-                              my_collate_fn, collate_fn_with_origin_list)
+                              make_collate4random_baseline, collate_fn_with_origin_list)
 from .data_utils import AttributedDataLoader, circular_tree_layout
 from .heterophilic import HeterophilicDataset
 from .peptides_func import PeptidesFunctionalDataset
@@ -67,7 +63,6 @@ PRETRANSFORM_PRIORITY = {
     AugmentWithPPR: 98,
     AddRandomWalkPE: 98,
     AddLaplacianEigenvectorPE: 98,
-    AugmentWithSpatialInfo: 98,
     AugmentWithPlotCoordinates: 98,
 }
 
@@ -97,22 +92,12 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     # normal training
     if args.sample_configs.sample_policy is None:
         return None
-    elif args.sample_configs.sample_policy == 'global_topk_directed':
-        transform = AugmentWithDirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
-                                                           args.sample_configs.include_original_graph,
-                                                           args.sample_configs.ensemble)
-    elif args.sample_configs.sample_policy == 'global_topk_undirected':
-        transform = AugmentWithUndirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
-                                                             args.sample_configs.include_original_graph,
-                                                             args.sample_configs.ensemble)
-    elif args.sample_configs.sample_policy == 'global_topk_semi':
-        transform = AugmentWithExtraUndirectedGlobalRewiredGraphs(args.sample_configs.sample_k,
-                                                                  args.sample_configs.include_original_graph,
-                                                                  args.sample_configs.ensemble)
-    elif args.sample_configs.sample_policy == 'global_topk_hybrid':
-        transform = AugmentWithHybridRewiredGraphs(args.sample_configs.sample_k,
-                                                   args.sample_configs.include_original_graph,
-                                                   args.sample_configs.ensemble)
+    elif args.sample_configs.sample_policy == 'add_del':
+        transform = AugmentWithRandomRewiredGraphs(sample_k_add=args.sample_configs.sample_k,
+                                                   sample_k_del=args.sample_configs.sample_k2,
+                                                   include_original_graph=args.sample_configs.include_original_graph,
+                                                   in_place=args.sample_configs.in_place,
+                                                   ensemble=args.sample_configs.ensemble)
     else:
         raise ValueError
     return transform
@@ -138,11 +123,6 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
         pretransform.append(AddLaplacianEigenvectorPE(args.imle_configs.lap.max_freqs, 'EigVecs', is_undirected=True))
     elif hasattr(args, 'lap'):
         pretransform.append(AddLaplacianEigenvectorPE(args.lap.max_freqs, 'EigVecs', is_undirected=True))
-
-    if hasattr(args.imle_configs, 'attenbias'):
-        pretransform.append(AugmentWithSpatialInfo(args.imle_configs.attenbias.num_spatial_types,
-                                                   args.imle_configs.attenbias.num_in_degrees,
-                                                   args.imle_configs.attenbias.num_out_degrees))
 
     # add edge candidates or bidirectional
     if args.sample_configs.sample_policy is not None and 'edge_candid' in args.sample_configs.sample_policy:
@@ -209,7 +189,9 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
                              batch_size=args.batch_size,
                              shuffle=not args.debug,
                              num_workers=NUM_WORKERS,
-                             collate_fn=my_collate_fn)
+                             collate_fn=make_collate4random_baseline(
+                                 include_org=args.sample_configs.include_original_graph
+                             ))
     else:
         # PyG removes the collate function passed in
         dataloader = partial(PyGDataLoader,
