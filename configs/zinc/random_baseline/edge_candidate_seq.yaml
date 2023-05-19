@@ -6,14 +6,25 @@ fixed:
   wandb_name: "imle_ablate"
 
   sample_configs:
-    sample_policy: edge_candid_seq
+    sample_policy: add_del
     in_place: True
-    sample_k: 20
-    sample_k2: 1
+    sample_k: 80
+    sample_k2: 20
     ensemble: 1
     include_original_graph: True
 
   imle_configs: null
+
+  rwse:
+    kernel: 20
+    layers: 2
+    dim_pe: 16
+    raw_norm_type: 'BatchNorm'
+  lap:
+    max_freqs: 4
+    dim_pe: 16
+    layers: 2
+    raw_norm_type: null
 
   model: gine_duo
   hid_size: 256
