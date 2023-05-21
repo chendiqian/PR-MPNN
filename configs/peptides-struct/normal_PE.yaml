@@ -26,14 +26,17 @@ fixed:
     raw_norm_type: null
 
   optim: "adam"
-  model: gin_normal
+  model: gine_normal
   hid_size: 256
   lr: 1.e-3
   lr_decay:
-    scheduler: step
-    steps: '[ 200, 400 ]'
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'max'
+    patience: 50
+    target: 'val_metric'
   early_stop:
-    patience: 100
+    patience: 200
     target: val_metric
   reg: 0.
   num_convlayers: 4
@@ -44,9 +47,9 @@ fixed:
   dropout: 0.
   bn: True
   residual: True
-  batch_size: 64
+  batch_size: 128
   min_epochs: 700
   max_epochs: 1000
   data_path: './datasets'
   debug: False
-  num_runs: 2
+  num_runs: 3
