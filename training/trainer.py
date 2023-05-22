@@ -109,10 +109,11 @@ class Trainer:
 
                 self.sampler_class = imle_scheduler
             elif imle_configs.sampler == 'gumbel':
-                assert imle_configs.num_val_ensemble == imle_configs.num_train_ensemble == 1
-                gumbel_sampler = GumbelSampler(sample_configs.sample_k, tau=imle_configs.tau, policy=sample_configs.sample_policy)
-                self.train_forward = gumbel_sampler
-                self.val_forward = gumbel_sampler.validation
+                gumbel_sampler = GumbelSampler(sample_configs.sample_k,
+                                               tau=imle_configs.tau,
+                                               policy=sample_configs.sample_policy)
+                self.train_forward = partial(gumbel_sampler.forward, train_ensemble=imle_configs.num_train_ensemble)
+                self.val_forward = partial(gumbel_sampler.validation, val_ensemble=imle_configs.num_val_ensemble)
                 self.sampler_class = gumbel_sampler
             elif imle_configs.sampler == 'simple':
                 simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k,
