@@ -188,7 +188,7 @@ class Trainer:
             if task_type == 'graph':
                 num_preds = data.num_unique_graphs
             elif task_type == 'node':
-                num_preds = data.candidates[0].x.shape[0] // (data.num_graphs // data.num_unique_graphs)
+                num_preds = data.y.shape[0] // (data.num_graphs // data.num_unique_graphs)
             else:
                 raise NotImplementedError
             return DuoDataStructure(org=data.org.to(self.device) if data.org is not None else None,
@@ -206,7 +206,6 @@ class Trainer:
             return (data[0].to(self.device), [g.to(self.device) for g in data[1]]), num_preds
         else:
             raise TypeError(f"Unexpected dtype {type(data)}")
-
 
     def train(self,
               dataloader: AttributedDataLoader,
