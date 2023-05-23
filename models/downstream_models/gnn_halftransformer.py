@@ -50,12 +50,21 @@ class GNN_HalfTransformer(torch.nn.Module):
         self.gnn = model_class(hidden, num_layers, hidden, hidden, True, 0., True, edge_encoder)
 
         # intra-graph pooling
+        self.graph_pool_idx = 'batch'
         if graph_pooling == "sum":
             self.pool = global_add_pool
         elif graph_pooling == "mean":
             self.pool = global_mean_pool
         elif graph_pooling == 'set2set':
             self.pool = Set2Set(hidden, processing_steps=6)
+        elif graph_pooling == 'transductive':
+            self.pool = lambda x, transductive_mask: x[transductive_mask]
+            self.graph_pool_idx = 'transductive_mask'
+        elif graph_pooling is None:  # node pred
+            self.pool = lambda x, *args: x
+        elif graph_pooling == 'root':
+            self.pool = lambda x, root_mask: x[root_mask]
+            self.graph_pool_idx = 'root_mask'
         else:
             raise NotImplementedError
 
@@ -70,14 +79,10 @@ class GNN_HalfTransformer(torch.nn.Module):
         data.x = torch.relu(self.lin(h_node))
         h_node = self.gnn(data.x, data.edge_index, data.edge_attr, data.edge_weight)
 
-        h_graph = self.pool(h_node, data.batch)
+        h_graph = self.pool(h_node, getattr(data, self.graph_pool_idx))
         h_graph = self.mlp(h_graph)
 
         return h_graph
 
     def reset_parameters(self):
-        self.encoder.reset_parameters()
-        for l in self.tf_layers:
-            l.reset_parameters()
-        self.gnn.reset_parameters()
-        self.mlp.reset_parameters()
+        raise NotImplementedError
