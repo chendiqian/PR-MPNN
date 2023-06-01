@@ -139,6 +139,7 @@ def get_model(args, device, *_args):
                                      gnn_layer=args.imle_configs.gnn_layer,
                                      mlp_layer=args.imle_configs.mlp_layer,
                                      use_deletion_head=True if args.sample_configs.sample_policy in ['edge_candid_bi', 'edge_candid_seq'] else False,
+                                     directed_sampling=args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False,
                                      dropout=args.imle_configs.dropout,
                                      ensemble=args.sample_configs.ensemble,
                                      use_bn=args.imle_configs.batchnorm)

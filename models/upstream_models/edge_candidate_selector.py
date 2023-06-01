@@ -2,6 +2,7 @@ from typing import Union
 
 import torch
 from torch_geometric.data import Data, Batch
+from torch_geometric.utils import to_undirected
 
 from models.nn_modules import MLP
 
@@ -17,6 +18,7 @@ class EdgeSelector(torch.nn.Module):
                  gnn_layer,
                  mlp_layer,
                  use_deletion_head,
+                 directed_sampling=False,
                  dropout=0.,
                  ensemble=1,
                  use_bn=False):
@@ -33,6 +35,7 @@ class EdgeSelector(torch.nn.Module):
                        batch_norm=use_bn, dropout=dropout)
 
         self.use_deletion_head = use_deletion_head
+        self.directed_sampling =directed_sampling
         if use_deletion_head:
             self.mlp2 = MLP([in_dim * 2] + [hid_size] * (mlp_layer - 1) + [ensemble],
                            batch_norm=use_bn, dropout=dropout)
@@ -48,8 +51,16 @@ class EdgeSelector(torch.nn.Module):
 
         select_edge_candidates = self.mlp1(edge_candidates)
         if self.use_deletion_head:
-            cur_edges = torch.hstack([x[data.edge_index[0]], x[data.edge_index[1]]])
+            edge_index = data.edge_index
+            if not self.directed_sampling:
+                edge_index = edge_index[:, edge_index[0] <= edge_index[1]]  # self loops included
+            cur_edges = torch.hstack([x[edge_index[0]], x[edge_index[1]]])
             delete_edge_candidates = self.mlp2(cur_edges)
+            if not self.directed_sampling:
+                _, delete_edge_candidates = to_undirected(edge_index,
+                                                          delete_edge_candidates,
+                                                          num_nodes=data.num_nodes,
+                                                          reduce='mean')  # this is important, otherwise the self loops have double weights
         else:
             delete_edge_candidates = None
 
