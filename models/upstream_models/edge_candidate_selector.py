@@ -56,11 +56,6 @@ class EdgeSelector(torch.nn.Module):
                 edge_index = edge_index[:, edge_index[0] <= edge_index[1]]  # self loops included
             cur_edges = torch.hstack([x[edge_index[0]], x[edge_index[1]]])
             delete_edge_candidates = self.mlp2(cur_edges)
-            if not self.directed_sampling:
-                _, delete_edge_candidates = to_undirected(edge_index,
-                                                          delete_edge_candidates,
-                                                          num_nodes=data.num_nodes,
-                                                          reduce='mean')  # this is important, otherwise the self loops have double weights
         else:
             delete_edge_candidates = None
 

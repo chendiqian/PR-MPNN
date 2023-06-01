@@ -154,11 +154,20 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
 
     # =============================edge deletion===================================
     if samplek_dict['del_k'] > 0:
-        output_logits, real_node_mask = to_dense_batch(deletion_logits,
-                                                       torch.arange(len(dat_batch.nnodes),
-                                                                    device=addition_logits.device).repeat_interleave(
-                                                           dat_batch.nedges),
-                                                       max_num_nodes=dat_batch.nedges.max())
+        batch_idx = torch.arange(len(dat_batch.nedges), device=addition_logits.device).repeat_interleave(dat_batch.nedges)
+        if directed_sampling:
+            output_logits, real_node_mask = to_dense_batch(deletion_logits,
+                                                           batch_idx,
+                                                           max_num_nodes=dat_batch.nedges.max())
+
+        else:
+            direct_mask = dat_batch.edge_index[0] <= dat_batch.edge_index[1]
+            directed_edge_index = dat_batch.edge_index[:, direct_mask]
+            num_direct_edges = scatter(direct_mask.long(), batch_idx, reduce='sum', dim_size=len(dat_batch.nedges))
+            output_logits, real_node_mask = to_dense_batch(deletion_logits,
+                                                           batch_idx[direct_mask],
+                                                           max_num_nodes=num_direct_edges.max())
+
 
         if train and auxloss_dict is not None and auxloss_dict.variance > 0:
             auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance, )
@@ -177,6 +186,9 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
 
         # num_edges x E x VE
         del_edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)
+        if not directed_sampling:
+            # reduce must be mean, otherwise the self loops have double weights
+            _, del_edge_weight = to_undirected(directed_edge_index, del_edge_weight, num_nodes=dat_batch.num_nodes, reduce='mean')
         del_edge_weight = del_edge_weight.T.flatten()
     else:
         del_edge_weight = None
