@@ -15,13 +15,12 @@ from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
                               GraphCanonicalYClass,
-                              AugmentwithNNodes,
+                              AugmentwithNumbers,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop, GraphAddSkipConnection,
                               GraphRedirect,
                               AugmentWithShortedPathDistance,
-                              AugmentWithLongestPathEdgeCandidate,
-                              AugmentWithNodeSimilarEdgeCandidate,
+                              AugmentWithEdgeCandidate,
                               AugmentWithPPR,
                               AugmentWithRandomRewiredGraphs,
                               AugmentWithPlotCoordinates,
@@ -55,11 +54,10 @@ PRETRANSFORM_PRIORITY = {
     GraphRedirect: 100,
     GraphToUndirected: 99,  # high
     GraphCoalesce: 99,
-    AugmentwithNNodes: 0,  # low
+    AugmentwithNumbers: 0,  # low
     GraphAttrToOneHot: 0,  # low
     AugmentWithShortedPathDistance: 98,
-    AugmentWithLongestPathEdgeCandidate: 98,
-    AugmentWithNodeSimilarEdgeCandidate: 98,
+    AugmentWithEdgeCandidate: 98,
     AugmentWithPPR: 98,
     AddRandomWalkPE: 98,
     AddLaplacianEigenvectorPE: 98,
@@ -71,7 +69,8 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
     if args.sample_configs.sample_policy is not None and 'edge_candid' in args.sample_configs.sample_policy:
         heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
-        extra_path += f'EdgeCandidates{heu}{args.sample_configs.candid_pool}_'
+        directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
+        extra_path += f'EdgeCandidates_{heu}_{"dir" if directed else "undir"}_{args.sample_configs.candid_pool}_'
     if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
         extra_path += 'SPDaug_'
     if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
@@ -93,18 +92,18 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     if args.sample_configs.sample_policy is None:
         return None
     elif args.sample_configs.sample_policy == 'add_del':
-        transform = AugmentWithRandomRewiredGraphs(sample_k_add=args.sample_configs.sample_k,
-                                                   sample_k_del=args.sample_configs.sample_k2,
-                                                   include_original_graph=args.sample_configs.include_original_graph,
-                                                   in_place=args.sample_configs.in_place,
-                                                   ensemble=args.sample_configs.ensemble)
+        raise NotImplementedError("need to implement directedness")
+        # transform = AugmentWithRandomRewiredGraphs(sample_k_add=args.sample_configs.sample_k,
+        #                                            sample_k_del=args.sample_configs.sample_k2,
+        #                                            include_original_graph=args.sample_configs.include_original_graph,
+        #                                            in_place=args.sample_configs.in_place,
+        #                                            ensemble=args.sample_configs.ensemble)
     else:
         raise ValueError
-    return transform
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):
-    pretransform = [AugmentwithNNodes()]
+    pretransform = [AugmentwithNumbers()]
     if extra_pretransforms is not None:
         pretransform = pretransform + extra_pretransforms
 
@@ -127,13 +126,8 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
     # add edge candidates or bidirectional
     if args.sample_configs.sample_policy is not None and 'edge_candid' in args.sample_configs.sample_policy:
         heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
-        if heu == 'longest_path':
-            pretransform_class = AugmentWithLongestPathEdgeCandidate
-        elif heu == 'node_similarity':
-            pretransform_class = AugmentWithNodeSimilarEdgeCandidate
-        else:
-            raise NotImplementedError
-        pretransform.append(pretransform_class(args.sample_configs.candid_pool))
+        directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
+        pretransform.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)

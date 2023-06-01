@@ -170,10 +170,11 @@ class GraphCoalesce(GraphModification):
         return new_data
 
 
-class AugmentwithNNodes(GraphModification):
+class AugmentwithNumbers(GraphModification):
 
     def __call__(self, graph: Data):
-        graph.nnodes = torch.tensor([graph.num_nodes])
+        graph.nnodes = graph.num_nodes
+        graph.nedges = graph.num_edges
         return graph
 
 
@@ -197,62 +198,49 @@ class AugmentWithShortedPathDistance(GraphModification):
         return graph
 
 
-class AugmentWithLongestPathEdgeCandidate(GraphModification):
-    def __init__(self, num_candidate):
-        super(AugmentWithLongestPathEdgeCandidate, self).__init__()
+class AugmentWithEdgeCandidate(GraphModification):
+    def __init__(self, heuristic, num_candidate, directed):
+        super(AugmentWithEdgeCandidate, self).__init__()
+        self.heu = heuristic
         self.num_candidate = num_candidate
+        self.directed = directed
 
     def __call__(self, graph: Data):
         assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
         edge_index = graph.edge_index.numpy()
-        mat = csr_matrix((np.ones(edge_index.shape[1]), (edge_index[0], edge_index[1])),
-                         shape=(graph.num_nodes, graph.num_nodes))
 
-        g_dist_mat = shortest_path(mat, directed=False, return_predecessors=False)
-        g_dist_mat[np.isinf(g_dist_mat)] = -1.
-        g_dist_mat[g_dist_mat == -1] = g_dist_mat.max() + 1
+        if self.heu == 'longest_path':
+            mat = csr_matrix((np.ones(edge_index.shape[1]),
+                              (edge_index[0], edge_index[1])),
+                             shape=(graph.num_nodes, graph.num_nodes))
 
-        triu_idx = np.vstack(np.triu_indices(graph.num_nodes, k=1))
+            mat = shortest_path(mat, directed=False, return_predecessors=False)
+            mat[np.isinf(mat)] = -1.
+            mat[mat == -1] = mat.max() + 1
+        elif self.heu == 'node_similarity':
+            x = graph.x
+            if x.dtype == torch.long:
+                x = torch.nn.functional.one_hot(x).reshape(x.shape[0], -1).float()
+            x = torch.nn.functional.normalize(x, p=2.0, dim=1).numpy()
+            mat = x @ x.T
+            mat[np.arange(x.shape[0]), np.arange(x.shape[0])] = 0.
+        else:
+            raise NotImplementedError
 
-        # exclude original edges
-        triu_idx_id = triu_idx[0] * graph.num_nodes + triu_idx[1]
-        org_edge_index_id = edge_index[0] * graph.num_nodes + edge_index[1]
-        multi_hop_idx = np.logical_not(np.in1d(triu_idx_id, org_edge_index_id))
-        triu_idx = triu_idx[:, multi_hop_idx]
-
-        distances = g_dist_mat[triu_idx[0], triu_idx[1]]
-        edge_candidate = triu_idx[:, np.argsort(distances)[-self.num_candidate:]]
-
-        graph.edge_candidate = torch.from_numpy(edge_candidate).T
-        graph.num_edge_candidate = edge_candidate.shape[1]
-        return graph
-
-
-class AugmentWithNodeSimilarEdgeCandidate(GraphModification):
-    def __init__(self, num_candidate):
-        super(AugmentWithNodeSimilarEdgeCandidate, self).__init__()
-        self.num_candidate = num_candidate
-
-    def __call__(self, graph: Data):
-        assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
-        edge_index = graph.edge_index.numpy()
-        x = graph.x
-        if x.dtype == torch.long:
-            x = torch.nn.functional.one_hot(x).reshape(x.shape[0], -1).float()
-        x = torch.nn.functional.normalize(x, p=2.0, dim=1)
-        mat = x @ x.T
-        mat[np.arange(x.shape[0]), np.arange(x.shape[0])] = 0.
-
-        triu_idx = np.vstack(np.triu_indices(graph.num_nodes, k=1))
+        if not self.directed:
+            candidate_idx = np.vstack(np.triu_indices(graph.num_nodes, k=1))
+        else:
+            candidate_idx = np.vstack(np.triu_indices(graph.num_nodes, k=-graph.num_nodes))
+            candidate_idx = candidate_idx[:, candidate_idx[0] != candidate_idx[1]]  # no self loop
 
         # exclude original edges
-        triu_idx_id = triu_idx[0] * graph.num_nodes + triu_idx[1]
+        candidate_idx_id = candidate_idx[0] * graph.num_nodes + candidate_idx[1]
         org_edge_index_id = edge_index[0] * graph.num_nodes + edge_index[1]
-        multi_hop_idx = np.logical_not(np.in1d(triu_idx_id, org_edge_index_id))
-        triu_idx = triu_idx[:, multi_hop_idx]
+        multi_hop_idx = np.logical_not(np.in1d(candidate_idx_id, org_edge_index_id))
+        candidate_idx = candidate_idx[:, multi_hop_idx]
 
-        similarity = mat[triu_idx[0], triu_idx[1]]
-        edge_candidate = triu_idx[:, np.argsort(similarity)[-self.num_candidate:]]
+        distances = mat[candidate_idx[0], candidate_idx[1]]
+        edge_candidate = candidate_idx[:, np.argsort(distances)[-self.num_candidate:]]
 
         graph.edge_candidate = torch.from_numpy(edge_candidate).T
         graph.num_edge_candidate = edge_candidate.shape[1]
