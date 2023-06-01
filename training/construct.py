@@ -28,16 +28,16 @@ def sparsify_edge_weight(data, edge_weight, negative_sample):
     device = edge_weight.device
     if negative_sample == 'zero':
         edge_ptr = data._slice_dict['edge_index'].to(device)
+        nedges = edge_ptr[1:] - edge_ptr[:-1]
         nonzero_idx = edge_weight.nonzero().reshape(-1)
         data.edge_index = data.edge_index[:, nonzero_idx]
         data.edge_weight = edge_weight[nonzero_idx]
         if data.edge_attr is not None:
             data.edge_attr = data.edge_attr[nonzero_idx]
         new_edges_per_graph = scatter((edge_weight > 0.).long(),
-                                      torch.arange(len(edge_ptr) - 1, device=device).repeat_interleave(
-                                          edge_ptr[1:] - edge_ptr[:-1]), reduce='sum', dim_size=len(edge_ptr) - 1)
-        data._slice_dict['edge_index'] = torch.cumsum(
-            torch.hstack([new_edges_per_graph.new_zeros(1), new_edges_per_graph]), dim=0)
+                                      torch.arange(len(nedges), device=device).repeat_interleave(nedges), reduce='sum', dim_size=len(nedges))
+        data._slice_dict['edge_index'] = torch.cumsum(torch.hstack([new_edges_per_graph.new_zeros(1),
+                                                                    new_edges_per_graph]), dim=0)
     elif negative_sample == 'full':
         data.edge_weight = edge_weight
     else:
@@ -64,6 +64,7 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
                                   negative_sample: str,
                                   separate: bool = False,
                                   in_place: bool = True,
+                                  directed_sampling: bool = False,
                                   auxloss_dict: ConfigDict = None):
     """
     rewire, addition is based on edge candidate set, deletion is from the original edges
@@ -82,6 +83,7 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
         negative_sample:
         separate: to treat del / add as separate candidate graphs or on the same graph
         in_place: add edges on top the original edges, if no in-place, create a new graph of the added edges only
+        directed_sampling:
         auxloss_dict:
 
     Returns:
@@ -135,9 +137,13 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
 
     # num_edges x E x VE
     add_edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)
+    add_edge_index = edge_candidate_idx.T
 
-    add_edge_index, add_edge_weight = to_undirected(edge_candidate_idx.T, add_edge_weight,
-                                                    num_nodes=dat_batch.num_nodes)
+    if not directed_sampling:
+        add_edge_index, add_edge_weight = to_undirected(add_edge_index,
+                                                        add_edge_weight,
+                                                        num_nodes=dat_batch.num_nodes)
+
     if E * VE > 1:
         edge_index_rel = (torch.arange(E * VE, device=add_edge_weight.device) * dat_batch.num_nodes).repeat_interleave(
             add_edge_index.shape[1])
@@ -147,17 +153,12 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
     add_edge_weight = add_edge_weight.T.flatten()
 
     # =============================edge deletion===================================
-    # edge addition
-    # (B x Nmax x E) (B x Nmax)
-    num_edges = (dat_batch._slice_dict['edge_index'][1:] - dat_batch._slice_dict['edge_index'][:-1]).to(
-        dat_batch.x.device)
-
     if samplek_dict['del_k'] > 0:
         output_logits, real_node_mask = to_dense_batch(deletion_logits,
                                                        torch.arange(len(dat_batch.nnodes),
                                                                     device=addition_logits.device).repeat_interleave(
-                                                           num_edges),
-                                                       max_num_nodes=num_edges.max())
+                                                           dat_batch.nedges),
+                                                       max_num_nodes=dat_batch.nedges.max())
 
         if train and auxloss_dict is not None and auxloss_dict.variance > 0:
             auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance, )
@@ -206,8 +207,8 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
         rewired_batch.edge_attr = merged_edge_attr
 
         # inc dict
-        original_num_edges = num_edges.repeat(E * VE)
-        new_num_edges = (dat_batch.num_edge_candidate * 2).repeat(E * VE)
+        original_num_edges = dat_batch.nedges.repeat(E * VE)
+        new_num_edges = (dat_batch.num_edge_candidate * (2 if not directed_sampling else 1)).repeat(E * VE)
         rewired_batch._slice_dict['edge_index'] = torch.hstack([add_edge_index.new_zeros(1),
                                                                 (original_num_edges + new_num_edges).cumsum(dim=0)])
 
@@ -244,8 +245,8 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
         add_rewired_batch.edge_attr = merged_edge_attr
 
         # inc dict
-        original_num_edges = num_edges.repeat(E * VE)
-        new_num_edges = (dat_batch.num_edge_candidate * 2).repeat(E * VE)
+        original_num_edges = dat_batch.nedges.repeat(E * VE)
+        new_num_edges = (dat_batch.num_edge_candidate * (2 if not directed_sampling else 1)).repeat(E * VE)
         add_rewired_batch._slice_dict['edge_index'] = torch.hstack([add_edge_index.new_zeros(1),
                                                                     (original_num_edges + new_num_edges).cumsum(dim=0)])
 
@@ -267,6 +268,7 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
 def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                  emb_model: Callable,
                                  sample_policy: str,
+                                 # samplek_dict: Dict,
                                  auxloss_dict: ConfigDict,
                                  sampler_class,
                                  train_forward: Callable,
@@ -306,6 +308,9 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                                   real_node_node_mask)
 
     # (#sampled, B, N, N, E), (B, N, N, E)
+    # # add edges from the N x N matrix
+    # sampler_class.policy = sample_policy
+    # sampler_class.k = samplek_dict['add_k']
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     VE, B, N, _, E = node_mask.shape
 
@@ -338,8 +343,7 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
     rewired_batch = Batch.from_data_list(new_graphs)
 
     original_edge_index = dat_batch.edge_index
-    original_num_edges = (dat_batch._slice_dict['edge_index'][1:] -
-                          dat_batch._slice_dict['edge_index'][:-1]).to(original_edge_index.device).repeat(E * VE)
+    original_num_edges = dat_batch.nedges.to(original_edge_index.device).repeat(E * VE)
     if E * VE > 1:
         edge_index_rel = (torch.arange(E * VE, device=edge_weight.device) * dat_batch.num_nodes).repeat_interleave(
             original_edge_index.shape[1])

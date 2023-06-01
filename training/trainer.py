@@ -158,6 +158,7 @@ class Trainer:
                                                         negative_sample=imle_configs.negative_sample,
                                                         separate=separate,
                                                         in_place=sample_configs.in_place,
+                                                        directed_sampling=sample_configs.directed if hasattr(sample_configs, 'directed') else False,
                                                         auxloss_dict=auxloss)
             else:
                 # learnable way with attention mask
