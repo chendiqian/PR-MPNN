@@ -140,12 +140,3 @@ CRITERION_DICT = {
     'hetero_texas': nn.CrossEntropyLoss(),
     'hetero_wisconsin': nn.CrossEntropyLoss(),
 }
-
-NUM_CANDID_DICT = {
-    'global_topk_undirected': 1,
-    'edge_candid': 1,
-    'edge_candid_bi': 2,  # 1 graph for edge addition, 1 for deletion
-    'edge_candid_seq': 1,  # remove then add
-    'global_topk_directed': 1,
-    'add_del': 1,   # random baseline, del then add on the same graph
-}

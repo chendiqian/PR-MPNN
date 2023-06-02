@@ -1,5 +1,5 @@
 import torch.nn as nn
-from data.const import DATASET_FEATURE_STAT_DICT, NUM_CANDID_DICT
+from data.const import DATASET_FEATURE_STAT_DICT
 from models.downstream_models.gnn_duo import GNN_Duo
 from models.downstream_models.gnn_halftransformer import GNN_HalfTransformer
 from models.downstream_models.gnn_normal import GNN_Normal
@@ -81,7 +81,7 @@ def get_model(args, device, *_args):
                         args.model.lower().split('_')[0],  # gin or gine
                         share_weights=share_weights,
                         include_org=args.sample_configs.include_original_graph,
-                        num_candidates=NUM_CANDID_DICT[args.sample_configs.sample_policy],
+                        num_candidates=2 if args.sample_configs.separate and args.sample_configs.sample_k2 > 0 else 1,
                         in_features=args.hid_size,
                         num_layers=args.num_convlayers,
                         hidden=args.hid_size,
@@ -138,8 +138,8 @@ def get_model(args, device, *_args):
                                      hid_size=args.imle_configs.emb_hid_size,
                                      gnn_layer=args.imle_configs.gnn_layer,
                                      mlp_layer=args.imle_configs.mlp_layer,
-                                     use_deletion_head=True if args.sample_configs.sample_policy in ['edge_candid_bi', 'edge_candid_seq'] else False,
-                                     directed_sampling=args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False,
+                                     use_deletion_head=True,
+                                     directed_sampling=args.sample_configs.directed,
                                      dropout=args.imle_configs.dropout,
                                      ensemble=args.sample_configs.ensemble,
                                      use_bn=args.imle_configs.batchnorm)
