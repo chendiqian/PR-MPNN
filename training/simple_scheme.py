@@ -7,7 +7,6 @@ import torch.nn.functional as F
 
 from training.deterministic_scheme import (rewire_global_undirected,
                                            rewire_global_directed,
-                                           rewire_global_semi,
                                            select_from_edge_candidates)
 from simple.simple import Layer
 from data.data_utils import self_defined_softmax
@@ -44,26 +43,16 @@ class EdgeSIMPLEBatched(nn.Module):
         if self.policy == 'global_topk_directed':
             bsz, Nmax, _, ensemble = scores.shape
             target_size = Nmax ** 2
-            local_k = min(self.k, target_size)
+            local_k = min(self.k, target_size - torch.unique(self.adj[0], return_counts=True)[1].max().item())
+            scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
             flat_scores = scores.permute((0, 3, 1, 2)).reshape(bsz * ensemble, target_size)
         elif self.policy == 'global_topk_undirected':
             bsz, Nmax, _, ensemble = scores.shape
             target_size = (Nmax * (Nmax - 1)) // 2
-            local_k = min(self.k, target_size)
+            local_k = min(self.k, target_size - torch.unique(self.adj[0], return_counts=True)[1].max().item())
+            scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
+            scores = scores + scores.transpose(1, 2)  # make symmetric
             triu_idx = np.triu_indices(Nmax, k=1)
-            scores = scores + scores.transpose(1, 2)
-            flat_scores = scores[:, triu_idx[0], triu_idx[1], :].permute((0, 2, 1)).reshape(bsz * ensemble, -1)
-        elif self.policy == 'global_topk_semi':
-            bsz, Nmax, _, ensemble = scores.shape
-            triu_idx = np.triu_indices(Nmax, k=1)
-            uniques_num_edges = self.adj[:, triu_idx[0], triu_idx[1], :].sum(dim=(1, 2))
-            max_num_edges = uniques_num_edges.max().long().item()
-            target_size = (Nmax * (Nmax - 1)) // 2
-            if self.k > target_size - max_num_edges:
-                raise ValueError(f"k = {self.k} too large!")
-            local_k = self.k
-            scores = scores + scores.transpose(1, 2)
-            scores = scores - self.adj * LARGE_NUMBER   # do not sample existing edges
             flat_scores = scores[:, triu_idx[0], triu_idx[1], :].permute((0, 2, 1)).reshape(bsz * ensemble, -1)
         elif self.policy == 'edge_candid':
             bsz, Nmax, ensemble = scores.shape
@@ -117,7 +106,7 @@ class EdgeSIMPLEBatched(nn.Module):
         samples = samples[..., :target_size]
         marginals = marginals[:, :target_size]
 
-        new_marginals = None
+        # not need to add original edges, because we will do in contruct.py
         if self.policy == 'global_topk_directed':
             new_mask = samples.reshape(times_sampled, bsz, ensemble, Nmax, Nmax).permute((0, 1, 3, 4, 2))
             new_marginals = marginals.reshape(bsz, ensemble, Nmax, Nmax).permute((0, 2, 3, 1))
@@ -126,15 +115,6 @@ class EdgeSIMPLEBatched(nn.Module):
             new_mask = scores.new_zeros((times_sampled,) + scores.shape)
             new_mask[:, :, triu_idx[0], triu_idx[1], :] = samples
             new_mask = new_mask + new_mask.transpose(2, 3)
-            marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
-            new_marginals = scores.new_zeros(scores.shape)
-            new_marginals[:, triu_idx[0], triu_idx[1], :] = marginals
-            new_marginals = new_marginals + new_marginals.transpose(1, 2)
-        elif self.policy == 'global_topk_semi':
-            samples = samples.reshape(times_sampled, bsz, ensemble, -1).permute((0, 1, 3, 2))
-            new_mask = scores.new_zeros((times_sampled,) + scores.shape)
-            new_mask[:, :, triu_idx[0], triu_idx[1], :] = samples
-            new_mask = new_mask + new_mask.transpose(2, 3) + self.adj[None]
             marginals = marginals.reshape(bsz, ensemble, -1).permute((0, 2, 1))
             new_marginals = scores.new_zeros(scores.shape)
             new_marginals[:, triu_idx[0], triu_idx[1], :] = marginals
@@ -166,14 +146,9 @@ class EdgeSIMPLEBatched(nn.Module):
 
             # do deterministic top-k
             if self.policy == 'global_topk_directed':
-                mask = rewire_global_directed(scores, self.k)
+                mask = rewire_global_directed(scores, self.k, self.adj)
             elif self.policy == 'global_topk_undirected':
-                # make symmetric
-                scores = scores + scores.transpose(1, 2)
-                mask = rewire_global_undirected(scores, self.k)
-            elif self.policy == 'global_topk_semi':
-                scores = scores + scores.transpose(1, 2)
-                mask = rewire_global_semi(scores, self.k, self.adj)
+                mask = rewire_global_undirected(scores, self.k, self.adj)
             elif self.policy == 'edge_candid':
                 mask = select_from_edge_candidates(scores, self.k)
             else:

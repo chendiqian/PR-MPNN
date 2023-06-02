@@ -297,32 +297,22 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
     negative_sample = negative_sample if train else 'zero'
     output_logits, real_node_node_mask = emb_model(dat_batch)
 
-    if sample_policy == 'global_topk_semi' or (train and auxloss_dict is not None and auxloss_dict.origin_bias > 0.):
-        # need to compute the dense adj matrix
-        adj = batched_edge_index_to_batched_adj(dat_batch, torch.float)
-        sampler_class.adj = adj
-
     padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
     logits = output_logits - padding_bias
 
     auxloss = 0.
     if train and auxloss_dict is not None:
-        if auxloss_dict.degree > 0:
-            raise NotImplementedError
-            # auxloss = auxloss + get_degree_regularization(node_mask, self.auxloss.degree, real_node_node_mask)
         if auxloss_dict.variance > 0:
             auxloss = auxloss + get_variance_regularization(output_logits,
                                                             auxloss_dict.variance,
                                                             real_node_node_mask)
-        if auxloss_dict.origin_bias > 0.:
-            auxloss = auxloss + get_original_bias(adj, logits,
-                                                  auxloss_dict.origin_bias,
-                                                  real_node_node_mask)
 
     # (#sampled, B, N, N, E), (B, N, N, E)
     # # add edges from the N x N matrix
     # sampler_class.policy = sample_policy
     # sampler_class.k = samplek_dict['add_k']
+    adj = batched_edge_index_to_batched_adj(dat_batch)
+    sampler_class.adj = adj
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     VE, B, N, _, E = node_mask.shape
 
@@ -395,21 +385,22 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                      num_unique_graphs=len(graphs))
         return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
     else:
-        if dat_batch.edge_attr is not None:
-            new_edge_index = rewired_batch.edge_index
-            new_edge_index_id = (new_edge_index[0] * rewired_batch.num_nodes + new_edge_index[1]).cpu().numpy()
-            original_edge_index_id = (
-                        original_edge_index[0] * rewired_batch.num_nodes + original_edge_index[1]).cpu().numpy()
-            new_edge_attr = dat_batch.edge_attr.new_zeros(new_edge_index.shape[1], dat_batch.edge_attr.shape[1])
-            fill_idx = np.in1d(new_edge_index_id, original_edge_index_id)
-            new_edge_attr[fill_idx] = dat_batch.edge_attr.repeat(E * VE, 1)
-            rewired_batch.edge_attr = new_edge_attr
-
-        rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
-
-        new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
-                                     candidates=[rewired_batch],
-                                     y=rewired_batch.y,
-                                     num_graphs=rewired_batch.num_graphs,
-                                     num_unique_graphs=len(graphs))
-        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+        raise NotImplementedError
+        # if dat_batch.edge_attr is not None:
+        #     new_edge_index = rewired_batch.edge_index
+        #     new_edge_index_id = (new_edge_index[0] * rewired_batch.num_nodes + new_edge_index[1]).cpu().numpy()
+        #     original_edge_index_id = (
+        #                 original_edge_index[0] * rewired_batch.num_nodes + original_edge_index[1]).cpu().numpy()
+        #     new_edge_attr = dat_batch.edge_attr.new_zeros(new_edge_index.shape[1], dat_batch.edge_attr.shape[1])
+        #     fill_idx = np.in1d(new_edge_index_id, original_edge_index_id)
+        #     new_edge_attr[fill_idx] = dat_batch.edge_attr.repeat(E * VE, 1)
+        #     rewired_batch.edge_attr = new_edge_attr
+        #
+        # rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
+        #
+        # new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
+        #                              candidates=[rewired_batch],
+        #                              y=rewired_batch.y,
+        #                              num_graphs=rewired_batch.num_graphs,
+        #                              num_unique_graphs=len(graphs))
+        # return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss

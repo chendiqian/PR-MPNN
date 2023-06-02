@@ -1,7 +1,6 @@
 import torch
 from training.deterministic_scheme import (rewire_global_directed,
                                            rewire_global_undirected,
-                                           rewire_global_semi,
                                            select_from_edge_candidates)
 
 LARGE_NUMBER = 1.e10
@@ -17,14 +16,9 @@ class IMLEScheme:
 
         local_logits = logits.detach()
         if self.policy == 'global_topk_directed':
-            mask = rewire_global_directed(local_logits, self.k)
+            mask = rewire_global_directed(local_logits, self.k, self.adj)
         elif self.policy == 'global_topk_undirected':
-            # make symmetric
-            local_logits = local_logits + local_logits.transpose(1, 2)
-            mask = rewire_global_undirected(local_logits, self.k)
-        elif self.policy == 'global_topk_semi':
-            local_logits = local_logits + local_logits.transpose(1, 2)
-            mask = rewire_global_semi(local_logits, self.k, self.adj)
+            mask = rewire_global_undirected(local_logits, self.k, self.adj)
         elif self.policy == 'edge_candid':
             mask = select_from_edge_candidates(local_logits, self.k)
         else:

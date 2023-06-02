@@ -2,7 +2,6 @@ import torch
 import numpy as np
 from training.deterministic_scheme import (rewire_global_undirected,
                                            rewire_global_directed,
-                                           rewire_global_semi,
                                            select_from_edge_candidates)
 
 EPSILON = np.finfo(np.float32).tiny
@@ -20,26 +19,15 @@ class GumbelSampler(torch.nn.Module):
     def forward(self, scores, train_ensemble):
         if self.policy == 'global_topk_directed':
             bsz, Nmax, _, ensemble = scores.shape
-            local_k = min(self.k, Nmax ** 2)
+            local_k = min(self.k, Nmax ** 2 - torch.unique(self.adj[0], return_counts=True)[1].max().item())
+            scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
             flat_scores = scores.permute((0, 3, 1, 2)).reshape(bsz * ensemble, Nmax ** 2)
         elif self.policy == 'global_topk_undirected':
             bsz, Nmax, _, ensemble = scores.shape
-            local_k = min(self.k, (Nmax * (Nmax - 1)) // 2)
+            local_k = min(self.k, (Nmax * (Nmax - 1)) // 2 - torch.unique(self.adj[0], return_counts=True)[1].max().item())
+            scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
+            scores = scores + scores.transpose(1, 2)  # make symmetric
             triu_idx = np.triu_indices(Nmax, k=1)
-            # make symmetric
-            scores = scores + scores.transpose(1, 2)
-            flat_scores = scores[:, triu_idx[0], triu_idx[1], :].permute((0, 2, 1)).reshape(bsz * ensemble, -1)
-        elif self.policy == 'global_topk_semi':
-            bsz, Nmax, _, ensemble = scores.shape
-            triu_idx = np.triu_indices(Nmax, k=1)
-            uniques_num_edges = self.adj[:, triu_idx[0], triu_idx[1], :].sum(dim=(1, 2))
-            max_num_edges = uniques_num_edges.max().long().item()
-            target_size = (Nmax * (Nmax - 1)) // 2 - max_num_edges
-            if self.k > target_size:
-                raise ValueError(f"k = {self.k} too large!")
-            local_k = self.k
-            scores = scores + scores.transpose(1, 2)
-            scores = scores - self.adj * LARGE_NUMBER  # do not sample existing edges
             flat_scores = scores[:, triu_idx[0], triu_idx[1], :].permute((0, 2, 1)).reshape(bsz * ensemble, -1)
         elif self.policy == 'edge_candid':
             bsz, Nmax, ensemble = scores.shape
@@ -81,11 +69,6 @@ class GumbelSampler(torch.nn.Module):
             new_mask = scores.new_zeros((train_ensemble,) + scores.shape)
             new_mask[:, :, triu_idx[0], triu_idx[1], :] = res
             new_mask = new_mask + new_mask.transpose(2, 3)
-        elif self.policy == 'global_topk_semi':
-            res = res.reshape(train_ensemble, bsz, ensemble, -1).permute((0, 1, 3, 2))
-            new_mask = scores.new_zeros((train_ensemble,) + scores.shape)
-            new_mask[:, :, triu_idx[0], triu_idx[1], :] = res
-            new_mask = new_mask + new_mask.transpose(2, 3) + self.adj[None]
         elif self.policy == 'edge_candid':
             new_mask = res.reshape(train_ensemble, bsz, ensemble, Nmax).permute((0, 1, 3, 2))
         else:
@@ -96,14 +79,9 @@ class GumbelSampler(torch.nn.Module):
     def validation(self, scores, val_ensemble):
         if val_ensemble == 1:
             if self.policy == 'global_topk_directed':
-                mask = rewire_global_directed(scores, self.k)
+                mask = rewire_global_directed(scores, self.k, self.adj)
             elif self.policy == 'global_topk_undirected':
-                # make symmetric
-                scores = scores + scores.transpose(1, 2)
-                mask = rewire_global_undirected(scores, self.k)
-            elif self.policy == 'global_topk_semi':
-                scores = scores + scores.transpose(1, 2)
-                mask = rewire_global_semi(scores, self.k, self.adj)
+                mask = rewire_global_undirected(scores, self.k, self.adj)
             elif self.policy == 'edge_candid':
                 mask = select_from_edge_candidates(scores, self.k)
             else:
