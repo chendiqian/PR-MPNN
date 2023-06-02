@@ -7,25 +7,19 @@ simply run `env_install.sh`
 TBA
 
 ## Rewire method
-We provide the rewire methods as follows:
+We provide rewiring options as following:
 
-### Transformer as upstream model:
+- Add edges / remove edges
 
-- Global directed rewire
+- Directed / undirected: meaning adding or deleting edges in a directed way or not. If not, will add _and_ remove undirected edges.
 
-- Global undirected rewire
+- Separated / merged: if separated, will sample 2 graphs, one with edges added and the other with edges removed. If merged, will merge the 2 graphs as one.
 
-- Global edge addition
+- In-place / not in-place: if in-place, will add the edges based on the original edges, otherwise will return a graph with _only_ the added edges.
 
-### Linear models as upstream model
+- Candidate range options: from selected set or N ^ 2 possible edges. The upstream models will be GNN + MLP or transformer respectively.
 
-- Local undirected rewire from edge candidates
-
-- _TBA_
-
-The methods can either be in-place, i.e., added to the original graph, or treated as a new separate graph.
-
-The original graphs can be included in a graph batch, if so, we have options for weight sharing.
+- Shared-weights downstream models: we use distinct sets of weights for each rewired graph and the original graph. If you like the weights to be shared, set the model as e.g. `gin_duo_shared`.  
 
 ## Samplers that we use
 - SIMPLE, [code](https://github.com/UCLA-StarAI/SIMPLE), [paper](https://arxiv.org/abs/2210.01941)
