@@ -15,9 +15,9 @@ class IMLEScheme:
     def torch_sample_scheme(self, logits: torch.Tensor):
 
         local_logits = logits.detach()
-        if self.policy == 'global_topk_directed':
+        if self.policy == 'global_directed':
             mask = rewire_global_directed(local_logits, self.k, self.adj)
-        elif self.policy == 'global_topk_undirected':
+        elif self.policy == 'global_undirected':
             mask = rewire_global_undirected(local_logits, self.k, self.adj)
         elif self.policy == 'edge_candid':
             mask = select_from_edge_candidates(local_logits, self.k)

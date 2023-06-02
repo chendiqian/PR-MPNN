@@ -67,7 +67,7 @@ PRETRANSFORM_PRIORITY = {
 
 def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
-    if args.sample_configs.sample_policy is not None and 'edge_candid' in args.sample_configs.sample_policy:
+    if args.sample_configs.sample_policy == 'edge_candid':
         heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
         directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
         extra_path += f'EdgeCandidates_{heu}_{"dir" if directed else "undir"}_{args.sample_configs.candid_pool}_'
@@ -124,7 +124,7 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
         pretransform.append(AddLaplacianEigenvectorPE(args.lap.max_freqs, 'EigVecs', is_undirected=True))
 
     # add edge candidates or bidirectional
-    if args.sample_configs.sample_policy is not None and 'edge_candid' in args.sample_configs.sample_policy:
+    if args.sample_configs.sample_policy == 'edge_candid':
         heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
         directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
         pretransform.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))

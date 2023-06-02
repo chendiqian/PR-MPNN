@@ -17,12 +17,12 @@ class GumbelSampler(torch.nn.Module):
         self.adj = None   # for potential usage
 
     def forward(self, scores, train_ensemble):
-        if self.policy == 'global_topk_directed':
+        if self.policy == 'global_directed':
             bsz, Nmax, _, ensemble = scores.shape
             local_k = min(self.k, Nmax ** 2 - torch.unique(self.adj[0], return_counts=True)[1].max().item())
             scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
             flat_scores = scores.permute((0, 3, 1, 2)).reshape(bsz * ensemble, Nmax ** 2)
-        elif self.policy == 'global_topk_undirected':
+        elif self.policy == 'global_undirected':
             bsz, Nmax, _, ensemble = scores.shape
             local_k = min(self.k, (Nmax * (Nmax - 1)) // 2 - torch.unique(self.adj[0], return_counts=True)[1].max().item())
             scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
@@ -62,9 +62,9 @@ class GumbelSampler(torch.nn.Module):
         else:
             res = khot
 
-        if self.policy == 'global_topk_directed':
+        if self.policy == 'global_directed':
             new_mask = res.reshape(train_ensemble, bsz, ensemble, Nmax, Nmax).permute((0, 1, 3, 4, 2))
-        elif self.policy == 'global_topk_undirected':
+        elif self.policy == 'global_undirected':
             res = res.reshape(train_ensemble, bsz, ensemble, -1).permute((0, 1, 3, 2))
             new_mask = scores.new_zeros((train_ensemble,) + scores.shape)
             new_mask[:, :, triu_idx[0], triu_idx[1], :] = res
@@ -78,9 +78,9 @@ class GumbelSampler(torch.nn.Module):
     @torch.no_grad()
     def validation(self, scores, val_ensemble):
         if val_ensemble == 1:
-            if self.policy == 'global_topk_directed':
+            if self.policy == 'global_directed':
                 mask = rewire_global_directed(scores, self.k, self.adj)
-            elif self.policy == 'global_topk_undirected':
+            elif self.policy == 'global_undirected':
                 mask = rewire_global_undirected(scores, self.k, self.adj)
             elif self.policy == 'edge_candid':
                 mask = select_from_edge_candidates(scores, self.k)

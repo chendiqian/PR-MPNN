@@ -40,13 +40,13 @@ class EdgeSIMPLEBatched(nn.Module):
         if times_sampled is None:
             times_sampled = self.train_ensemble
 
-        if self.policy == 'global_topk_directed':
+        if self.policy == 'global_directed':
             bsz, Nmax, _, ensemble = scores.shape
             target_size = Nmax ** 2
             local_k = min(self.k, target_size - torch.unique(self.adj[0], return_counts=True)[1].max().item())
             scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
             flat_scores = scores.permute((0, 3, 1, 2)).reshape(bsz * ensemble, target_size)
-        elif self.policy == 'global_topk_undirected':
+        elif self.policy == 'global_undirected':
             bsz, Nmax, _, ensemble = scores.shape
             target_size = (Nmax * (Nmax - 1)) // 2
             local_k = min(self.k, target_size - torch.unique(self.adj[0], return_counts=True)[1].max().item())
@@ -107,10 +107,10 @@ class EdgeSIMPLEBatched(nn.Module):
         marginals = marginals[:, :target_size]
 
         # not need to add original edges, because we will do in contruct.py
-        if self.policy == 'global_topk_directed':
+        if self.policy == 'global_directed':
             new_mask = samples.reshape(times_sampled, bsz, ensemble, Nmax, Nmax).permute((0, 1, 3, 4, 2))
             new_marginals = marginals.reshape(bsz, ensemble, Nmax, Nmax).permute((0, 2, 3, 1))
-        elif self.policy == 'global_topk_undirected':
+        elif self.policy == 'global_undirected':
             samples = samples.reshape(times_sampled, bsz, ensemble, -1).permute((0, 1, 3, 2))
             new_mask = scores.new_zeros((times_sampled,) + scores.shape)
             new_mask[:, :, triu_idx[0], triu_idx[1], :] = samples
@@ -145,9 +145,9 @@ class EdgeSIMPLEBatched(nn.Module):
             _, marginals = self.forward(scores, times_sampled=1)
 
             # do deterministic top-k
-            if self.policy == 'global_topk_directed':
+            if self.policy == 'global_directed':
                 mask = rewire_global_directed(scores, self.k, self.adj)
-            elif self.policy == 'global_topk_undirected':
+            elif self.policy == 'global_undirected':
                 mask = rewire_global_undirected(scores, self.k, self.adj)
             elif self.policy == 'edge_candid':
                 mask = select_from_edge_candidates(scores, self.k)
