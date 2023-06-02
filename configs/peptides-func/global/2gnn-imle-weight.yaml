@@ -7,8 +7,11 @@ fixed:
   wandb_prefix: "test_nosched"
 
   sample_configs:
-    sample_policy: global_topk_directed
+    sample_policy: global
+    directed: True
+    separate: False
     sample_k: 20
+    sample_k2: 0
     ensemble: 1
     include_original_graph: True
     in_place: False

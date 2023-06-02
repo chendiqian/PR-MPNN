@@ -3,10 +3,12 @@ fixed:
   log_path: './logs'
 
   use_wandb: True
-  wandb_name: "best_edge_candid_seq"
+  wandb_name: "best_edge_candid"
 
   sample_configs:
-    sample_policy: edge_candid_seq
+    sample_policy: edge_candid
+    separate: False
+    directed: False
     in_place: True
     sample_k: 80   # edge addition
     sample_k2: 20   # edge deletion

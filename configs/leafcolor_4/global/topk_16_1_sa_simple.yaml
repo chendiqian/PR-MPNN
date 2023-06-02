@@ -7,8 +7,11 @@ fixed:
   wandb_prefix: "trainens_5_128"
 
   sample_configs:
-    sample_policy: global_topk_directed
+    sample_policy: global
+    directed: True
+    separate: True
     sample_k: 16
+    sample_k2: 0
     ensemble: 1
     in_place: False
     include_original_graph: True

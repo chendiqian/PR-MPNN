@@ -6,8 +6,11 @@ fixed:
   wandb_name: "tree4"
 
   sample_configs:
-    sample_policy: global_topk_directed
+    sample_policy: global
+    separate: True
+    directed: True
     sample_k: 10
+    sample_k2: 0
     ensemble: 1
     in_place: False
     include_original_graph: True

@@ -6,7 +6,9 @@ fixed:
   wandb_name: "best_edge_candid_seq_peptides_struct"
 
   sample_configs:
-    sample_policy: edge_candid_seq
+    sample_policy: edge_candid
+    separate: False
+    directed: True
     in_place: True
     sample_k: 10   # edge addition
     sample_k2: 100   # edge deletion

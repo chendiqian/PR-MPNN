@@ -6,7 +6,9 @@ fixed:
   wandb_name: "TEST_DEBUG_HETERO"
 
   sample_configs:
-    sample_policy: edge_candid_seq
+    sample_policy: edge_candid
+    separate: False
+    directed: False
     in_place: True
     sample_k: 256
     sample_k2: 256

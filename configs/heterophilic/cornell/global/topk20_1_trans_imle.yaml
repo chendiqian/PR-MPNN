@@ -6,9 +6,12 @@ fixed:
   wandb_name: "TEST_DEBUG_HETERO"
 
   sample_configs:
-    sample_policy: global_topk_directed
+    sample_policy: global
+    directed: False
+    separate: False
     in_place: True
     sample_k: 256
+    sample_k2: 0
     ensemble: 1
     include_original_graph: True
 

@@ -6,9 +6,12 @@ fixed:
   wandb_name: "alchemy_rewire"
 
   sample_configs:
-    sample_policy: global_topk_directed
-    in_place: False
+    sample_policy: global
+    directed: True
+    separate: False
+    in_place: True
     sample_k: 40
+    sample_k2: 0
     ensemble: 1
     include_original_graph: True
 

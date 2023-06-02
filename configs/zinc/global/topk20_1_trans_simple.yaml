@@ -6,9 +6,12 @@ fixed:
   wandb_name: "TEST_DEBUG"
 
   sample_configs:
-    sample_policy: global_topk_directed
+    sample_policy: global
+    directed: True
+    separate: False
     in_place: True
-    sample_k: 20
+    sample_k: 5
+    sample_k2: 5
     ensemble: 1
     include_original_graph: True
 
