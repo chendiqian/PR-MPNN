@@ -385,22 +385,21 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                      num_unique_graphs=len(graphs))
         return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
     else:
-        raise NotImplementedError
-        # if dat_batch.edge_attr is not None:
-        #     new_edge_index = rewired_batch.edge_index
-        #     new_edge_index_id = (new_edge_index[0] * rewired_batch.num_nodes + new_edge_index[1]).cpu().numpy()
-        #     original_edge_index_id = (
-        #                 original_edge_index[0] * rewired_batch.num_nodes + original_edge_index[1]).cpu().numpy()
-        #     new_edge_attr = dat_batch.edge_attr.new_zeros(new_edge_index.shape[1], dat_batch.edge_attr.shape[1])
-        #     fill_idx = np.in1d(new_edge_index_id, original_edge_index_id)
-        #     new_edge_attr[fill_idx] = dat_batch.edge_attr.repeat(E * VE, 1)
-        #     rewired_batch.edge_attr = new_edge_attr
-        #
-        # rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
-        #
-        # new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
-        #                              candidates=[rewired_batch],
-        #                              y=rewired_batch.y,
-        #                              num_graphs=rewired_batch.num_graphs,
-        #                              num_unique_graphs=len(graphs))
-        # return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+        if dat_batch.edge_attr is not None:
+            new_edge_index = rewired_batch.edge_index
+            new_edge_index_id = (new_edge_index[0] * rewired_batch.num_nodes + new_edge_index[1]).cpu().numpy()
+            original_edge_index_id = (
+                        original_edge_index[0] * rewired_batch.num_nodes + original_edge_index[1]).cpu().numpy()
+            new_edge_attr = dat_batch.edge_attr.new_zeros(new_edge_index.shape[1], dat_batch.edge_attr.shape[1])
+            fill_idx = np.in1d(new_edge_index_id, original_edge_index_id)
+            new_edge_attr[fill_idx] = dat_batch.edge_attr.repeat(E * VE, 1)
+            rewired_batch.edge_attr = new_edge_attr
+
+        rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
+
+        new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
+                                     candidates=[rewired_batch],
+                                     y=rewired_batch.y,
+                                     num_graphs=rewired_batch.num_graphs,
+                                     num_unique_graphs=len(graphs))
+        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
