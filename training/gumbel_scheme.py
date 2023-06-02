@@ -20,13 +20,13 @@ class GumbelSampler(torch.nn.Module):
         if self.policy == 'global_topk_directed':
             bsz, Nmax, _, ensemble = scores.shape
             local_k = min(self.k, Nmax ** 2 - torch.unique(self.adj[0], return_counts=True)[1].max().item())
-            scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
+            scores[self.adj] -= LARGE_NUMBER  # avoid selecting existing edges & self loops
             flat_scores = scores.permute((0, 3, 1, 2)).reshape(bsz * ensemble, Nmax ** 2)
         elif self.policy == 'global_topk_undirected':
             bsz, Nmax, _, ensemble = scores.shape
             local_k = min(self.k, (Nmax * (Nmax - 1)) // 2 - torch.unique(self.adj[0], return_counts=True)[1].max().item())
-            scores[self.adj] = scores[self.adj] - LARGE_NUMBER  # avoid selecting existing edges & self loops
-            scores = scores + scores.transpose(1, 2)  # make symmetric
+            scores[self.adj] -= LARGE_NUMBER  # avoid selecting existing edges & self loops
+            scores += scores.transpose(1, 2)  # make symmetric
             triu_idx = np.triu_indices(Nmax, k=1)
             flat_scores = scores[:, triu_idx[0], triu_idx[1], :].permute((0, 2, 1)).reshape(bsz * ensemble, -1)
         elif self.policy == 'edge_candid':
