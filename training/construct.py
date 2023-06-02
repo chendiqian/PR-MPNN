@@ -280,7 +280,8 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
 def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                  emb_model: Callable,
                                  sample_policy: str,
-                                 # samplek_dict: Dict,
+                                 samplek_dict: Dict,
+                                 directed_sampling: bool,
                                  auxloss_dict: ConfigDict,
                                  sampler_class,
                                  train_forward: Callable,
@@ -290,7 +291,8 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                  device: torch.device,
                                  include_original_graph: bool,
                                  negative_sample: str,
-                                 in_place: bool):
+                                 in_place: bool,
+                                 separate: bool):
     dat_batch, graphs = collate_data
 
     train = emb_model.training
@@ -308,11 +310,11 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                                             real_node_node_mask)
 
     # (#sampled, B, N, N, E), (B, N, N, E)
-    # # add edges from the N x N matrix
-    # sampler_class.policy = sample_policy
-    # sampler_class.k = samplek_dict['add_k']
-    adj = batched_edge_index_to_batched_adj(dat_batch)
-    sampler_class.adj = adj
+    # ==================add edges from the N x N matrix============================
+    sampler_class.policy = sample_policy
+    sampler_class.k = samplek_dict['add_k']
+    original_adj, self_loop_adj = batched_edge_index_to_batched_adj(dat_batch)
+    sampler_class.adj = self_loop_adj
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     VE, B, N, _, E = node_mask.shape
 
@@ -333,8 +335,57 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
             sampled_edge_weights = sampled_edge_weights * node_mask
 
     # B x E x VE
-    edge_weight = sampled_edge_weights.permute((1, 2, 3, 4, 0))[real_node_node_mask]
-    edge_weight = edge_weight.permute(2, 1, 0).flatten()
+    add_edge_weight = sampled_edge_weights.permute((1, 2, 3, 4, 0))[real_node_node_mask]
+    add_edge_weight = add_edge_weight.permute(2, 1, 0).flatten()
+
+    # =============================edge deletion===================================
+    if samplek_dict['del_k'] > 0:
+        batch_idx = torch.arange(len(dat_batch.nedges),
+                                 device=add_edge_weight.device).repeat_interleave(dat_batch.nedges)
+
+        # sum_edges x ensemble
+        deletion_logits = output_logits[original_adj]
+
+        if directed_sampling:
+            deletion_logits, real_node_mask = to_dense_batch(deletion_logits,
+                                                           batch_idx,
+                                                           max_num_nodes=dat_batch.nedges.max())
+        else:
+            direct_mask = dat_batch.edge_index[0] <= dat_batch.edge_index[1]
+            deletion_logits = deletion_logits[direct_mask]
+            directed_edge_index = dat_batch.edge_index[:, direct_mask]
+            num_direct_edges = scatter(direct_mask.long(), batch_idx, reduce='sum',
+                                       dim_size=len(dat_batch.nedges))
+            deletion_logits, real_node_mask = to_dense_batch(deletion_logits,
+                                                           batch_idx[direct_mask],
+                                                           max_num_nodes=num_direct_edges.max())
+
+        if train and auxloss_dict is not None and auxloss_dict.variance > 0:
+            auxloss = auxloss + get_variance_regularization_3d(deletion_logits, auxloss_dict.variance)
+
+        # we select the least scores
+        deletion_logits = -deletion_logits
+        padding_bias = (~real_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
+        logits = deletion_logits - padding_bias
+
+        # (#sampled, B, Nmax, E), (B, Nmax, E)
+        sampler_class.policy = 'edge_candid'   # because we are sampling from edge_index candidate
+        sampler_class.k = samplek_dict['del_k']
+        node_mask, _ = train_forward(logits) if train else val_forward(logits)
+        VE, B, N, E = node_mask.shape
+
+        sampled_edge_weights = 1. - node_mask
+
+        # num_edges x E x VE
+        del_edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)
+        if not directed_sampling:
+            # reduce must be mean, otherwise the self loops have double weights
+            _, del_edge_weight = to_undirected(directed_edge_index, del_edge_weight,
+                                               num_nodes=dat_batch.num_nodes,
+                                               reduce='mean')
+        del_edge_weight = del_edge_weight.T.flatten()
+    else:
+        del_edge_weight = None
 
     new_graphs = [g.clone() for g in graphs]
     for g in new_graphs:
@@ -347,44 +398,93 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
     original_edge_index = dat_batch.edge_index
     original_num_edges = dat_batch.nedges.to(original_edge_index.device).repeat(E * VE)
     if E * VE > 1:
-        edge_index_rel = (torch.arange(E * VE, device=edge_weight.device) * dat_batch.num_nodes).repeat_interleave(
+        edge_index_rel = (torch.arange(E * VE, device=add_edge_weight.device) * dat_batch.num_nodes).repeat_interleave(
             original_edge_index.shape[1])
         original_edge_index = original_edge_index.repeat(1, E * VE)
         original_edge_index += edge_index_rel
 
     if in_place:
-        merged_edge_index = torch.cat([original_edge_index, rewired_batch.edge_index], dim=1)
-        merged_edge_weight = torch.cat([edge_weight.new_ones(original_edge_index.shape[1]), edge_weight], dim=0)
-        if dat_batch.edge_attr is not None:
-            merged_edge_attr = torch.cat([dat_batch.edge_attr.repeat(E * VE, 1),
-                                          dat_batch.edge_attr.new_zeros(edge_weight.shape[0],
-                                                                        dat_batch.edge_attr.shape[1])], dim=0)
+        if separate:
+            del_rewired_batch = Batch.from_data_list(graphs * (E * VE))
+            # for the graph adding with rewired edges in-place
+            merged_edge_index = torch.cat([original_edge_index, rewired_batch.edge_index], dim=1)
+            merged_edge_weight = torch.cat(
+                [add_edge_weight.new_ones(original_edge_index.shape[1]), add_edge_weight],
+                dim=0)
+            if dat_batch.edge_attr is not None:
+                merged_edge_attr = torch.cat([del_rewired_batch.edge_attr,
+                                              del_rewired_batch.edge_attr.new_zeros(
+                                                  add_edge_weight.shape[0],
+                                                  dat_batch.edge_attr.shape[1])], dim=0)
+            else:
+                merged_edge_attr = None
+
+            # pyg coalesce force to merge duplicate edges, which is in conflict with our _slice_dict calculation
+            merged_edge_index, merged_edge_attr, merged_edge_weight = non_merge_coalesce(
+                edge_index=merged_edge_index,
+                edge_attr=merged_edge_attr,
+                edge_weight=merged_edge_weight,
+                num_nodes=dat_batch.num_nodes * VE * E)
+
+            rewired_batch.edge_index = merged_edge_index
+            rewired_batch.edge_attr = merged_edge_attr
+
+            # inc dict
+            original_num_edges = dat_batch.nedges.repeat(E * VE)
+            new_num_edges = (dat_batch.nnodes ** 2).repeat(E * VE)
+            rewired_batch._slice_dict['edge_index'] = torch.hstack([original_edge_index.new_zeros(1), (original_num_edges + new_num_edges).cumsum(dim=0)])
+
+            add_rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
+            candidates = [add_rewired_batch]
+
+            if del_edge_weight is not None:
+                del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, negative_sample)
+                candidates.append(del_rewired_batch)
+
+            new_batch = DuoDataStructure(
+                org=dat_batch if include_original_graph else None,
+                candidates=candidates,
+                y=add_rewired_batch.y,
+                num_graphs=add_rewired_batch.num_graphs,
+                num_unique_graphs=len(graphs))
+            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
         else:
-            merged_edge_attr = None
+            merged_edge_index = torch.cat([original_edge_index, rewired_batch.edge_index], dim=1)
+            if del_edge_weight is None:
+                del_edge_weight = add_edge_weight.new_ones(original_edge_index.shape[1])
+            merged_edge_weight = torch.cat([del_edge_weight, add_edge_weight], dim=0)
+            if dat_batch.edge_attr is not None:
+                merged_edge_attr = torch.cat([dat_batch.edge_attr.repeat(E * VE, 1),
+                                              dat_batch.edge_attr.new_zeros(add_edge_weight.shape[0],
+                                                                            dat_batch.edge_attr.shape[1])], dim=0)
+            else:
+                merged_edge_attr = None
 
-        # pyg coalesce force to merge duplicate edges, which is in conflict with our _slice_dict calculation
-        merged_edge_index, merged_edge_attr, merged_edge_weight = non_merge_coalesce(
-            edge_index=merged_edge_index,
-            edge_attr=merged_edge_attr,
-            edge_weight=merged_edge_weight,
-            num_nodes=dat_batch.num_nodes * VE * E)
-        rewired_batch.edge_index = merged_edge_index
-        rewired_batch.edge_attr = merged_edge_attr
+            # pyg coalesce force to merge duplicate edges, which is in conflict with our _slice_dict calculation
+            merged_edge_index, merged_edge_attr, merged_edge_weight = non_merge_coalesce(
+                edge_index=merged_edge_index,
+                edge_attr=merged_edge_attr,
+                edge_weight=merged_edge_weight,
+                num_nodes=dat_batch.num_nodes * VE * E)
+            rewired_batch.edge_index = merged_edge_index
+            rewired_batch.edge_attr = merged_edge_attr
 
-        # inc dict
-        new_num_edges = (dat_batch.nnodes ** 2).repeat(E * VE)
-        rewired_batch._slice_dict['edge_index'] = torch.hstack(
-            [merged_edge_index.new_zeros(1), (original_num_edges + new_num_edges).cumsum(dim=0)])
+            # inc dict
+            new_num_edges = (dat_batch.nnodes ** 2).repeat(E * VE)
+            rewired_batch._slice_dict['edge_index'] = torch.hstack(
+                [merged_edge_index.new_zeros(1), (original_num_edges + new_num_edges).cumsum(dim=0)])
 
-        rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
+            rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
 
-        new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
-                                     candidates=[rewired_batch],
-                                     y=rewired_batch.y,
-                                     num_graphs=rewired_batch.num_graphs,
-                                     num_unique_graphs=len(graphs))
-        return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
+            new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
+                                         candidates=[rewired_batch],
+                                         y=rewired_batch.y,
+                                         num_graphs=rewired_batch.num_graphs,
+                                         num_unique_graphs=len(graphs))
+            return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
     else:
+        # only for the tree dataset, supposed no edge deletion
+        assert separate
         if dat_batch.edge_attr is not None:
             new_edge_index = rewired_batch.edge_index
             new_edge_index_id = (new_edge_index[0] * rewired_batch.num_nodes + new_edge_index[1]).cpu().numpy()
@@ -395,10 +495,17 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
             new_edge_attr[fill_idx] = dat_batch.edge_attr.repeat(E * VE, 1)
             rewired_batch.edge_attr = new_edge_attr
 
-        rewired_batch = sparsify_edge_weight(rewired_batch, edge_weight, negative_sample)
+        rewired_batch = sparsify_edge_weight(rewired_batch, add_edge_weight, negative_sample)
+
+        candidates = [rewired_batch]
+
+        if del_edge_weight is not None:
+            del_rewired_batch = Batch.from_data_list(graphs * (E * VE))
+            del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, negative_sample)
+            candidates.append(del_rewired_batch)
 
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
-                                     candidates=[rewired_batch],
+                                     candidates=candidates,
                                      y=rewired_batch.y,
                                      num_graphs=rewired_batch.num_graphs,
                                      num_unique_graphs=len(graphs))

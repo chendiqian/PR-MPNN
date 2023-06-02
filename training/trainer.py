@@ -135,16 +135,7 @@ class Trainer:
             # random sampling
             self.construct_duplicate_data = lambda x, *args: (x, None, None)
         elif imle_configs is not None:
-            if sample_configs.sample_policy.startswith('edge_candid'):
-                # essentially the same as 'edge_candid', but sample twice
-                self.sampler_class.policy = 'edge_candid'
-                if sample_configs.sample_policy == 'edge_candid_bi':
-                    separate = True
-                elif sample_configs.sample_policy == 'edge_candid_seq':
-                    separate = False
-                else:
-                    raise ValueError
-
+            if sample_configs.sample_policy == 'edge_candid':
                 self.construct_duplicate_data = partial(construct_from_edge_candidate,
                                                         samplek_dict={'add_k': sample_configs.sample_k,
                                                                       'del_k': sample_configs.sample_k2 if
@@ -156,14 +147,20 @@ class Trainer:
                                                         marginals_mask=imle_configs.marginals_mask,
                                                         include_original_graph=sample_configs.include_original_graph,
                                                         negative_sample=imle_configs.negative_sample,
-                                                        separate=separate,
+                                                        separate=sample_configs.separate,
                                                         in_place=sample_configs.in_place,
-                                                        directed_sampling=sample_configs.directed if hasattr(sample_configs, 'directed') else False,
+                                                        directed_sampling=sample_configs.directed,
                                                         auxloss_dict=auxloss)
-            else:
+            elif sample_configs.sample_policy == 'global':
                 # learnable way with attention mask
+                policy = 'global_' + ('directed' if sample_configs.directed else 'undirected')
+                self.sampler_class.policy = policy
                 self.construct_duplicate_data = partial(construct_from_attention_mat,
-                                                        sample_policy=sample_configs.sample_policy,
+                                                        sample_policy=policy,
+                                                        samplek_dict={'add_k': sample_configs.sample_k,
+                                                                      'del_k': sample_configs.sample_k2 if
+                                                                      hasattr(sample_configs, 'sample_k2') else 0},
+                                                        directed_sampling=sample_configs.directed,
                                                         auxloss_dict=auxloss,
                                                         sampler_class=self.sampler_class,
                                                         train_forward=self.train_forward,
@@ -173,7 +170,10 @@ class Trainer:
                                                         device=self.device,
                                                         include_original_graph=sample_configs.include_original_graph,
                                                         negative_sample=imle_configs.negative_sample,
-                                                        in_place=sample_configs.in_place)
+                                                        in_place=sample_configs.in_place,
+                                                        separate=sample_configs.separate)
+            else:
+                raise ValueError(f'unexpected policy {sample_configs.sample_policy}')
 
     def check_datatype(self, data, task_type):
         if isinstance(data, Data):
