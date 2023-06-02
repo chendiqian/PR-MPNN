@@ -130,12 +130,11 @@ class SyncMeanTimer:
             return self.last_end_time
 
 
-def batched_edge_index_to_batched_adj(data: Data, target_dtype: torch.dtype=torch.float):
+def batched_edge_index_to_batched_adj(data: Data):
     """
 
     Args:
         data: should be the original batch, i.e. without ensembles
-        target_dtype:
 
     Returns:
         batched edge_index ([0, 0, 0, 1, 1, 1, ...],
