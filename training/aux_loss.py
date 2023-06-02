@@ -1,4 +1,4 @@
-import numpy as np
+from typing import Tuple
 import torch
 import torch.nn.functional as F
 
@@ -51,12 +51,12 @@ def get_variance_regularization_3d(logits: torch.Tensor, auxloss: float):
     return loss * auxloss
 
 
-def get_original_bias(adj: torch.Tensor, logits: torch.Tensor, auxloss: float, real_node_node_mask: torch.Tensor):
+def get_original_bias(adj: Tuple[torch.Tensor], logits: torch.Tensor, auxloss: float):
     B, N, _, E = logits.shape
-    diag_idx = np.diag_indices(N)
-    adj[:, diag_idx[0], diag_idx[1]] = 0.   # remove self loops
+    # remove self loops, we don't want bias on self loops
+    non_loop_idx = adj[1] != adj[2]
+    adj = (adj[0][non_loop_idx], adj[1][non_loop_idx], adj[2][non_loop_idx])
     logits = F.softmax(logits, dim=2)  # make sure positive
-    loss = adj * torch.log(logits + SMALL_EPS)   # try to max this
-    loss = loss * real_node_node_mask.to(torch.float)[..., None]  # so that the virtual nodes don't play a role
-    loss = loss.sum() / adj.sum()
+    loss = torch.log((logits + SMALL_EPS)[adj])   # try to max this
+    loss = loss.mean()
     return - loss * auxloss
