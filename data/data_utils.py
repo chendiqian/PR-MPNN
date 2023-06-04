@@ -376,3 +376,13 @@ def circular_tree_layout(graph: nx.DiGraph):
             layout[n] = np.array(pos[j], dtype=np.float64)
 
     return layout
+
+
+def batch_repeat_edge_index(edge_index: torch.Tensor, num_nodes: int, repeats: int):
+    if repeats == 1:
+        return edge_index
+
+    edge_index_rel = torch.arange(repeats, device=edge_index.device).repeat_interleave(edge_index.shape[1]) * num_nodes
+    edge_index = edge_index.repeat(1, repeats)
+    edge_index += edge_index_rel
+    return edge_index
