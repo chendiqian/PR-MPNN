@@ -119,8 +119,6 @@ parameters:
     value: True
   imle_configs.spectral_norm:
     value: True   # spectral normalization
-  imle_configs.micro_batch_embd:
-    value: 1
   imle_configs.auxloss.variance:
     values: 
       - 0.

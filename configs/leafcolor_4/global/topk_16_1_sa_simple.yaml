@@ -39,7 +39,6 @@ fixed:
     layernorm: False
     batchnorm: True
     spectral_norm: True   # spectral normalization
-    micro_batch_embd: 1
 
     auxloss:
       variance: 0.

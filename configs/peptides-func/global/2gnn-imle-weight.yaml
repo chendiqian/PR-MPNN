@@ -50,7 +50,6 @@ fixed:
     layernorm: False
     batchnorm: True
     spectral_norm: True   # spectral normalization
-    micro_batch_embd: 1
     noise_scale: 0.3
     beta: 10.
 
