@@ -6,26 +6,14 @@ import torch
 from ml_collections import ConfigDict
 from torch_geometric.data import Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, scale_grad, MyPlateau, DuoDataStructure
+from data.data_utils import AttributedDataLoader, IsBetter, MyPlateau, DuoDataStructure
+from data.get_sampler import get_sampler
 from data.metrics import get_eval
 from data.plot_utils import plot_score, plot_rewired_graphs
-from imle.noise import GumbelDistribution
-from imle.target import TargetDistribution
-from imle.wrapper import imle
 from training.construct import (construct_from_edge_candidate,
                                 construct_from_attention_mat)
-from training.gumbel_scheme import GumbelSampler
-from training.imle_scheme import IMLEScheme
-from training.simple_scheme import EdgeSIMPLEBatched
 
 LARGE_NUMBER = 1.e10
-Optimizer = Union[torch.optim.Adam,
-                  torch.optim.SGD]
-Scheduler = Union[torch.optim.lr_scheduler.ReduceLROnPlateau,
-                  torch.optim.lr_scheduler.MultiStepLR]
-Emb_model = Any
-Train_model = Any
-Loss = torch.nn.modules.loss
 
 
 class Trainer:
@@ -34,7 +22,7 @@ class Trainer:
                  task_type: str,
                  max_patience: int,
                  patience_target: str,
-                 criterion: Loss,
+                 criterion: torch.nn.modules.loss,
                  device: Union[str, torch.device],
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
@@ -52,7 +40,6 @@ class Trainer:
 
         self.max_patience = max_patience
         self.patience_target = patience_target
-        self.auxloss = auxloss
 
         # clear best scores
         self.clear_stats()
@@ -78,102 +65,58 @@ class Trainer:
                                       wandb=wandb,
                                       use_wandb=use_wandb)
 
-        self.epoch = None
-
-        self.sample_policy = sample_configs.sample_policy
-        self.include_original_graph = sample_configs.include_original_graph
-        if imle_configs is not None:
-            # upstream may have micro batching
-            self.micro_batch_embd = imle_configs.micro_batch_embd
-
-            if imle_configs.sampler == 'imle':
-                imle_scheduler = IMLEScheme(sample_configs.sample_policy, sample_configs.sample_k)
-
-                @imle(target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
-                      noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
-                      nb_samples=imle_configs.num_train_ensemble,
-                      input_noise_temperature=1.,
-                      target_noise_temperature=1.,)
-                def imle_train_scheme(logits: torch.Tensor):
-                    return imle_scheduler.torch_sample_scheme(logits)
-                self.train_forward = imle_train_scheme
-
-                @imle(target_distribution=None,
-                      noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, self.device),
-                      nb_samples=imle_configs.num_val_ensemble,
-                      input_noise_temperature=1. if imle_configs.num_val_ensemble > 1 else 0.,  # important
-                      target_noise_temperature=1.,)
-                def imle_val_scheme(logits: torch.Tensor):
-                    return imle_scheduler.torch_sample_scheme(logits)
-                self.val_forward = imle_val_scheme
-
-                self.sampler_class = imle_scheduler
-            elif imle_configs.sampler == 'gumbel':
-                gumbel_sampler = GumbelSampler(sample_configs.sample_k,
-                                               tau=imle_configs.tau,
-                                               policy=sample_configs.sample_policy)
-                self.train_forward = partial(gumbel_sampler.forward, train_ensemble=imle_configs.num_train_ensemble)
-                self.val_forward = partial(gumbel_sampler.validation, val_ensemble=imle_configs.num_val_ensemble)
-                self.sampler_class = gumbel_sampler
-            elif imle_configs.sampler == 'simple':
-                simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k,
-                                                   device,
-                                                   val_ensemble=imle_configs.num_val_ensemble,
-                                                   train_ensemble=imle_configs.num_train_ensemble,
-                                                   policy=sample_configs.sample_policy,
-                                                   logits_activation=imle_configs.logits_activation)
-                self.train_forward = simple_sampler
-                self.val_forward = simple_sampler.validation
-                self.sampler_class = simple_sampler
-            else:
-                raise ValueError
+        train_forward, val_forward, sampler_class = get_sampler(imle_configs, sample_configs, self.device)
 
         if sample_configs.sample_policy is None:
             # normal training
-            self.construct_duplicate_data = lambda x, *args: (x, None, None)
+            self.construct_duplicate_data = lambda x, *args: (x, None, 0.)
         elif imle_configs is None:
             # random sampling
-            self.construct_duplicate_data = lambda x, *args: (x, None, None)
+            self.construct_duplicate_data = lambda x, *args: (x, None, 0.)
         elif imle_configs is not None:
-            if sample_configs.sample_policy == 'edge_candid':
-                self.construct_duplicate_data = partial(construct_from_edge_candidate,
-                                                        samplek_dict={'add_k': sample_configs.sample_k,
-                                                                      'del_k': sample_configs.sample_k2 if
-                                                                      hasattr(sample_configs, 'sample_k2') else 0},
-                                                        sampler_class=self.sampler_class,
-                                                        train_forward=self.train_forward,
-                                                        val_forward=self.val_forward,
-                                                        weight_edges=imle_configs.weight_edges,
-                                                        marginals_mask=imle_configs.marginals_mask,
-                                                        include_original_graph=sample_configs.include_original_graph,
-                                                        negative_sample=imle_configs.negative_sample,
-                                                        separate=sample_configs.separate,
-                                                        in_place=sample_configs.in_place,
-                                                        directed_sampling=sample_configs.directed,
-                                                        auxloss_dict=auxloss)
-            elif sample_configs.sample_policy == 'global':
-                # learnable way with attention mask
-                policy = 'global_' + ('directed' if sample_configs.directed else 'undirected')
-                self.sampler_class.policy = policy
-                self.construct_duplicate_data = partial(construct_from_attention_mat,
-                                                        sample_policy=policy,
-                                                        samplek_dict={'add_k': sample_configs.sample_k,
-                                                                      'del_k': sample_configs.sample_k2 if
-                                                                      hasattr(sample_configs, 'sample_k2') else 0},
-                                                        directed_sampling=sample_configs.directed,
-                                                        auxloss_dict=auxloss,
-                                                        sampler_class=self.sampler_class,
-                                                        train_forward=self.train_forward,
-                                                        val_forward=self.val_forward,
-                                                        weight_edges=imle_configs.weight_edges,
-                                                        marginals_mask=imle_configs.marginals_mask,
-                                                        device=self.device,
-                                                        include_original_graph=sample_configs.include_original_graph,
-                                                        negative_sample=imle_configs.negative_sample,
-                                                        in_place=sample_configs.in_place,
-                                                        separate=sample_configs.separate)
+            if imle_configs.model is None:
+                # an exception, in this case we merge the sampling into the downstream model
+                self.construct_duplicate_data = lambda x, *args: (x, None, 0.)
             else:
-                raise ValueError(f'unexpected policy {sample_configs.sample_policy}')
+                if sample_configs.sample_policy == 'edge_candid':
+                    self.construct_duplicate_data = partial(construct_from_edge_candidate,
+                                                            samplek_dict={'add_k': sample_configs.sample_k,
+                                                                          'del_k': sample_configs.sample_k2 if
+                                                                          hasattr(sample_configs, 'sample_k2') else 0},
+                                                            sampler_class=sampler_class,
+                                                            train_forward=train_forward,
+                                                            val_forward=val_forward,
+                                                            weight_edges=imle_configs.weight_edges,
+                                                            marginals_mask=imle_configs.marginals_mask,
+                                                            include_original_graph=sample_configs.include_original_graph,
+                                                            negative_sample=imle_configs.negative_sample,
+                                                            separate=sample_configs.separate,
+                                                            in_place=sample_configs.in_place,
+                                                            directed_sampling=sample_configs.directed,
+                                                            auxloss_dict=auxloss)
+                elif sample_configs.sample_policy == 'global':
+                    # learnable way with attention mask
+                    policy = 'global_' + ('directed' if sample_configs.directed else 'undirected')
+                    sampler_class.policy = policy
+                    self.construct_duplicate_data = partial(construct_from_attention_mat,
+                                                            sample_policy=policy,
+                                                            samplek_dict={'add_k': sample_configs.sample_k,
+                                                                          'del_k': sample_configs.sample_k2 if
+                                                                          hasattr(sample_configs, 'sample_k2') else 0},
+                                                            directed_sampling=sample_configs.directed,
+                                                            auxloss_dict=auxloss,
+                                                            sampler_class=sampler_class,
+                                                            train_forward=train_forward,
+                                                            val_forward=val_forward,
+                                                            weight_edges=imle_configs.weight_edges,
+                                                            marginals_mask=imle_configs.marginals_mask,
+                                                            device=self.device,
+                                                            include_original_graph=sample_configs.include_original_graph,
+                                                            negative_sample=imle_configs.negative_sample,
+                                                            in_place=sample_configs.in_place,
+                                                            separate=sample_configs.separate)
+                else:
+                    raise ValueError(f'unexpected policy {sample_configs.sample_policy}')
 
     def check_datatype(self, data, task_type):
         if isinstance(data, Data):
@@ -210,10 +153,10 @@ class Trainer:
 
     def train(self,
               dataloader: AttributedDataLoader,
-              emb_model: Emb_model,
-              model: Train_model,
-              optimizer_embd: Optional[Optimizer],
-              optimizer: Optimizer):
+              emb_model,
+              model,
+              optimizer_embd,
+              optimizer):
 
         if emb_model is not None:
             emb_model.train()
@@ -225,33 +168,40 @@ class Trainer:
         labels = []
         num_graphs = 0
 
+        auxlosses = 0.
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
             data, _ = self.check_datatype(data, dataloader.task)
-            data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
+            if emb_model is not None:
+                # we rewire before the upstream model
+                dat_batch, graphs = data
+                data, scores, auxloss = self.construct_duplicate_data(dat_batch,
+                                                                      graphs,
+                                                                      emb_model.training,
+                                                                      *emb_model(dat_batch))
+                if self.plot is not None:
+                    self.plot(data, True, self.epoch, batch_id)
+                if self.plot_score is not None and scores is not None:
+                    self.plot_score(scores, self.epoch, batch_id)
+            else:
+                data, _, auxloss = self.construct_duplicate_data(data)
 
-            if self.plot is not None:
-                self.plot(data, True, self.epoch, batch_id)
-            if self.plot_score is not None and scores is not None:
-                self.plot_score(scores, self.epoch, batch_id)
+            auxlosses = auxlosses + auxloss
 
             pred = model(data)
             is_labeled = data.y == data.y
             loss = self.criterion(pred[is_labeled], data.y[is_labeled])
             train_losses += loss.detach() * data.num_graphs
 
-            if auxloss is not None:
-                loss = loss + auxloss
+            loss = loss + auxlosses
 
             loss.backward()
             optimizer.step()
             if optimizer_embd is not None:
-                if (batch_id % self.micro_batch_embd == self.micro_batch_embd - 1) or (batch_id >= len(dataloader) - 1):
-                    emb_model = scale_grad(emb_model, (batch_id % self.micro_batch_embd) + 1)
-                    # torch.nn.utils.clip_grad_value_(emb_model.parameters(), clip_value=1.0)
-                    torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=False)
-                    optimizer_embd.step()
-                    optimizer_embd.zero_grad()
+                # torch.nn.utils.clip_grad_value_(emb_model.parameters(), clip_value=1.0)
+                torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=False)
+                optimizer_embd.step()
+                optimizer_embd.zero_grad()
 
             num_graphs += data.num_graphs
             preds.append(pred)
@@ -269,10 +219,10 @@ class Trainer:
     @torch.no_grad()
     def inference(self,
                   dataloader: AttributedDataLoader,
-                  emb_model: Emb_model,
-                  model: Train_model,
-                  scheduler_embd: Optional[Scheduler] = None,
-                  scheduler: Optional[Scheduler] = None,
+                  emb_model,
+                  model,
+                  scheduler_embd: Any = None,
+                  scheduler: Any = None,
                   train_loss: float = 0.,
                   train_metric: float = 0.,
                   test: bool = False):
@@ -290,7 +240,14 @@ class Trainer:
 
         for data in dataloader.loader:
             data, num_preds = self.check_datatype(data, dataloader.task)
-            data, _, _ = self.construct_duplicate_data(data, emb_model)
+            if emb_model is not None:
+                dat_batch, graphs = data
+                data, _, _ = self.construct_duplicate_data(dat_batch,
+                                                           graphs,
+                                                           emb_model.training,
+                                                           *emb_model(dat_batch))
+            else:
+                data, _, _ = self.construct_duplicate_data(data)
 
             pred = model(data)
 
@@ -299,7 +256,7 @@ class Trainer:
 
             pred_ensemble = pred.reshape(*(-1, num_preds) + pred.shape[1:]).transpose(0, 1)
 
-            # For classification we should use something like the entropy of the mean prediction
+            # For classification, we should use something like the entropy of the mean prediction
             # i.e. we have (B_SZ, N_ENS, N_CLASSES)->(B_SZ, 1, N_CLASSES)->compute entropy over N_CLASSES
             pred_uncertainty = pred_ensemble.cpu().numpy().std(1)
             pred_ensemble = pred_ensemble.mean(dim=1)
@@ -382,3 +339,4 @@ class Trainer:
         self.best_train_loss = 1e5
         self.best_train_metric = None
         self.patience = 0
+        self.epoch = 0

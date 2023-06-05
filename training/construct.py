@@ -133,8 +133,13 @@ def get_weighted_mask(weight_edges: str,
     return sampled_edge_weights
 
 
-def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
-                                  emb_model: Callable,
+def construct_from_edge_candidate(dat_batch: Data,
+                                  graphs: List[Data],
+                                  train: bool,
+                                  addition_logits: torch.Tensor,
+                                  deletion_logits: torch.Tensor,
+                                  edge_candidate_idx: torch.Tensor,
+
                                   samplek_dict: Dict,
                                   sampler_class,
                                   train_forward: Callable,
@@ -147,37 +152,8 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
                                   in_place: bool = True,
                                   directed_sampling: bool = False,
                                   auxloss_dict: ConfigDict = None):
-    """
-    rewire, addition is based on edge candidate set, deletion is from the original edges
-    currently supports in-place rewire
-
-    Args:
-        collate_data:
-        emb_model:
-        samplek_dict:
-        sampler_class:
-        train_forward:
-        val_forward:
-        weight_edges:
-        marginals_mask:
-        include_original_graph:
-        negative_sample:
-        separate: to treat del / add as separate candidate graphs or on the same graph
-        in_place: add edges on top the original edges, if no in-place, create a new graph of the added edges only
-        directed_sampling:
-        auxloss_dict:
-
-    Returns:
-
-    """
     assert in_place
-
-    dat_batch, graphs = collate_data
-
-    train = emb_model.training
     negative_sample = negative_sample if train else 'zero'
-    # (sum_edges, ensemble)
-    addition_logits, deletion_logits, edge_candidate_idx = emb_model(dat_batch)
 
     auxloss = 0.
 
@@ -318,8 +294,12 @@ def construct_from_edge_candidate(collate_data: Tuple[Data, List[Data]],
         return new_batch, None, auxloss
 
 
-def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
-                                 emb_model: Callable,
+def construct_from_attention_mat(dat_batch: Data,
+                                 graphs: List[Data],
+                                 train: bool,
+                                 output_logits: torch.Tensor,
+                                 real_node_node_mask: torch.Tensor,
+
                                  sample_policy: str,
                                  samplek_dict: Dict,
                                  directed_sampling: bool,
@@ -334,11 +314,7 @@ def construct_from_attention_mat(collate_data: Tuple[Data, List[Data]],
                                  negative_sample: str,
                                  in_place: bool,
                                  separate: bool):
-    dat_batch, graphs = collate_data
-
-    train = emb_model.training
     negative_sample = negative_sample if train else 'zero'
-    output_logits, real_node_node_mask = emb_model(dat_batch)
 
     padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
     logits = output_logits - padding_bias
