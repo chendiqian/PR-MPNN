@@ -44,39 +44,11 @@ def naming(args) -> str:
     if args.imle_configs is not None:
         name += f'sampler_{args.imle_configs.sampler}_'
         name += f'model_{args.imle_configs.model}_'
-        name += f'H{args.imle_configs.emb_hid_size}_'
-        if args.imle_configs.model.startswith('lin'):
-            name += f'L_{args.imle_configs.gnn_layer}_{args.imle_configs.mlp_layer}'
-        elif args.imle_configs.model == 'transformer':
-            name += f'L{args.imle_configs.tf_layer}'
-        name += f'DP{args.imle_configs.dropout}'
-        if args.imle_configs.sampler == 'imle':
-            name += f'noise{args.imle_configs.noise_scale}'
-            name += f'Beta{args.imle_configs.beta}'
-        elif args.imle_configs.sampler == 'gumbel':
-            name += f'tau{args.imle_configs.tau}'
-        name += f'upreg{args.imle_configs.reg_embd}'
-
-        if hasattr(args.imle_configs, 'emb_optim'):
-            name += f'embopt_{args.imle_configs.emb_optim}_'
-
-        name += 'encoding_'
-        if hasattr(args.imle_configs, 'emb_edge') and args.imle_configs.emb_edge:
-            name += '+edge'
-        if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
-            name += '+spd'
-        if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
-            name += '+ppr'
     else:
         name += 'OnTheFly_'
 
     name += f'ensemble_{args.sample_configs.ensemble}_'
     name += f'policy_{args.sample_configs.sample_policy}_'
-    name += f'samplek_{args.sample_configs.sample_k}_'
-
-    if hasattr(args, 'optim'):
-        name += f'optim_{args.optim}_'
-
     return name
 
 
