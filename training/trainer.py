@@ -6,7 +6,11 @@ import torch
 from ml_collections import ConfigDict
 from torch_geometric.data import Data
 
-from data.data_utils import AttributedDataLoader, IsBetter, MyPlateau, DuoDataStructure
+from data.data_utils import (AttributedDataLoader,
+                             IsBetter,
+                             MyPlateau,
+                             DuoDataStructure,
+                             BatchOriginalDataStructure)
 from data.get_sampler import get_sampler
 from data.metrics import get_eval
 from data.plot_utils import plot_score, plot_rewired_graphs
@@ -127,7 +131,7 @@ class Trainer:
             else:
                 raise NotImplementedError
             return data.to(self.device), num_preds
-        elif isinstance(data, DuoDataStructure):
+        elif type(data) == DuoDataStructure:
             # this must be before tuple type check, namedtuple is a subset of tuple
             if task_type == 'graph':
                 num_preds = data.num_unique_graphs
@@ -140,14 +144,17 @@ class Trainer:
                                     y=data.y.to(self.device),
                                     num_graphs=data.num_graphs,
                                     num_unique_graphs=data.num_unique_graphs), num_preds
-        elif isinstance(data, tuple) and isinstance(data[0], Data) and isinstance(data[1], list):
+        elif type(data) == BatchOriginalDataStructure:
             if task_type == 'graph':
-                num_preds = len(data[1])
+                num_preds = data.num_graphs
             elif task_type == 'node':
-                num_preds = data[0].y.shape[0]
+                num_preds = data.y.shape[0]
             else:
                 raise NotImplementedError
-            return (data[0].to(self.device), [g.to(self.device) for g in data[1]]), num_preds
+            return BatchOriginalDataStructure(batch=data.batch.to(self.device),
+                                              list=[g.to(self.device) for g in data.list],
+                                              y=data.y.to(self.device),
+                                              num_graphs=data.num_graphs), num_preds
         else:
             raise TypeError(f"Unexpected dtype {type(data)}")
 
@@ -174,7 +181,7 @@ class Trainer:
             data, _ = self.check_datatype(data, dataloader.task)
             if emb_model is not None:
                 # we rewire before the upstream model
-                dat_batch, graphs = data
+                dat_batch, graphs = data.batch, data.list
                 data, scores, auxloss = self.construct_duplicate_data(dat_batch,
                                                                       graphs,
                                                                       emb_model.training,
@@ -241,7 +248,7 @@ class Trainer:
         for data in dataloader.loader:
             data, num_preds = self.check_datatype(data, dataloader.task)
             if emb_model is not None:
-                dat_batch, graphs = data
+                dat_batch, graphs = data.batch, data.list
                 data, _, _ = self.construct_duplicate_data(dat_batch,
                                                            graphs,
                                                            emb_model.training,

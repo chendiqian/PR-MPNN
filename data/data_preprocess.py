@@ -13,7 +13,7 @@ from torch_geometric.utils import (is_undirected,
                                    coalesce,
                                    to_networkx)
 from torch_sparse import SparseTensor
-from data.data_utils import non_merge_coalesce, DuoDataStructure
+from data.data_utils import non_merge_coalesce, DuoDataStructure, BatchOriginalDataStructure
 
 
 class GraphModification:
@@ -415,4 +415,8 @@ def make_collate4random_baseline(include_org):
 
 
 def collate_fn_with_origin_list(graphs: List[Data]):
-    return Batch.from_data_list(graphs), graphs
+    batch = Batch.from_data_list(graphs)
+    return BatchOriginalDataStructure(batch=batch,
+                                      list=graphs,
+                                      y=batch.y,
+                                      num_graphs=len(graphs))

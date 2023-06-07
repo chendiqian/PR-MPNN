@@ -33,6 +33,16 @@ DuoDataStructure = namedtuple(
 )
 
 
+BatchOriginalDataStructure = namedtuple(
+    'DuoDataStructure', [
+        'batch',
+        'list',
+        'y',
+        'num_graphs',
+    ],
+)
+
+
 def get_cosine_schedule_with_warmup(
         optimizer: Optimizer,
         num_warmup_steps: int,
