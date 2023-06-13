@@ -1,11 +1,15 @@
 import torch.nn as nn
+from functools import partial
 from data.const import DATASET_FEATURE_STAT_DICT
+from data.get_sampler import get_sampler
 from models.downstream_models.gnn_duo import GNN_Duo
 from models.downstream_models.gnn_halftransformer import GNN_HalfTransformer
 from models.downstream_models.gnn_normal import GNN_Normal
+from models.downstream_models.dynamic_rewire_gnn import DynamicRewireGNN
 from models.my_encoder import FeatureEncoder, BondEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.upstream_models.transformer import Transformer
+from training.construct import construct_from_edge_candidate
 
 
 def get_encoder(args, for_downstream):
@@ -113,10 +117,65 @@ def get_model(args, device, *_args):
             use_spectral_norm=True,
             graph_pooling=args.graph_pooling,
         )
+    elif args.model.lower().startswith('dynamic_edge_candidate'):
+        train_forward, val_forward, sampler_class = get_sampler(args.imle_configs,
+                                                                args.sample_configs,
+                                                                device)
+        def make_intermediate_gnn():
+            return GNN_Duo(
+                lambda data: data.x,
+                edge_encoder,
+                args.model.lower().split('_')[-1],  # gin or gine
+                share_weights=False,
+                include_org=args.sample_configs.include_original_graph,
+                num_candidates=2 if args.sample_configs.separate and args.sample_configs.sample_k2 > 0 else 1,
+                in_features=args.hid_size,
+                num_layers=args.intermediate_gnn_layers,
+                hidden=args.hid_size,
+                num_classes=args.hid_size,
+                use_bn=args.bn,
+                dropout=args.dropout,
+                residual=args.residual,
+                mlp_layers_intragraph=args.mlp_layers_intragraph,
+                mlp_layers_intergraph=args.mlp_layers_intergraph,
+                graph_pooling=None,
+                inter_graph_pooling=args.inter_graph_pooling)
+        sampler = partial(construct_from_edge_candidate,
+                          samplek_dict={'add_k': args.sample_configs.sample_k,
+                                        'del_k': args.sample_configs.sample_k2},
+                          sampler_class=sampler_class,
+                          train_forward=train_forward,
+                          val_forward=val_forward,
+                          weight_edges=args.imle_configs.weight_edges,
+                          marginals_mask=args.imle_configs.marginals_mask,
+                          include_original_graph=args.sample_configs.include_original_graph,
+                          negative_sample=args.imle_configs.negative_sample,
+                          separate=args.sample_configs.separate,
+                          in_place=args.sample_configs.in_place,
+                          directed_sampling=args.sample_configs.directed,
+                          auxloss_dict=args.imle_configs.auxloss if hasattr(args.imle_configs,
+                                                                   'auxloss') else None)
+        model = DynamicRewireGNN(
+            sampler,
+            make_intermediate_gnn=make_intermediate_gnn,
+            encoder=encoder,
+            edge_encoder=edge_encoder,
+            hid_size=args.hid_size,
+            gnn_type=args.model.lower().split('_')[-1],
+            gnn_layer=args.num_convlayers,
+            sample_mlp_layer=args.sample_mlp_layer,
+            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+            directed_sampling=args.sample_configs.directed,
+            residual=args.residual,
+            dropout=args.dropout,
+            ensemble=args.sample_configs.ensemble,
+            use_bn=args.bn,
+            mlp_layers_intragraph=args.mlp_layers_intragraph,
+            graph_pooling=args.graph_pooling)
     else:
         raise NotImplementedError
 
-    if args.imle_configs is not None:
+    if args.imle_configs is not None and args.imle_configs.model is not None:
         # not shared with the downstream
         type_encoder, encoder, edge_encoder = get_encoder(args, for_downstream=False)
         if args.imle_configs.model == 'transformer':
