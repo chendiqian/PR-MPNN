@@ -92,15 +92,11 @@ class EdgeSIMPLEBatched(nn.Module):
         else:
             raise NotImplementedError
 
-        if times_sampled == 1:
-            # this only samples once
-            samples, marginals = layer(flat_scores, local_k)
-        else:
-            # we potentially need to sample multiple times
-            marginals = layer.log_pr(flat_scores).exp().permute(1, 0)
-            # (times_sampled) x (B x E) x (N x N)
-            samples = torch.stack([layer.sample(flat_scores, local_k) for _ in range(times_sampled)], dim=0)
-            samples = (samples - marginals[None]).detach() + marginals[None]
+        # we potentially need to sample multiple times
+        marginals = layer.log_pr(flat_scores).exp().permute(1, 0)
+        # (times_sampled) x (B x E) x (N x N)
+        samples = layer.sample(flat_scores, local_k, times_sampled)
+        samples = (samples - marginals[None]).detach() + marginals[None]
 
         # unpadding
         samples = samples[..., :target_size]

@@ -77,16 +77,16 @@ def levelOrder(beta):
 
 
 @torch.compile(fullgraph=True, mode=MODE, disable=DISABLE)
-def gumbel_keys(w):
+def gumbel_keys(w, time_sampled):
     # sample some gumbels
-    uniform = torch.rand(w.shape, device=w.device)  # .to(device)
+    uniform = torch.rand((time_sampled,) + w.shape, device=w.device)  # .to(device)
     z = -torch.log(-torch.log(uniform))
     w = w + z
     return w
 
 
 @torch.compile(fullgraph=True, mode=MODE, disable=DISABLE)
-def sample_subset(w, k):
+def sample_subset(w, k, time_sampled):
     '''
     Args:
         w (Tensor): Float Tensor of weights for each element. In gumbel mode
@@ -94,8 +94,8 @@ def sample_subset(w, k):
         k (int): number of elements in the subset sample
     '''
     with torch.no_grad():
-        w = gumbel_keys(w)
-        return w.topk(k).indices
+        w = gumbel_keys(w, time_sampled)
+        return w.topk(k, dim=-1).indices
 
 
 class Layer:
@@ -202,9 +202,9 @@ class Layer:
         return data[self.pos_literals]
 
     @torch.compile(fullgraph=True, mode=MODE, disable=DISABLE)
-    def sample(self, lit_weights, k):
+    def sample(self, lit_weights, k, time_sampled = 1):
         with torch.no_grad():
-            samples = sample_subset(lit_weights, k)
-            samples_hot = torch.zeros_like(lit_weights)
-            samples_hot.scatter_(1, samples, 1)
+            samples = sample_subset(lit_weights, k, time_sampled)
+            samples_hot = lit_weights.new_zeros((time_sampled,) + lit_weights.shape)
+            samples_hot.scatter_(2, samples, 1)
             return samples_hot.float()
