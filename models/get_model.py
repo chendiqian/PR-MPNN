@@ -183,7 +183,7 @@ def get_model(args, device, *_args):
                                     hidden=args.imle_configs.emb_hid_size,
                                     layers=args.imle_configs.tf_layer,
                                     num_heads=args.imle_configs.heads,
-                                    ensemble=args.sample_configs.ensemble,
+                                    ensemble=args.sample_configs.ensemble * (args.num_convlayers if args.sample_configs.per_layer else 1),
                                     act='relu',
                                     dropout=args.imle_configs.dropout,
                                     attn_dropout=args.imle_configs.attn_dropout,
@@ -200,7 +200,7 @@ def get_model(args, device, *_args):
                                      use_deletion_head=True,
                                      directed_sampling=args.sample_configs.directed,
                                      dropout=args.imle_configs.dropout,
-                                     ensemble=args.sample_configs.ensemble,
+                                     ensemble=args.sample_configs.ensemble * (args.num_convlayers if args.sample_configs.per_layer else 1),
                                      use_bn=args.imle_configs.batchnorm)
         else:
             raise NotImplementedError

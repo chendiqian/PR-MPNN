@@ -120,7 +120,9 @@ class BaseGIN(torch.nn.Module):
         del edge_attr
 
         for i, conv in enumerate(self.convs):
-            x_new = conv(x, edge_index, edge_weight)
+            x_new = conv(x,
+                         edge_index[i] if isinstance(edge_index, (list, tuple)) else edge_index,
+                         edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
             if self.use_bn:
                 x_new = self.bns[i](x_new)
             x_new = F.relu(x_new)
@@ -249,7 +251,10 @@ class BaseGINE(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, edge_weight=None):
         for i, conv in enumerate(self.convs):
-            x_new = conv(x, edge_index, edge_attr, edge_weight)
+            x_new = conv(x,
+                         edge_index[i] if isinstance(edge_index, (list, tuple)) else edge_index,
+                         edge_attr[i] if isinstance(edge_attr, (list, tuple)) else edge_attr,
+                         edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
             if self.use_bn:
                 x_new = self.bns[i](x_new)
             x_new = F.relu(x_new)
