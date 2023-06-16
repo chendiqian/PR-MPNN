@@ -33,46 +33,63 @@ def plot_rewired_graphs(new_batch: DuoDataStructure,
         if not os.path.exists(plot_folder):
             os.makedirs(plot_folder)
 
+    if include_original_graph:
+        assert new_batch.org is not None
+        original_graph = new_batch.org.to_data_list()
+
+    candidates = new_batch.candidates
+    per_layer_sampled = isinstance(candidates[0].edge_weight, (list, tuple))
+    if per_layer_sampled:
+        L = len(candidates[0].edge_weight)
+
+    plot_per_graph = ensemble * (num_train_ensemble if train else num_val_ensemble) * len(candidates) * (L if per_layer_sampled else 1) + int(include_original_graph)
+    n_ensemble = ensemble * (num_train_ensemble if train else num_val_ensemble)
+    unique_graphs = new_batch.num_graphs // n_ensemble
+    num_graphs_2b_plot = min(unique_graphs, plot_args.n_graphs)
+    graphs = [[] for _ in range(len(candidates))]
+    for i_c, c in enumerate(candidates):
+        if per_layer_sampled:
+            for i in range(L):
+                graph = c.clone()
+                if isinstance(graph.edge_index, (list, tuple)):
+                    graph.edge_index = graph.edge_index[i]
+                if isinstance(graph.edge_attr, (list, tuple)):
+                    graph.edge_attr = graph.edge_attr[i]
+                if isinstance(graph.edge_weight, (list, tuple)):
+                    graph.edge_weight = graph.edge_weight[i]
+                if isinstance(graph._slice_dict['edge_index'], (list, tuple)):
+                    graph._slice_dict['edge_index'] = graph._slice_dict['edge_index'][i]
+                if isinstance(graph._slice_dict['edge_attr'], (list, tuple)):
+                    graph._slice_dict['edge_attr'] = graph._slice_dict['edge_attr'][i]
+                if isinstance(graph._slice_dict['edge_weight'], (list, tuple)):
+                    graph._slice_dict['edge_weight'] = graph._slice_dict['edge_weight'][i]
+
+                graphs[i_c].append(graph.to_data_list())
+        else:
+            graphs[i_c].append(c.to_data_list())
+
+
     # in this case, the batch indices are already modified for inter-subgraph graph pooling,
     # use the original batch instead for compatibility of `to_data_list`
-    candidates = new_batch.candidates
-    new_batch_plot = []
-    weights_split = []
-    for c in candidates:
-        del c.y   # might be incompatible without duplication
-        graph_list = c.to_data_list()
-        new_batch_plot += graph_list
-        weights_split += [g.edge_weight for g in graph_list]
-
-    n_ensemble = ensemble * (num_train_ensemble if train else num_val_ensemble) * len(candidates)
-    unique_graphs = len(new_batch_plot) // n_ensemble
-    total_plotted_graphs = min(plot_args.n_graphs, unique_graphs)
-
-    if new_batch.org is not None:
-        original_graph = new_batch.org.to_data_list()
-        new_batch_plot += original_graph
-        weights_split += [None] * len(original_graph)
-
-    nrows = round(sqrt(n_ensemble + int(include_original_graph)))
-    ncols = ceil(sqrt(n_ensemble + int(include_original_graph)))
+    nrows = round(sqrt(plot_per_graph))
+    ncols = ceil(sqrt(plot_per_graph))
     is_only_one_plot = ncols * nrows == 1
 
-    for graph_id in range(total_plotted_graphs):
-        g_nx = to_networkx(new_batch_plot[graph_id])
+    for graph_id in range(num_graphs_2b_plot):
+        g_nx = to_networkx(graphs[0][0][graph_id])
 
-        original_graphs_pos_np = new_batch_plot[graph_id].nx_layout.cpu().numpy()
-        original_graphs_pos_dict = {i: pos for i, pos in
-                                    enumerate(original_graphs_pos_np)}
+        original_graphs_pos_np = graphs[0][0][graph_id].nx_layout.cpu().numpy()
+        original_graphs_pos_dict = {i: pos for i, pos in enumerate(original_graphs_pos_np)}
 
         if 'dataset' in plot_args and plot_args.dataset == 'leafcolor':
-            node_colors = new_batch_plot[graph_id].x[:, 1].detach().cpu().unsqueeze(-1)
+            node_colors = graphs[0][0][graph_id].x[:, 1].detach().cpu().unsqueeze(-1)
         elif 'dataset' in plot_args and plot_args.dataset == 'trees':
-            idx_label = torch.where(new_batch_plot[graph_id].x[:, 1] == new_batch_plot[graph_id].x[0][0])[0].item()
-            node_colors = torch.tensor([0 for _ in range(new_batch_plot[graph_id].x.shape[0])])
+            idx_label = torch.where(graphs[0][0][graph_id].x[:, 1] == graphs[0][0][graph_id].x[0][0])[0].item()
+            node_colors = torch.tensor([0 for _ in range(graphs[0][0][graph_id].x.shape[0])])
             node_colors[idx_label] = 1
             node_colors = node_colors.unsqueeze(-1)
         else:
-            node_colors = new_batch_plot[graph_id].x.detach().cpu().argmax(dim=1).unsqueeze(-1)
+            node_colors = graphs[0][0][graph_id].x.detach().cpu().argmax(dim=1).unsqueeze(-1)
 
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols * 7, nrows * 7),
                                 gridspec_kw={'wspace': 0, 'hspace': 0.05})
@@ -83,30 +100,39 @@ def plot_rewired_graphs(new_batch: DuoDataStructure,
         else:
             axs.set_axis_off()
 
-        for variant_id in range(n_ensemble + int(include_original_graph)):
-            graph_version = 'original' if variant_id == n_ensemble else 'rewired'
-            lst_id = variant_id * unique_graphs + graph_id
-            g = new_batch_plot[lst_id]
-
-            weights = weights_split[lst_id]
-            if weights is not None:
-                edges = g.edge_index[:, torch.where(weights)[0]].T.tolist()
-            else:
-                edges = g.edge_index.T.tolist()
-
-            if not is_only_one_plot:
-                ax = axs[variant_id]
-            else:
-                ax = axs
-
+        ax_idx = 0
+        if include_original_graph:
+            ax = axs[0]
+            g = original_graph[graph_id]
+            edges = g.edge_index.T.tolist()
             nx.draw_networkx_nodes(g_nx, original_graphs_pos_dict, node_size=200, node_color=node_colors, alpha=0.7, ax=ax)
             nx.draw_networkx_edges(g_nx, original_graphs_pos_dict, edgelist=edges, width=1, edge_color='k', ax=ax)
             nx.draw_networkx_labels(g_nx, pos=original_graphs_pos_dict, labels={i: i for i in range(len(node_colors))}, ax=ax)
-            ax.set_title(f'Graph {graph_id}, Epoch {epoch}, Version: {graph_version}')
+            ax.set_title(f'Graph {graph_id}, Epoch {epoch}, Version: original')
+            ax_idx = 1
+
+        for i_c, c in enumerate(graphs):
+            for i_l, layer in enumerate(c):
+                for i_g in range(n_ensemble):
+                    g = layer[i_g * unique_graphs + graph_id]
+                    if g.edge_weight is not None:
+                        edges = g.edge_index[:, torch.where(g.edge_weight)[0]].T.tolist()
+                    else:
+                        edges = g.edge_index.T.tolist()
+
+                    if not is_only_one_plot:
+                        ax = axs[ax_idx]
+                    else:
+                        ax = axs
+
+                    nx.draw_networkx_nodes(g_nx, original_graphs_pos_dict, node_size=200, node_color=node_colors, alpha=0.7, ax=ax)
+                    nx.draw_networkx_edges(g_nx, original_graphs_pos_dict, edgelist=edges, width=1, edge_color='k', ax=ax)
+                    nx.draw_networkx_labels(g_nx, pos=original_graphs_pos_dict, labels={i: i for i in range(len(node_colors))}, ax=ax)
+                    ax.set_title(f'Graph {graph_id}, Epoch {epoch}, candidate: {i_c}, layer: {i_l}, ensemble: {i_g}')
+                    ax_idx += 1
 
         if hasattr(plot_args, 'plot_folder'):
-            fig.savefig(os.path.join(plot_folder, f'e_{epoch}_graph_{graph_id}.png'),
-                        bbox_inches='tight')
+            fig.savefig(os.path.join(plot_folder, f'e_{epoch}_graph_{graph_id}.png'), bbox_inches='tight')
 
         if wandb is not None and use_wandb:
             wandb.log({f"graph_{graph_id}": wandb.Image(fig)}, step=epoch)
