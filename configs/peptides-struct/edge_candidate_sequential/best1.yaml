@@ -7,6 +7,7 @@ fixed:
 
   sample_configs:
     sample_policy: edge_candid
+    per_layer: False
     separate: False
     directed: True
     in_place: True

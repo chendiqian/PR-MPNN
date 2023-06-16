@@ -8,6 +8,7 @@ fixed:
 
   sample_configs:
     sample_policy: global
+    per_layer: False
     directed: True
     separate: True
     sample_k: 16
