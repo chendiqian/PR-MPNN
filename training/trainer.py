@@ -14,6 +14,7 @@ from data.data_utils import (AttributedDataLoader,
 from data.get_sampler import get_sampler
 from data.metrics import get_eval
 from data.plot_utils import plot_score, plot_rewired_graphs
+from data.connectness_metrics import get_connectedness_metric
 from training.construct import (construct_from_edge_candidate,
                                 construct_from_attention_mat)
 
@@ -33,7 +34,8 @@ class Trainer:
                  auxloss: ConfigDict,
                  wandb: Optional[Any] = None,
                  use_wandb: bool = False,
-                 plot_args: Optional[ConfigDict] = None):
+                 plot_args: Optional[ConfigDict] = None,
+                 connectedness_metric_args: Optional[ConfigDict] = None,):
         super(Trainer, self).__init__()
 
         self.dataset = dataset
@@ -68,6 +70,13 @@ class Trainer:
                                       plot_args=plot_args,
                                       wandb=wandb,
                                       use_wandb=use_wandb)
+
+        if connectedness_metric_args is not None:
+            self.connectedness_metric = partial(get_connectedness_metric,
+                                                metric=connectedness_metric_args.metric)
+            self.connectedness_metric_cnt = connectedness_metric_args.every
+        else:
+            self.connectedness_metric = None
 
         train_forward, val_forward, sampler_class = get_sampler(imle_configs, sample_configs, self.device)
 
@@ -244,6 +253,7 @@ class Trainer:
 
         preds_ensemble = []
         labels_ensemble = []
+        connectedness_metrics = []
 
         preds_uncertainty = []
 
@@ -276,6 +286,17 @@ class Trainer:
             labels.append(label * dataset_std)
             labels_ensemble.append(label_ensemble * dataset_std)
             preds_uncertainty.append(pred_uncertainty)
+
+            if not test and self.connectedness_metric is not None and self.epoch % self.connectedness_metric_cnt == 1:
+                if isinstance(data, Data):
+                    data = data
+                elif type(data) == DuoDataStructure:
+                    data = data.candidates[0]
+                elif type(data) == BatchOriginalDataStructure:
+                    data = data.batch
+                else:
+                    raise TypeError(f'{type(data)} unsupported')
+                connectedness_metrics.extend(self.connectedness_metric(data))
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
@@ -338,7 +359,8 @@ class Trainer:
                                 "val_metric_ensemble": val_metric_ensemble,
                                 "down_lr": scheduler.get_last_lr()[-1],
                                 "up_lr": scheduler_embd.get_last_lr()[-1] if scheduler_embd is not None else 0.,
-                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty)})
+                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty),
+                                'connectedness_metrics': self.wandb.Histogram(np.array(connectedness_metrics, dtype=np.float32))})
 
         return val_loss, val_metric, val_loss_ensemble, val_metric_ensemble, early_stop
 

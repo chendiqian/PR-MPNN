@@ -97,3 +97,7 @@ fixed:
     plot_every: 100
     n_graphs: 5
 #    plot_folder: './plots'
+
+#  connectedness:
+#    metric: eigval
+#    every: 10
