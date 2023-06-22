@@ -296,7 +296,7 @@ class Trainer:
                     data = data.batch
                 else:
                     raise TypeError(f'{type(data)} unsupported')
-                connectedness_metrics.extend(self.connectedness_metric(data))
+                connectedness_metrics.append(self.connectedness_metric(data))
 
         preds = torch.cat(preds, dim=0)
         labels = torch.cat(labels, dim=0)
@@ -359,8 +359,17 @@ class Trainer:
                                 "val_metric_ensemble": val_metric_ensemble,
                                 "down_lr": scheduler.get_last_lr()[-1],
                                 "up_lr": scheduler_embd.get_last_lr()[-1] if scheduler_embd is not None else 0.,
-                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty),
-                                'connectedness_metrics': self.wandb.Histogram(np.array(connectedness_metrics, dtype=np.float32))})
+                                "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty),})
+
+                if len(connectedness_metrics) > 0:
+                    connectedness_metrics_names = connectedness_metrics[0].keys()
+                    for name in connectedness_metrics_names:
+                        values = []
+                        for metric in connectedness_metrics:
+                            values.extend(metric[name])
+                        self.wandb.log({f'connectedness_{name}': self.wandb.Histogram(np.array(values, dtype=np.float32))})
+                else:
+                    self.wandb.log({'connectedness_metrics': self.wandb.Histogram(np.array([], dtype=np.float32))})
 
         return val_loss, val_metric, val_loss_ensemble, val_metric_ensemble, early_stop
 

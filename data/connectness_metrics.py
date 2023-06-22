@@ -60,31 +60,71 @@ def get_connectedness_metric(data: Batch, metric: str = 'eigval'):
 
     graphs = Batch.to_data_list(data)
     if metric == 'eigval':
-        metrics = [get_second_smallest_eigval(g) for g in graphs]
+        metrics = {
+            'eigval': [],
+        }
+
+        metrics['eigval'] = [get_second_smallest_eigval(g) for g in graphs]
+        
     elif metric.lower() == 'smallest_formancurvature':
-        metrics = []
+        metrics = {
+            'smallest_forman_curvature': [],
+        }
         for g in graphs:
             g = to_networkx(g, to_undirected=True, remove_self_loops=True)
             cur_metric = get_forman_curvature(g)
-            metrics.append(min(cur_metric))
+            metrics['smallest_forman_curvature'].append(min(cur_metric))
+
     elif metric.lower() == 'formancurvature':
-        metrics = []
+        metrics = {
+            'forman_curvature': [],
+        }
         for g in graphs:
             g = to_networkx(g, to_undirected=True, remove_self_loops=True)
             cur_metric = get_forman_curvature(g)
-            metrics.extend(cur_metric)
+            metrics['forman_curvature'].extend(cur_metric)
+
     elif metric.lower() == 'smallest_olliviercurvature':
-        metrics = []
+        metrics = {
+            'smallest_ollivier_curvature': [],
+        }
         for g in graphs:
             g = to_networkx(g, to_undirected=True, remove_self_loops=True)
             cur_metric = get_ollivier_curvature(g)
-            metrics.append(min(cur_metric))
+            metrics['smallest_ollivier_curvature'].append(min(cur_metric))
+
     elif metric.lower() == 'olliviercurvature':
-        metrics = []
+        metrics = {
+            'ollivier_curvature': [],
+        }
         for g in graphs:
             g = to_networkx(g, to_undirected=True, remove_self_loops=True)
             cur_metric = get_ollivier_curvature(g)
-            metrics.extend(cur_metric)
+            metrics['ollivier_curvature'].extend(cur_metric)
+
+    elif metric.lower() == 'all':
+        metrics = {
+            'forman_curvature': [],
+            'smallest_forman_curvature': [],
+            'ollivier_curvature': [],
+            'smallest_ollivier_curvature': [],
+            'eigval': [],
+        }
+        for g in graphs:
+            g = to_networkx(g, to_undirected=True, remove_self_loops=True)
+            forman_curvature = get_forman_curvature(g)
+            smallest_forman_curvature = min(forman_curvature)
+            ollivier_curvature = get_ollivier_curvature(g)
+            smallest_ollivier_curvature = min(ollivier_curvature)
+
+            metrics['forman_curvature'].extend(forman_curvature)
+            metrics['ollivier_curvature'].extend(ollivier_curvature)
+            metrics['smallest_forman_curvature'].append(smallest_forman_curvature)
+            metrics['smallest_ollivier_curvature'].append(smallest_ollivier_curvature)
+        
+        metrics['eigval'] = [get_second_smallest_eigval(g) for g in graphs]
+
+
     else:
         raise NotImplementedError(f"{metric} not supported")
 
