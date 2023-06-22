@@ -1,5 +1,3 @@
-from copy import deepcopy
-from functools import reduce
 from typing import Optional, List
 
 import numpy as np
@@ -13,7 +11,7 @@ from torch_geometric.utils import (is_undirected,
                                    coalesce,
                                    to_networkx)
 from torch_sparse import SparseTensor
-from data.data_utils import non_merge_coalesce, DuoDataStructure, BatchOriginalDataStructure
+from data.data_utils import BatchOriginalDataStructure
 
 
 class GraphModification:
@@ -279,101 +277,6 @@ class AugmentWithPPR(GraphModification):
         return graph
 
 
-class AugmentWithRandomRewiredGraphs(GraphModification):
-    """
-    random baseline for adding and deleting on the same graph.
-    supports in_place only for now
-    """
-    def __init__(self, sample_k_add, sample_k_del, include_original_graph, in_place, ensemble):
-        super(AugmentWithRandomRewiredGraphs, self).__init__()
-        assert in_place
-        self.sample_k_add = sample_k_add
-        self.sample_k_del = sample_k_del
-        self.include_original_graph = include_original_graph
-        self.ensemble = ensemble
-
-    def __call__(self, graph: Data):
-        assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
-        original_edge_index = graph.edge_index
-
-        # remove edges
-        if self.sample_k_del >= original_edge_index.shape[1]:
-            new_graph = deepcopy(graph)
-            new_graph.edge_index = original_edge_index[:, :0]
-            if graph.edge_attr is not None:
-                new_graph.edge_attr = new_graph.edge_attr[:0, :]
-            graphs = [new_graph] * self.ensemble
-        else:
-            graphs = []
-            for k in range(self.ensemble):
-                g = graph.clone()
-                remain_idx = np.random.choice(original_edge_index.shape[1],
-                                              size=original_edge_index.shape[1] - self.sample_k_del,
-                                              replace=False)
-                g.edge_index = original_edge_index[:, remain_idx]
-                if graph.edge_attr is not None:
-                    g.edge_attr = graph.edge_attr[remain_idx, :]
-                graphs.append(g)
-
-        # add new edges
-        full_edge_index = torch.from_numpy(np.vstack(np.triu_indices(graph.num_nodes, k=1)))
-        full_edge_id = full_edge_index[0] * graph.num_nodes + full_edge_index[1]
-        original_unique_edges_idx = original_edge_index[0] < original_edge_index[1]
-        original_directed_edges = original_edge_index[:, original_unique_edges_idx]
-        original_directed_id = original_directed_edges[0] * graph.num_nodes + original_directed_edges[1]
-        new_edges_id = torch.logical_not(torch.isin(full_edge_id, original_directed_id))
-        new_edges_pool = full_edge_index[:, new_edges_id]
-        if self.sample_k_add >= new_edges_pool.shape[1]:
-            add_edge_index = to_undirected(new_edges_pool, num_nodes=graph.num_nodes)
-            if graph.edge_attr is not None:
-                add_edge_attr = graph.edge_attr.new_ones(add_edge_index.shape[1], graph.edge_attr.shape[1])
-            else:
-                add_edge_attr = None
-
-            for g in graphs:
-                edge_index = torch.hstack([g.edge_index, add_edge_index])
-                if add_edge_attr is not None:
-                    edge_attr = torch.vstack([g.edge_attr, add_edge_attr])
-                else:
-                    edge_attr = None
-
-                merged_edge_index, merged_edge_attr, _ = non_merge_coalesce(
-                    edge_index=edge_index,
-                    edge_attr=edge_attr,
-                    edge_weight=None,
-                    num_nodes=graph.num_nodes)
-
-                g.edge_index = merged_edge_index
-                g.edge_attr = merged_edge_attr
-        else:
-            for g in graphs:
-                idx = np.random.choice(new_edges_pool.shape[1], size=self.sample_k_add, replace=False)
-                add_edge_index = to_undirected(new_edges_pool[:, idx], num_nodes=graph.num_nodes)
-                if graph.edge_attr is not None:
-                    add_edge_attr = graph.edge_attr.new_ones(add_edge_index.shape[1], graph.edge_attr.shape[1])
-                else:
-                    add_edge_attr = None
-
-                edge_index = torch.hstack([g.edge_index, add_edge_index])
-                if add_edge_attr is not None:
-                    edge_attr = torch.vstack([g.edge_attr, add_edge_attr])
-                else:
-                    edge_attr = None
-
-                merged_edge_index, merged_edge_attr, _ = non_merge_coalesce(
-                    edge_index=edge_index,
-                    edge_attr=edge_attr,
-                    edge_weight=None,
-                    num_nodes=graph.num_nodes)
-
-                g.edge_index = merged_edge_index
-                g.edge_attr = merged_edge_attr
-
-        if self.include_original_graph:
-            graphs.append(graph)
-        return graphs
-
-
 class AugmentWithPlotCoordinates(GraphModification):
     """
     for networkx plots, save the positions of the original graphs
@@ -388,30 +291,6 @@ class AugmentWithPlotCoordinates(GraphModification):
         pos = np.vstack([pos[n] for n in range(data.num_nodes)])
         data.nx_layout = torch.from_numpy(pos)
         return data
-
-
-def make_collate4random_baseline(include_org):
-    def collate(graphs: List[List]):
-        """
-
-        Args:
-            graphs: graphs are like [[g1_ensemble1, g1_ensemble2, ..., original g1], [], [], ...]
-
-        Returns:
-
-        """
-        if include_org:
-            original_graphs = Batch.from_data_list([l.pop(-1) for l in graphs])
-        else:
-            original_graphs = None
-        ordered_graphs = reduce(lambda a, b: a+b, [g for g in zip(*graphs)])
-        new_batch = Batch.from_data_list(ordered_graphs)
-        return DuoDataStructure(org=original_graphs,
-                                candidates=[new_batch],
-                                y=new_batch.y,
-                                num_graphs=new_batch.num_graphs,
-                                num_unique_graphs=len(graphs))
-    return collate
 
 
 def collate_fn_with_origin_list(graphs: List[Data]):

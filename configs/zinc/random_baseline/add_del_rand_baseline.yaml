@@ -7,9 +7,12 @@ fixed:
 
   sample_configs:
     sample_policy: add_del
+    per_layer: False
+    separate: False
+    directed: False
     in_place: True
-    sample_k: 80
-    sample_k2: 20
+    sample_k: 80   # edge addition
+    sample_k2: 20   # edge deletion
     ensemble: 1
     include_original_graph: True
 

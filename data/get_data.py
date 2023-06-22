@@ -22,9 +22,9 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithShortedPathDistance,
                               AugmentWithEdgeCandidate,
                               AugmentWithPPR,
-                              AugmentWithRandomRewiredGraphs,
                               AugmentWithPlotCoordinates,
-                              make_collate4random_baseline, collate_fn_with_origin_list)
+                              collate_fn_with_origin_list)
+from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewired_batch
 from .data_utils import AttributedDataLoader, circular_tree_layout
 from .heterophilic import HeterophilicDataset
 from .peptides_func import PeptidesFunctionalDataset
@@ -92,12 +92,16 @@ def get_transform(args: Union[Namespace, ConfigDict]):
     if args.sample_configs.sample_policy is None:
         return None
     elif args.sample_configs.sample_policy == 'add_del':
-        raise NotImplementedError("need to implement directedness")
-        # transform = AugmentWithRandomRewiredGraphs(sample_k_add=args.sample_configs.sample_k,
-        #                                            sample_k_del=args.sample_configs.sample_k2,
-        #                                            include_original_graph=args.sample_configs.include_original_graph,
-        #                                            in_place=args.sample_configs.in_place,
-        #                                            ensemble=args.sample_configs.ensemble)
+        transform = AugmentWithRandomRewiredGraphs(sample_k_add=args.sample_configs.sample_k,
+                                                   sample_k_del=args.sample_configs.sample_k2,
+                                                   include_original_graph=args.sample_configs.include_original_graph,
+                                                   in_place=args.sample_configs.in_place,
+                                                   ensemble=args.sample_configs.ensemble,
+                                                   layers=1 if not args.sample_configs.per_layer else args.num_convlayers,
+                                                   separate=args.sample_configs.separate,
+                                                   directed=args.sample_configs.directed,
+                                                   )
+        return transform
     else:
         raise ValueError
 
@@ -183,9 +187,9 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
                              batch_size=args.batch_size,
                              shuffle=not args.debug,
                              num_workers=NUM_WORKERS,
-                             collate_fn=make_collate4random_baseline(
-                                 include_org=args.sample_configs.include_original_graph
-                             ))
+                             collate_fn=partial(collate_random_rewired_batch,
+                                                include_org=args.sample_configs.include_original_graph)
+                             )
     else:
         # PyG removes the collate function passed in
         dataloader = partial(PyGDataLoader,
