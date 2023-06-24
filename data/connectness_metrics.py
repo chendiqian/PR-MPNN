@@ -1,4 +1,3 @@
-import math
 from collections import defaultdict
 
 import networkx as nx
@@ -6,7 +5,7 @@ import numpy as np
 import torch
 from GraphRicciCurvature.FormanRicci import FormanRicci
 from GraphRicciCurvature.OllivierRicci import OllivierRicci
-from numba import cuda
+from numba import jit, prange
 from scipy.sparse.linalg import eigs, eigsh
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import (
@@ -14,69 +13,62 @@ from torch_geometric.utils import (
     to_scipy_sparse_matrix,
     is_undirected,
     to_networkx,
-    remove_self_loops,
-    to_dense_adj,
 )
 
 
-@cuda.jit(
-    "void(float32[:,:], float32[:,:], float32[:], float32[:], int32, float32[:,:])"
-)
+@jit(nopython=True)
 def _balanced_forman_curvature(A, A2, d_in, d_out, N, C):
-    i, j = cuda.grid(2)
+    for i in prange(N):
+        for j in prange(N):
+            if A[i, j] == 0:
+                C[i, j] = 0
+                continue
 
-    if (i < N) and (j < N):
-        if A[i, j] == 0:
-            C[i, j] = 0
-            return
+            if d_in[i] > d_out[j]:
+                d_max = d_in[i]
+                d_min = d_out[j]
+            else:
+                d_max = d_out[j]
+                d_min = d_in[i]
 
-        if d_in[i] > d_out[j]:
-            d_max = d_in[i]
-            d_min = d_out[j]
-        else:
-            d_max = d_out[j]
-            d_min = d_in[i]
+            if d_max * d_min == 0:
+                C[i, j] = 0
+                continue
 
-        if d_max * d_min == 0:
-            C[i, j] = 0
-            return
+            sharp_ij = 0
+            lambda_ij = 0
+            for k in range(N):
+                TMP = A[k, j] * (A2[i, k] - A[i, k]) * A[i, j]
+                if TMP > 0:
+                    sharp_ij += 1
+                    if TMP > lambda_ij:
+                        lambda_ij = TMP
 
-        sharp_ij = 0
-        lambda_ij = 0
-        for k in range(N):
-            TMP = A[k, j] * (A2[i, k] - A[i, k]) * A[i, j]
-            if TMP > 0:
-                sharp_ij += 1
-                if TMP > lambda_ij:
-                    lambda_ij = TMP
+                TMP = A[i, k] * (A2[k, j] - A[k, j]) * A[i, j]
+                if TMP > 0:
+                    sharp_ij += 1
+                    if TMP > lambda_ij:
+                        lambda_ij = TMP
 
-            TMP = A[i, k] * (A2[k, j] - A[k, j]) * A[i, j]
-            if TMP > 0:
-                sharp_ij += 1
-                if TMP > lambda_ij:
-                    lambda_ij = TMP
-
-        C[i, j] = (
-            (2 / d_max) + (2 / d_min) - 2 + (2 / d_max + 1 / d_min) * A2[i, j] * A[i, j]
-        )
-        if lambda_ij > 0:
-            C[i, j] += sharp_ij / (d_max * lambda_ij)
+            C[i, j] = (
+                    (2 / d_max)
+                    + (2 / d_min)
+                    - 2
+                    + (2 / d_max + 1 / d_min) * A2[i, j] * A[i, j]
+            )
+            if lambda_ij > 0:
+                C[i, j] += sharp_ij / (d_max * lambda_ij)
 
 
 def balanced_forman_curvature(A, C=None):
     N = A.shape[0]
-    A2 = torch.matmul(A, A)
+    A2 = np.matmul(A, A)
     d_in = A.sum(axis=0)
     d_out = A.sum(axis=1)
     if C is None:
-        C = torch.zeros(N, N).cuda()
+        C = np.zeros((N, N))
 
-    threadsperblock = (16, 16)
-    blockspergrid_x = math.ceil(N / threadsperblock[0])
-    blockspergrid_y = math.ceil(N / threadsperblock[1])
-    blockspergrid = (blockspergrid_x, blockspergrid_y)
-
-    _balanced_forman_curvature[blockspergrid, threadsperblock](A, A2, d_in, d_out, N, C)
+    _balanced_forman_curvature(A, A2, d_in, d_out, N, C)
     return C
 
 
@@ -155,8 +147,11 @@ def get_connectedness_metric(data: Batch, metric: str = 'eigval'):
 
     if 'balanced_forman' in metrics:
         for g in graphs:
-            A = to_dense_adj(remove_self_loops(g.edge_index)[0])[0].cuda()  # must have cuda
-            cur_metric = balanced_forman_curvature(A).flatten().cpu().tolist()
+            A = np.zeros(shape=(g.num_nodes, g.num_nodes), dtype=np.float64)
+            edge_index = g.edge_index.cpu().numpy()
+            A[edge_index[0], edge_index[1]] = 1.
+
+            cur_metric = balanced_forman_curvature(A).flatten().tolist()
             metrics_dict['balanced_forman'].extend(cur_metric)
             metrics_dict['smallest_balanced_forman'].append(min(cur_metric))
 
