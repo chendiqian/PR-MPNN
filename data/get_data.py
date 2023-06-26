@@ -25,13 +25,14 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPlotCoordinates,
                               collate_fn_with_origin_list)
 from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewired_batch
-from .data_utils import AttributedDataLoader, circular_tree_layout
-from .heterophilic import HeterophilicDataset
-from .peptides_func import PeptidesFunctionalDataset
-from .peptides_struct import PeptidesStructuralDataset
-from .tree_dataset import MyTreeDataset, MyLeafColorDataset
-from .tudataset import MyTUDataset
-from .voc_superpixels import VOCSuperpixels
+from data.utils.datatype_utils import AttributedDataLoader
+from data.utils.plot_utils import circular_tree_layout
+from data.custom_datasets.heterophilic import HeterophilicDataset
+from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
+from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
+from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
+from data.custom_datasets.tudataset import MyTUDataset
+from data.custom_datasets.voc_superpixels import VOCSuperpixels
 
 NUM_WORKERS = 0
 

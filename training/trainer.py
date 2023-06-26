@@ -6,15 +6,15 @@ import torch
 from ml_collections import ConfigDict
 from torch_geometric.data import Data
 
-from data.data_utils import (AttributedDataLoader,
-                             IsBetter,
-                             MyPlateau,
-                             DuoDataStructure,
-                             BatchOriginalDataStructure)
+from data.utils.datatype_utils import (AttributedDataLoader,
+                                       IsBetter,
+                                       DuoDataStructure,
+                                       BatchOriginalDataStructure)
+from data.get_optimizer import MyPlateau
 from data.get_sampler import get_sampler
 from data.metrics import get_eval
-from data.plot_utils import plot_score, plot_rewired_graphs
-from data.connectness_metrics import get_connectedness_metric
+from data.utils.plot_utils import plot_score, plot_rewired_graphs
+from data.metrics.connectness_metrics import get_connectedness_metric
 from training.construct import (construct_from_edge_candidate,
                                 construct_from_attention_mat)
 

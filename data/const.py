@@ -1,7 +1,6 @@
 from torch import nn
 
-from data.data_utils import weighted_cross_entropy
-
+from data.utils.tensor_utils import weighted_cross_entropy
 
 DATASET_FEATURE_STAT_DICT = {
     'zinc': {'node': 21, 'edge': 4, 'num_class': 1},  # regression

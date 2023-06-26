@@ -9,7 +9,7 @@ from training.deterministic_scheme import (rewire_global_undirected,
                                            rewire_global_directed,
                                            select_from_edge_candidates)
 from simple.simple import Layer
-from data.data_utils import self_defined_softmax
+from data.utils.tensor_utils import self_defined_softmax
 
 LARGE_NUMBER = 1.e10
 

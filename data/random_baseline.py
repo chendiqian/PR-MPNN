@@ -5,7 +5,8 @@ import torch
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import (to_undirected)
 
-from data.data_utils import non_merge_coalesce, DuoDataStructure
+from data.utils.datatype_utils import DuoDataStructure
+from data.utils.tensor_utils import non_merge_coalesce
 
 
 def get_complement_edge_index(edge_index: torch.Tensor, num_nodes: int):

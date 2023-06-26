@@ -4,7 +4,7 @@ from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set
 from models.my_convs import BaseGIN, BaseGINE
 from models.nn_modules import MLP
 
-from data.data_utils import DuoDataStructure
+from data.utils.datatype_utils import DuoDataStructure
 
 
 class GNN_Duo(torch.nn.Module):

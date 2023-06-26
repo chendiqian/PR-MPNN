@@ -11,7 +11,7 @@ from torch_geometric.utils import (is_undirected,
                                    coalesce,
                                    to_networkx)
 from torch_sparse import SparseTensor
-from data.data_utils import BatchOriginalDataStructure
+from data.utils.datatype_utils import BatchOriginalDataStructure
 
 
 class GraphModification:

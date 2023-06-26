@@ -1,7 +1,7 @@
 from ml_collections import ConfigDict
 
 import wandb
-from data.data_utils import unflatten, set_nonetype
+from data.utils.args_utils import unflatten, set_nonetype
 from run import run
 
 hyperparameter_defaults = {}

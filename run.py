@@ -5,7 +5,7 @@ from numpy import mean as np_mean
 from numpy import std as np_std
 
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
-from data.data_utils import SyncMeanTimer
+from data.utils.datatype_utils import SyncMeanTimer
 from data.get_data import get_data
 from data.get_optimizer import make_get_embed_opt, make_get_opt
 from models.get_model import get_model

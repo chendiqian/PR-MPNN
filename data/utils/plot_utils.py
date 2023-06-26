@@ -1,14 +1,17 @@
+import math
 import os
 from math import ceil, sqrt
 
 import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
 import seaborn as sns
 import torch
 from ml_collections import ConfigDict
-from torch_geometric.utils import to_networkx
+from torch_geometric.utils import to_networkx, to_undirected
 
-from data.data_utils import DuoDataStructure
+from data.utils.datatype_utils import DuoDataStructure
+from data.utils.neighbor_utils import get_khop_neighbors
 
 
 def plot_rewired_graphs(new_batch: DuoDataStructure,
@@ -184,3 +187,27 @@ def plot_score(scores: torch.Tensor,
             wandb.log({f"scores_{graph_id}": wandb.Image(fig)}, step=epoch)
 
         plt.close(fig)
+
+
+def circular_tree_layout(graph: nx.DiGraph):
+    edge_index = torch.tensor(list(graph.edges)).T
+    edge_index = to_undirected(edge_index, num_nodes=len(graph.nodes))
+    edge_index = edge_index[:, edge_index[0] < edge_index[1]].cpu().numpy()
+
+    khop_neighbors, _ = get_khop_neighbors(0, edge_index, 10000)  # basically all neighbors
+    layout = dict()
+
+    def generate_dots(num_dots, r):
+        angle = math.pi / num_dots
+        dots = []
+        for i in range(num_dots):
+            dots.append([math.cos(angle) * r, math.sin(angle) * r])
+            angle += 2 * math.pi / num_dots
+        return dots
+
+    for i, neighbors in enumerate(khop_neighbors):
+        pos = generate_dots(len(neighbors), i * 0.1 * 1.1 ** i)
+        for j, n in enumerate(neighbors):
+            layout[n] = np.array(pos[j], dtype=np.float64)
+
+    return layout

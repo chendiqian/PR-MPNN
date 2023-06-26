@@ -1,4 +1,4 @@
-from typing import Tuple, List, Callable, Dict, Any
+from typing import List, Callable, Dict, Any
 
 import numpy as np
 import torch
@@ -7,10 +7,9 @@ from torch_geometric.data import Batch, Data
 from torch_geometric.utils import to_dense_batch, to_undirected
 from torch_scatter import scatter
 
-from data.data_utils import (DuoDataStructure,
-                             batched_edge_index_to_batched_adj,
-                             non_merge_coalesce,
-                             batch_repeat_edge_index)
+from data.utils.datatype_utils import (DuoDataStructure)
+from data.utils.tensor_utils import batched_edge_index_to_batched_adj, non_merge_coalesce, \
+    batch_repeat_edge_index
 from training.aux_loss import get_variance_regularization, get_variance_regularization_3d
 
 LARGE_NUMBER = 1.e10
