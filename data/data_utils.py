@@ -2,10 +2,11 @@ import math
 import time
 from collections import namedtuple
 from heapq import heappush, heappop
-from typing import Union, Optional, Dict, Any, Tuple
+from typing import Union, Optional, Dict, Any, Tuple, List
 
 import networkx as nx
 import numba
+from numba.typed import List as TypedList
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -329,39 +330,74 @@ def non_merge_coalesce(
 
 
 @numba.njit(cache=True)
-def get_khop_neighbors(root: int, edge_index: list):
+def edgeindex2neighbordict(edge_index, num_nodes: int) -> TypedList[TypedList[int]]:
     """
 
-    Args:
-        root:
-        edge_index: assumed to be [[0, 0, 0, ...], [0, 1, 2, ...]]
-
-    Returns:
-
+    :param edge_index: shape (2, E)
+    :param num_nodes:
+    :return:
     """
+    neighbors = TypedList([TypedList([-1]) for _ in range(num_nodes)])
+    for i, node in enumerate(edge_index[0]):
+        neighbors[node].append(edge_index[1, i])
+
+    for i, n in enumerate(neighbors):
+        n.pop(0)
+    return neighbors
+
+
+@numba.njit(cache=True)
+def get_khop_neighbors(root: int, neighbor_dict: List, k: int):
     neighbors = [[root]]
-    close_list = {root}
+    close_list = {-1}
 
     neighbors[0].pop()
     h = [(0, root)]
 
     while len(h):
         l, node = heappop(h)
+        if l > k:
+            break
+
+        if node in close_list:
+            continue
 
         if l < len(neighbors):
             neighbors[l].append(node)
         else:
             neighbors.append([node])
 
-        for i, n in enumerate(edge_index[0]):
-            if n > node:
-                break
-            if n == node and edge_index[1][i] not in close_list:
-                heappush(h, (l + 1, edge_index[1][i]))
+        for i, n in enumerate(neighbor_dict[node]):
+            if n not in close_list:
+                heappush(h, (l + 1, n))
 
         close_list.add(node)
 
+    merged_neighbors = neighbors[0]
+    for i in range(1, len(neighbors)):
+        merged_neighbors.extend(neighbors[i])
+
+    return neighbors, merged_neighbors
+
+
+@numba.njit(cache=True)
+def get_subgraphs_nodeidx(edge_candidate, neighbor_dict, k):
+    n1, n2 = edge_candidate
+    _, neighbors1 = get_khop_neighbors(n1, neighbor_dict, k)
+    _, neighbors2 = get_khop_neighbors(n2, neighbor_dict, k)
+    neighbors = set(neighbors1)
+    neighbors.update(neighbors2)
     return neighbors
+
+
+@numba.njit(cache=True, parallel=True)
+def batch_get_subgraphs_nodeidx(edge_candidates, edge_index, num_nodes, k):
+    n_dict = edgeindex2neighbordict(edge_index, num_nodes)
+    subgraph_indices = [{0, 1}] * edge_candidates.shape[0]
+    for i in numba.prange(edge_candidates.shape[0]):
+        neighbors = get_subgraphs_nodeidx(edge_candidates[i], n_dict, k)
+        subgraph_indices[i] = neighbors
+    return subgraph_indices
 
 
 def circular_tree_layout(graph: nx.DiGraph):
@@ -369,7 +405,7 @@ def circular_tree_layout(graph: nx.DiGraph):
     edge_index = to_undirected(edge_index, num_nodes=len(graph.nodes))
     edge_index = edge_index[:, edge_index[0] < edge_index[1]].cpu().numpy()
 
-    khop_neighbors = get_khop_neighbors(0, edge_index)
+    khop_neighbors, _ = get_khop_neighbors(0, edge_index, 10000)  # basically all neighbors
     layout = dict()
 
     def generate_dots(num_dots, r):
