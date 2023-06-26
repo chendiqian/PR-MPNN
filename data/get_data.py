@@ -14,7 +14,6 @@ from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEig
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
-                              GraphCanonicalYClass,
                               AugmentwithNumbers,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop, GraphAddSkipConnection,
@@ -49,7 +48,6 @@ DATASET = (PygGraphPropPredDataset,
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
     GraphExpandDim: 0,  # low
-    GraphCanonicalYClass: 0,
     GraphAddRemainSelfLoop: 100,  # highest
     GraphAddSkipConnection: 100,
     GraphRedirect: 100,
@@ -389,8 +387,8 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), AugmentWithPlotCoordinates(layout=circular_tree_layout)])
-    # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphCanonicalYClass(), GraphRedirect(depth)])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), AugmentWithPlotCoordinates(layout=circular_tree_layout)])
+    # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphRedirect(depth)])
     transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
@@ -400,6 +398,9 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
 
     train_set = MyTreeDataset(data_path, True, 11, depth, transform=transform, pre_transform=pre_transform)
     val_set = MyTreeDataset(data_path, False, 11, depth, transform=transform, pre_transform=pre_transform)
+    # min is 1
+    train_set.data.y -= 1
+    val_set.data.y -= 1
     test_set = val_set
 
     if args.debug:

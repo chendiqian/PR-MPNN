@@ -96,12 +96,6 @@ class GraphExpandDim(GraphModification):
         return graph
 
 
-class GraphCanonicalYClass(GraphModification):
-    def __call__(self, graph: Data):
-        graph.y -= 1
-        return graph
-
-
 class GraphToUndirected(GraphModification):
     """
     Wrapper of to_undirected:
