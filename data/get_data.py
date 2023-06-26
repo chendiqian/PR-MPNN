@@ -22,6 +22,7 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithEdgeCandidate,
                               AugmentWithPPR,
                               AugmentWithPlotCoordinates,
+                              AugmentWithSEALSubgraphs,
                               collate_fn_with_origin_list)
 from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewired_batch
 from data.utils.datatype_utils import AttributedDataLoader
@@ -61,6 +62,7 @@ PRETRANSFORM_PRIORITY = {
     AddRandomWalkPE: 98,
     AddLaplacianEigenvectorPE: 98,
     AugmentWithPlotCoordinates: 98,
+    AugmentWithSEALSubgraphs: -1,  # this must be the last, it returns a list of graphs
 }
 
 

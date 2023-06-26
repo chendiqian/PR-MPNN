@@ -9,9 +9,12 @@ from torch_geometric.utils import (is_undirected,
                                    to_undirected,
                                    add_remaining_self_loops,
                                    coalesce,
-                                   to_networkx)
+                                   to_networkx,
+                                   subgraph)
+from torch_geometric.transforms import AddRandomWalkPE, AddLaplacianEigenvectorPE
 from torch_sparse import SparseTensor
 from data.utils.datatype_utils import BatchOriginalDataStructure
+from data.utils.neighbor_utils import batch_get_subgraphs_nodeidx
 
 
 class GraphModification:
@@ -237,6 +240,61 @@ class AugmentWithEdgeCandidate(GraphModification):
         graph.edge_candidate = torch.from_numpy(edge_candidate).T
         graph.num_edge_candidate = edge_candidate.shape[1]
         return graph
+
+
+class AugmentWithSEALSubgraphs(GraphModification):
+    def __init__(self, khop):
+        super(AugmentWithSEALSubgraphs, self).__init__()
+        self.khop = khop
+
+    def __call__(self, graph: Data):
+        assert hasattr(graph, 'edge_candidate') and hasattr(graph, 'num_edge_candidate')
+
+        subgraph_indices = batch_get_subgraphs_nodeidx(graph.edge_candidate.numpy(),
+                                                       graph.edge_index.numpy(),
+                                                       graph.num_nodes,
+                                                       self.khop)
+
+        gs = []
+
+        if hasattr(graph, 'nx_layout'):
+            x_range = graph.nx_layout[:, 0].max() - graph.nx_layout[:, 0].min()
+            y_range = graph.nx_layout[:, 1].max() - graph.nx_layout[:, 1].min()
+
+        for idx in subgraph_indices:
+            idx = sorted(list(idx))
+            edge_index, edge_attr = subgraph(idx, graph.edge_index, graph.edge_attr,
+                                             relabel_nodes=True,
+                                             num_nodes=graph.num_nodes)
+            g = Data(x=graph.x[idx],
+                     edge_index=edge_index,
+                     edge_attr=edge_attr,
+                     y=graph.y,
+                     num_nodes=len(idx))
+            g = AugmentwithNumbers()(g)
+
+            # use normalized layout positions
+            if hasattr(graph, 'nx_layout'):
+                nx_pos = graph.nx_layout[idx]
+                max_pos = nx_pos.max(0, keepdims=True).values
+                min_pos = nx_pos.min(0, keepdims=True).values
+                nx_pos = (nx_pos - min_pos) / (max_pos - min_pos) - 0.5
+                nx_pos[:, 0] *= x_range
+                nx_pos[:, 1] *= y_range
+                g.nx_layout = nx_pos
+            # Todo: maybe recalculate, but time costly, ~3h on ZINC
+            if hasattr(graph, 'pestat_RWSE'):
+                g.pestat_RWSE = graph.pestat_RWSE[idx]
+                # g = AddRandomWalkPE(graph.pestat_RWSE.shape[1], 'pestat_RWSE')(g)
+            if hasattr(graph, 'EigVecs'):
+                g.EigVecs = graph.EigVecs[idx]
+                # g = AddLaplacianEigenvectorPE(max(1, min(graph.EigVecs.shape[1], len(idx) - 2)), 'EigVecs', is_undirected=True)(g)
+                # if g.EigVecs.shape[1] < graph.EigVecs.shape[1]:
+                #     # pad with 0s
+                #     g.EigVecs = torch.nn.functional.pad(g.EigVecs, (0, graph.EigVecs.shape[1] - g.EigVecs.shape[1]), mode='constant', value=0)
+            gs.append(g)
+
+        return gs
 
 
 class AugmentWithPPR(GraphModification):
