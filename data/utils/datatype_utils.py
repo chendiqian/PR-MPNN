@@ -7,7 +7,6 @@ import torch
 AttributedDataLoader = namedtuple(
     'AttributedDataLoader', [
         'loader',
-        'mean',
         'std',
         'task',
     ])

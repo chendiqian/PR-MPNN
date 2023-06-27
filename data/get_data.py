@@ -3,6 +3,7 @@ from argparse import Namespace
 from functools import partial
 from typing import Tuple, Union, List, Optional
 
+import torch
 from ml_collections import ConfigDict
 from networkx import kamada_kawai_layout
 from ogb.graphproppred import PygGraphPropPredDataset
@@ -33,6 +34,7 @@ from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
 from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
 from data.custom_datasets.tudataset import MyTUDataset
 from data.custom_datasets.voc_superpixels import VOCSuperpixels
+from data.custom_datasets.qm9 import QM9
 
 NUM_WORKERS = 0
 
@@ -152,26 +154,27 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
 
     task = 'graph'
     if 'ogbg' in args.dataset.lower():
-        train_set, val_set, test_set, mean, std = get_ogbg_data(args)
+        train_set, val_set, test_set, std, separate_std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
-        train_set, val_set, test_set, mean, std = get_zinc(args)
+        train_set, val_set, test_set, std, separate_std = get_zinc(args)
     elif args.dataset.lower() == 'alchemy':
-        train_set, val_set, test_set, mean, std = get_alchemy(args)
+        train_set, val_set, test_set, std, separate_std = get_alchemy(args)
     elif args.dataset.lower().startswith('tree'):
-        train_set, val_set, test_set, mean, std = get_treedataset(args)
+        train_set, val_set, test_set, std, separate_std = get_treedataset(args)
     elif args.dataset.lower().startswith('leafcolor'):
-        train_set, val_set, test_set, mean, std = get_leafcolordataset(args)
+        train_set, val_set, test_set, std, separate_std = get_leafcolordataset(args)
     elif args.dataset.lower().startswith('peptides-struct'):
-        train_set, val_set, test_set, mean, std = get_peptides(args, set='struct')
+        train_set, val_set, test_set, std, separate_std = get_peptides(args, set='struct')
     elif args.dataset.lower() == 'edge_wt_region_boundary':
-        train_set, val_set, test_set, mean, std = get_vocsuperpixel(args)
+        train_set, val_set, test_set, std, separate_std = get_vocsuperpixel(args)
         task = 'node'
     elif args.dataset.lower().startswith('hetero'):
-        train_set, val_set, test_set, mean, std = get_heterophily(args)
+        train_set, val_set, test_set, std, separate_std = get_heterophily(args)
         task = 'node'
     elif args.dataset.lower().startswith('peptides-func'):
-        train_set, val_set, test_set, mean, std = get_peptides(args, set='func')
-
+        train_set, val_set, test_set, std, separate_std = get_peptides(args, set='func')
+    elif args.dataset.lower() == 'qm9':
+        train_set, val_set, test_set, std, separate_std = get_qm9(args)
     else:
         raise ValueError
 
@@ -201,13 +204,11 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     if isinstance(train_set, list):
         train_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            mean=mean,
-            std=std,
-            task=task) for t in train_set]
+            std=std if not separate_std else std[i],
+            task=task) for i, t in enumerate(train_set)]
     elif isinstance(train_set, DATASET):
         train_loaders = [AttributedDataLoader(
             loader=dataloader(train_set),
-            mean=mean,
             std=std,
             task=task)]
     else:
@@ -216,13 +217,11 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     if isinstance(val_set, list):
         val_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            mean=mean,
-            std=std,
-            task=task) for t in val_set]
+            std=std if not separate_std else std[i],
+            task=task) for i, t in enumerate(val_set)]
     elif isinstance(val_set, DATASET):
         val_loaders = [AttributedDataLoader(
             loader=dataloader(val_set),
-            mean=mean,
             std=std,
             task=task)]
     else:
@@ -231,13 +230,11 @@ def get_data(args: Union[Namespace, ConfigDict], *_args) -> Tuple[List[Attribute
     if isinstance(test_set, list):
         test_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            mean=mean,
-            std=std,
-            task=task) for t in test_set]
+            std=std if not separate_std else std[i],
+            task=task) for i, t in enumerate(test_set)]
     elif isinstance(test_set, DATASET):
         test_loaders = [AttributedDataLoader(
             loader=dataloader(test_set),
-            mean=mean,
             std=std,
             task=task)]
     else:
@@ -270,7 +267,7 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
     val_set = dataset[val_idx]
     test_set = dataset[test_idx]
 
-    return train_set, val_set, test_set, None, None,
+    return train_set, val_set, test_set, None, False
 
 
 def get_zinc(args: Union[Namespace, ConfigDict]):
@@ -311,7 +308,7 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
         val_set = val_set[:16]
         test_set = test_set[:16]
 
-    return train_set, val_set, test_set, None, None
+    return train_set, val_set, test_set, None, False
 
 def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
     datapath = args.data_path
@@ -337,7 +334,7 @@ def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
         val_set = val_set[:16]
         test_set = test_set[:16]
 
-    return train_set, val_set, test_set, None, None
+    return train_set, val_set, test_set, None, False
 
 def get_alchemy(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithPlotCoordinates(layout=kamada_kawai_layout)])
@@ -382,7 +379,7 @@ def get_alchemy(args: Union[Namespace, ConfigDict]):
         val_set = val_set[:16]
         test_set = test_set[:16]
 
-    return train_set, val_set, test_set, mean, std
+    return train_set, val_set, test_set, std, False
 
 
 def get_treedataset(args: Union[Namespace, ConfigDict]):
@@ -410,7 +407,7 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
         val_set = val_set[:16]
         test_set = test_set[:16]
 
-    return train_set, val_set, test_set, None, None
+    return train_set, val_set, test_set, None, False
 
 def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
@@ -435,7 +432,7 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
 
     args['num_classes'] = max([s.y.item() for s in train_set]) + 1
 
-    return train_set, val_set, test_set, None, None
+    return train_set, val_set, test_set, None, False
 
 
 def get_vocsuperpixel(args):
@@ -459,7 +456,7 @@ def get_vocsuperpixel(args):
         val_set = val_set[:16]
         test_set = test_set[:16]
 
-    return train_set, val_set, test_set, None, None
+    return train_set, val_set, test_set, None, False
 
 def get_heterophily(args):
     dataset_name = args.dataset.lower().split('_')[1]
@@ -485,4 +482,58 @@ def get_heterophily(args):
         val_set = val_set[0]
         test_set = test_set[0]
 
-    return train_set, val_set, test_set, None, None
+    return train_set, val_set, test_set, None, False
+
+
+def get_qm9(args: Union[Namespace, ConfigDict]):
+    pre_transform = get_pretransform(args, extra_pretransforms=[
+        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
+        GraphCoalesce()])
+    transform = get_transform(args)
+
+    data_path = os.path.join(args.data_path, 'QM9')
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    train_set = [QM9(data_path,
+                     split='train',
+                     task_id=idx,
+                     transform=transform,
+                     pre_transform=pre_transform) for idx in range(13)]
+
+    val_set = [QM9(data_path,
+                   split='valid',
+                   task_id=idx,
+                   transform=transform,
+                   pre_transform=pre_transform) for idx in range(13)]
+
+    test_set = [QM9(data_path,
+                    split='test',
+                    task_id=idx,
+                    transform=transform,
+                    pre_transform=pre_transform) for idx in range(13)]
+    if args.debug:
+        train_set = [t[:16] for t in train_set]
+        val_set = [t[:16] for t in val_set]
+        test_set = [t[:16] for t in test_set]
+
+    # https://github.com/radoslav11/SP-MPNN/blob/main/src/experiments/run_gr.py#L22
+    norm_const = [
+        0.066513725,
+        0.012235489,
+        0.071939046,
+        0.033730778,
+        0.033486113,
+        0.004278493,
+        0.001330901,
+        0.004165489,
+        0.004128926,
+        0.00409976,
+        0.004527465,
+        0.012292586,
+        0.037467458,
+    ]
+    std = 1. / torch.tensor(norm_const, dtype=torch.float)
+
+    return train_set, val_set, test_set, std, True

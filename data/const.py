@@ -11,7 +11,7 @@ DATASET_FEATURE_STAT_DICT = {
     'ogbg-molbace': {'node': 9, 'edge': 3, 'num_class': 1},  # bin classification
     'ogbg-molhiv': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
     'ogbg-moltox21': {'node': 9, 'edge': 3, 'num_class': 12},  # binary classification, but 12 tasks
-    'qm9': {'node': 11, 'edge': 5, 'num_class': 12},  # regression, 12 labels
+    'qm9': {'node': 15, 'edge': 4, 'num_class': 1},  # regression, 13 labels, but we train 1 each split
     'exp': {'node': 1, 'edge': 0, 'num_class': 1},  # bin classification
     'protein': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
 
@@ -76,7 +76,7 @@ TASK_TYPE_DICT = {
     'ogbg-molbace': 'rocauc',
     'ogbg-molhiv': 'rocauc',
     'ogbg-moltox21': 'rocauc',
-    # 'qm9': 'regression',
+    'qm9': 'mae',
     'exp': 'acc',
     'protein': 'acc',
     'hetero_cornell': 'acc',
@@ -113,7 +113,7 @@ CRITERION_DICT = {
     'ogbg-molbace': nn.BCEWithLogitsLoss(),
     'ogbg-molhiv': nn.BCEWithLogitsLoss(),
     'ogbg-moltox21': nn.BCEWithLogitsLoss(),
-    'qm9': nn.L1Loss(),
+    'qm9': nn.MSELoss(),
     'exp': nn.BCEWithLogitsLoss(),
     'protein': nn.BCEWithLogitsLoss(),
 
