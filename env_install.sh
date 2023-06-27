@@ -21,3 +21,4 @@ pip install wandb
 pip install matplotlib
 pip install seaborn
 pip install GraphRicciCurvature
+pip install gdown
