@@ -1,3 +1,4 @@
+import pdb
 from functools import partial
 from typing import Any, Optional, Union
 
@@ -63,8 +64,8 @@ class Trainer:
                                 use_wandb=use_wandb,
                                 plot_args=plot_args,
                                 ensemble=sample_configs.ensemble,
-                                num_train_ensemble=imle_configs.num_train_ensemble,
-                                num_val_ensemble=imle_configs.num_val_ensemble,
+                                num_train_ensemble=imle_configs.num_train_ensemble if imle_configs is not None else 1,
+                                num_val_ensemble=imle_configs.num_val_ensemble if imle_configs is not None else 1,
                                 include_original_graph=sample_configs.include_original_graph)
             self.plot_score = partial(plot_score,
                                       plot_args=plot_args,
@@ -197,12 +198,13 @@ class Trainer:
                                                                       graphs,
                                                                       emb_model.training,
                                                                       *emb_model(dat_batch))
-                if self.plot is not None:
-                    self.plot(data, True, self.epoch, batch_id)
-                if self.plot_score is not None and scores is not None:
-                    self.plot_score(scores, self.epoch, batch_id)
             else:
-                data, _, auxloss = self.construct_duplicate_data(data)
+                data, scores, auxloss = self.construct_duplicate_data(data)
+
+            if self.plot is not None:
+                self.plot(data, True, self.epoch, batch_id)
+            if self.plot_score is not None and scores is not None:
+                self.plot_score(scores, self.epoch, batch_id)
 
             auxlosses = auxlosses + auxloss
 
