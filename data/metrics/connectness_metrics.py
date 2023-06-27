@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from GraphRicciCurvature.FormanRicci import FormanRicci
 from GraphRicciCurvature.OllivierRicci import OllivierRicci
+from networkx import NetworkXError
 from numba import jit, prange
 from scipy.sparse.linalg import eigs, eigsh
 from torch_geometric.data import Data, Batch
@@ -114,6 +115,14 @@ def get_ollivier_curvature(data: nx.Graph):
     return list(curv_dict.values())
 
 
+def get_diameter(data: nx.Graph):
+    try:
+        diam = nx.diameter(data)
+    except NetworkXError:
+        diam = None
+    return diam
+
+
 def get_connectedness_metric(data: Batch, metric: str = 'eigval'):
     assert isinstance(data.edge_index, torch.Tensor)
 
@@ -121,7 +130,8 @@ def get_connectedness_metric(data: Batch, metric: str = 'eigval'):
         metrics = ['forman_curvature',
                    'ollivier_curvature',
                    'balanced_forman',
-                   'eigval']
+                   'eigval',
+                   'diameter']
     else:
         metrics = [metric.lower()]
 
@@ -154,5 +164,11 @@ def get_connectedness_metric(data: Batch, metric: str = 'eigval'):
             cur_metric = balanced_forman_curvature(A).flatten().tolist()
             metrics_dict['balanced_forman'].extend(cur_metric)
             metrics_dict['smallest_balanced_forman'].append(min(cur_metric))
+
+    if 'diameter' in metrics:
+        for g in nx_graphs:
+            diam = get_diameter(g)
+            if diam is not None:
+                metrics_dict['diameter'].append(diam)
 
     return metrics_dict
