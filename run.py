@@ -1,13 +1,12 @@
 import os
 
+import numpy as np
 import torch
-from numpy import mean as np_mean
-from numpy import std as np_std
 
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
-from data.utils.datatype_utils import SyncMeanTimer
 from data.get_data import get_data
 from data.get_optimizer import make_get_embed_opt, make_get_opt
+from data.utils.datatype_utils import SyncMeanTimer
 from models.get_model import get_model
 from training.trainer import Trainer
 
@@ -194,34 +193,59 @@ def run(wandb, args):
             trainer.clear_stats()
 
     if args.early_stop.target == 'train_metric':
-        best_metrics = [np_mean(_) for _ in best_train_metrics]
+        best_metrics = np.array(best_train_metrics)
     elif args.early_stop.target == 'val_metric':
-        best_metrics = [np_mean(_) for _ in best_val_metrics]
+        best_metrics = np.array(best_val_metrics)
     else:
         raise NotImplementedError
-    test_metrics = [np_mean(_) for _ in test_metrics]
-    test_metrics_ensemble = [np_mean(_) for _ in test_metrics_ensemble]
+    test_metrics = np.array(test_metrics)
+    test_metrics_ensemble = np.array(test_metrics_ensemble)
 
-    results = {'best_metrics_type': args.early_stop.target,
-               'best_metrics': str(best_metrics),
-               'test_metrics': str(test_metrics),
-               'test_metrics_ensemble': str(test_metrics_ensemble),
-               'best_metrics_stats': f'mean: {np_mean(best_metrics)}, std: {np_std(best_metrics)}',
-               'test_metrics_stats': f'mean: {np_mean(test_metrics)}, std: {np_std(test_metrics)}',
-               'test_metrics_ensemble_stats': f'mean: {np_mean(test_metrics_ensemble)}, std: {np_std(test_metrics_ensemble)}',
-               'time_stats': f'mean: {np_mean(time_per_epoch)}, std: {np_std(time_per_epoch)}'}
+    if args.dataset.lower() != 'qm9':
+        results = {'best_metrics_type': args.early_stop.target,
+                   'best_metrics_stats': f'mean: {np.mean(best_metrics)}, std: {np.std(best_metrics)}',
+                   'test_metrics_stats': f'mean: {np.mean(test_metrics)}, std: {np.std(test_metrics)}',
+                   'test_metrics_ensemble_stats': f'mean: {np.mean(test_metrics_ensemble)}, std: {np.std(test_metrics_ensemble)}',
+                   'time_stats': f'mean: {np.mean(time_per_epoch)}, std: {np.std(time_per_epoch)}'}
+
+        wandb.run.summary['final_metric'] = np.mean(best_metrics)
+        wandb.run.summary['final_metric_std'] = np.std(best_metrics)
+
+        wandb.run.summary['test_metric'] = np.mean(test_metrics)
+        wandb.run.summary['test_metric_std'] = np.std(test_metrics)
+
+        wandb.run.summary['test_metric_ensemble'] = np.mean(test_metrics_ensemble)
+        wandb.run.summary['test_metric_ensemble_std'] = np.std(test_metrics_ensemble)
+
+        wandb.run.summary['time_per_epoch'] = np.mean(time_per_epoch)
+        wandb.run.summary['time_per_epoch_std'] = np.std(time_per_epoch)
+    else:
+        results = {'best_metrics_type': args.early_stop.target,
+                   'time_stats': f'mean: {np.mean(time_per_epoch)}, std: {np.std(time_per_epoch)}'}
+        best_metrics_mean = np.mean(best_metrics, axis=0)
+        best_metrics_std = np.std(best_metrics, axis=0)
+        test_metrics_mean = np.mean(test_metrics, axis=0)
+        test_metrics_std = np.std(test_metrics, axis=0)
+        test_metrics_ensemble_mean = np.mean(test_metrics_ensemble, axis=0)
+        test_metrics_ensemble_std = np.std(test_metrics_ensemble, axis=0)
+        # https://github.com/radoslav11/SP-MPNN/blob/main/src/experiments/run_gr.py#L6C1-L20C2
+        tasks = ["mu", "alpha", "HOMO", "LUMO", "gap", "R2", "ZPVE", "U0", "U", "H", "G", "Cv", "Omega"]
+        for i, t in enumerate(tasks):
+            results[f'{t}_best_metrics_stats'] = f'mean: {best_metrics_mean[i]}, std: {best_metrics_std[i]}'
+            results[f'{t}_test_metrics_stats'] = f'mean: {test_metrics_mean[i]}, std: {test_metrics_std[i]}'
+            results[f'{t}_test_metrics_ensemble_stats'] = f'mean: {test_metrics_ensemble_mean[i]}, std: {test_metrics_ensemble_std[i]}'
+
+            wandb.run.summary[f'{t}_final_metric'] = best_metrics_mean[i]
+            wandb.run.summary[f'{t}_final_metric_std'] = best_metrics_std[i]
+
+            wandb.run.summary[f'{t}_test_metric'] = test_metrics_mean[i]
+            wandb.run.summary[f'{t}_test_metric_std'] = test_metrics_std[i]
+
+            wandb.run.summary[f'{t}_test_metric_ensemble'] = test_metrics_ensemble_mean[i]
+            wandb.run.summary[f'{t}_test_metric_ensemble_std'] = test_metrics_ensemble_std[i]
+
+        wandb.run.summary['time_per_epoch'] = np.mean(time_per_epoch)
+        wandb.run.summary['time_per_epoch_std'] = np.std(time_per_epoch)
 
     with open(os.path.join(folder_name, 'result.yaml'), 'w') as outfile:
         yaml.dump(results, outfile, default_flow_style=False)
-
-    wandb.run.summary['final_metric'] = np_mean(best_metrics)
-    wandb.run.summary['final_metric_std'] = np_std(best_metrics)
-
-    wandb.run.summary['final_test_metric'] = np_mean(test_metrics)
-    wandb.run.summary['final_test_metric_std'] = np_std(test_metrics)
-
-    wandb.run.summary['final_test_metric_ensemble'] = np_mean(test_metrics_ensemble)
-    wandb.run.summary['final_test_metric_ensemble_std'] = np_std(test_metrics_ensemble)
-
-    wandb.run.summary['time_per_epoch'] = np_mean(time_per_epoch)
-    wandb.run.summary['time_per_epoch_std'] = np_std(time_per_epoch)
