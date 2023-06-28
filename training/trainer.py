@@ -318,17 +318,18 @@ class Trainer:
         if not test:
             self.best_val_loss = min(self.best_val_loss, val_loss)
 
-            if isinstance(scheduler, MyPlateau):
-                if scheduler.lr_target == 'train_metric':
-                    scheduler.step(train_metric)
-                elif scheduler.lr_target == 'train_loss':
-                    scheduler.step(train_loss)
-                elif scheduler.lr_target == 'val_metric':
-                    scheduler.step(val_metric)
-                elif scheduler.lr_target == 'val_loss':
-                    scheduler.step(val_loss)
-            else:
-                scheduler.step()
+            if scheduler is not None:
+                if isinstance(scheduler, MyPlateau):
+                    if scheduler.lr_target == 'train_metric':
+                        scheduler.step(train_metric)
+                    elif scheduler.lr_target == 'train_loss':
+                        scheduler.step(train_loss)
+                    elif scheduler.lr_target == 'val_metric':
+                        scheduler.step(val_metric)
+                    elif scheduler.lr_target == 'val_loss':
+                        scheduler.step(val_loss)
+                else:
+                    scheduler.step()
             if scheduler_embd is not None:
                 if isinstance(scheduler_embd, MyPlateau):
                     raise NotImplementedError("Need to specify max or min plateau")
