@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 import networkx as nx
+import numba
 import numpy as np
 import torch
 from GraphRicciCurvature.FormanRicci import FormanRicci
@@ -15,6 +16,8 @@ from torch_geometric.utils import (
     is_undirected,
     to_networkx,
 )
+
+from data.utils.neighbor_utils import edgeindex2neighbordict
 
 
 @jit(nopython=True)
@@ -123,15 +126,33 @@ def get_diameter(data: nx.Graph):
     return diam
 
 
+@numba.njit(cache=True)
+def get_node_homophily(num_nodes, edge_index, labels):
+    n_dict = edgeindex2neighbordict(edge_index, num_nodes)
+    homos = [0.] * num_nodes
+    for i in range(num_nodes):
+        y = labels[i]
+        same_count = 0.
+        if len(n_dict[i]):
+            for j, n in enumerate(n_dict[i]):
+                y_ = labels[n]
+                if y == y_:
+                    same_count += 1.
+            homos[i] = same_count / float(len(n_dict[i]))
+    return homos
+
+
 def get_connectedness_metric(data: Batch, metric: str = 'eigval'):
     assert isinstance(data.edge_index, torch.Tensor)
 
     if metric == 'all':
         metrics = ['forman_curvature',
-                   'ollivier_curvature',
+                   # 'ollivier_curvature',  ## too slow
                    'balanced_forman',
                    'eigval',
-                   'diameter']
+                   'diameter',
+                   'node_homophily',  # only for node classification
+                   ]
     else:
         metrics = [metric.lower()]
 
@@ -170,5 +191,13 @@ def get_connectedness_metric(data: Batch, metric: str = 'eigval'):
             diam = get_diameter(g)
             if diam is not None:
                 metrics_dict['diameter'].append(diam)
+
+    if 'node_homophily' in metrics:
+        for g in graphs:
+            if not hasattr(g, 'full_y'):
+                break
+            metrics_dict['node_homophily'].extend(get_node_homophily(g.num_nodes,
+                                                                     g.edge_index.cpu().numpy(),
+                                                                     g.full_y.cpu().numpy()))
 
     return metrics_dict
