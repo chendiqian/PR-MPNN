@@ -15,30 +15,25 @@ fixed:
 
   # down stream model
   model: gine_normal
-  hid_size: 256
+  hid_size: 64
   lr: 1.e-3
   optim: adam
-  lr_decay:
-    scheduler: plateau
-    mode: min
-    decay_rate: 0.5
-    patience: 50
-    target: val_metric
+  lr_decay: null
   early_stop:
     patience: 100
     target: val_metric
   reg: 0.
-  num_convlayers: 4
+  num_convlayers: 8
   mlp_layers_intragraph: 3
 #  mlp_layers_intergraph: 0
-  graph_pooling: mean
+  graph_pooling: max
 #  inter_graph_pooling: null
-  dropout: 0.
+  dropout: 0.5
   bn: True
   residual: True
-  batch_size: 128
-  min_epochs: 3
-  max_epochs: 10
+  batch_size: 32
+  min_epochs: 300
+  max_epochs: 1000
   data_path: './datasets'
   debug: False
   num_runs: 3
