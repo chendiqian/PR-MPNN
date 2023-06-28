@@ -9,6 +9,7 @@ from models.downstream_models.dynamic_rewire_gnn import DynamicRewireGNN
 from models.my_encoder import FeatureEncoder, BondEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.upstream_models.transformer import Transformer
+from models.downstream_models.qm9_gin import QM9_NetGIN
 from training.construct import construct_from_edge_candidate
 
 
@@ -172,6 +173,13 @@ def get_model(args, device, *_args):
             use_bn=args.bn,
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             graph_pooling=args.graph_pooling)
+    elif args.model == 'qm9_gin':
+        model = QM9_NetGIN(num_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                           num_classes=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['num_class'],
+                           emb_sizes=args.hid_size,
+                           num_layers=args.num_convlayers,
+                           drpt_prob=args.dropout,
+                           graph_pooling=args.graph_pooling)
     else:
         raise NotImplementedError
 
