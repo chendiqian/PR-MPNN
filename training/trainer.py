@@ -360,7 +360,7 @@ class Trainer:
                             "val_metric": val_metric,
                             "val_loss_ensemble": val_loss_ensemble,
                             "val_metric_ensemble": val_metric_ensemble,
-                            "down_lr": scheduler.get_last_lr()[-1],
+                            "down_lr": scheduler.get_last_lr()[-1] if scheduler is not None else 0.,
                             "up_lr": scheduler_embd.get_last_lr()[-1] if scheduler_embd is not None else 0.,
                             "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty)}
 
