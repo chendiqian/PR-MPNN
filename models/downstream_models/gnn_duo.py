@@ -1,5 +1,5 @@
 import torch
-from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set
+from torch_geometric.nn import global_mean_pool, global_add_pool, global_max_pool, Set2Set
 
 from models.my_convs import BaseGIN, BaseGINE
 from models.nn_modules import MLP
@@ -47,6 +47,9 @@ class GNN_Duo(torch.nn.Module):
         self.graph_pool_idx = 'batch'
         if graph_pooling == "sum":
             self.pool = global_add_pool
+            self.candid_pool = self.pool
+        elif graph_pooling == 'max':
+            self.pool = global_max_pool
             self.candid_pool = self.pool
         elif graph_pooling == "mean":
             self.pool = global_mean_pool
