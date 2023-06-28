@@ -55,7 +55,7 @@ class QM9(InMemoryDataset):
         super().__init__(root, transform, pre_transform, pre_filter)
         path = os.path.join(self.processed_dir, f'{split}.pt')
         self.data, self.slices = torch.load(path)
-        self._data.y = self._data.y[:, task_id]
+        self._data.y = self._data.y[:, task_id: task_id + 1]  # keep it (batchsize, 1)
 
     @property
     def raw_file_names(self):
