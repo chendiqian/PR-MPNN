@@ -86,7 +86,7 @@ def make_get_opt(args):
         else:
             raise ValueError
 
-        if args.lr_decay is None or args.lr_decay.lower() == 'none':
+        if args.lr_decay is None or (isinstance(args.lr_decay, str) and args.lr_decay.lower() == 'none'):
             scheduler = None
         elif args.lr_decay.scheduler == 'plateau':
             scheduler = MyPlateau(optimizer,
