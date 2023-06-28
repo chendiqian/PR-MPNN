@@ -72,7 +72,7 @@ def run(wandb, args):
 
     logger = get_logger(folder_name)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_loaders, val_loaders, test_loaders = get_data(args, device)
+    train_loaders, val_loaders, test_loaders, task_id = get_data(args, device)
 
     task_type = TASK_TYPE_DICT[args.dataset.lower()]
     criterion = CRITERION_DICT[args.dataset.lower()]    
@@ -230,7 +230,8 @@ def run(wandb, args):
         test_metrics_ensemble_std = np.std(test_metrics_ensemble, axis=0)
         # https://github.com/radoslav11/SP-MPNN/blob/main/src/experiments/run_gr.py#L6C1-L20C2
         tasks = ["mu", "alpha", "HOMO", "LUMO", "gap", "R2", "ZPVE", "U0", "U", "H", "G", "Cv", "Omega"]
-        for i, t in enumerate(tasks):
+        for i in task_id:
+            t = tasks[i]
             results[f'{t}_best_metrics_stats'] = f'mean: {best_metrics_mean[i]}, std: {best_metrics_std[i]}'
             results[f'{t}_test_metrics_stats'] = f'mean: {test_metrics_mean[i]}, std: {test_metrics_std[i]}'
             results[f'{t}_test_metrics_ensemble_stats'] = f'mean: {test_metrics_ensemble_mean[i]}, std: {test_metrics_ensemble_std[i]}'
