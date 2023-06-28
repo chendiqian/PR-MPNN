@@ -69,6 +69,7 @@ class HeterophilicDataset(InMemoryDataset):
                 graph = Data(edge_index=edges,
                             num_nodes=len(node_features),
                             x=node_features,
+                            full_y=labels,
                             y=labels[mask],
                             transductive_mask=mask)
 
