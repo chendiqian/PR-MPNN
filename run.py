@@ -74,15 +74,13 @@ def run(wandb, args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_loaders, val_loaders, test_loaders, task_id = get_data(args, device)
 
-    task_type = TASK_TYPE_DICT[args.dataset.lower()]
-    criterion = CRITERION_DICT[args.dataset.lower()]    
-
     trainer = Trainer(dataset=args.dataset.lower(),
-                      task_type=task_type,
+                      task_type=TASK_TYPE_DICT[args.dataset.lower()],
                       max_patience=args.early_stop.patience,
                       patience_target=args.early_stop.target,
-                      criterion=criterion,
+                      criterion=CRITERION_DICT[args.dataset.lower()],
                       device=device,
+                      num_layers=args.num_convlayers,
                       imle_configs=args.imle_configs,
                       sample_configs=args.sample_configs,
                       auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else None,

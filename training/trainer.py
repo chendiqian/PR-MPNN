@@ -1,4 +1,3 @@
-import pdb
 from functools import partial
 from typing import Any, Optional, Union
 
@@ -30,6 +29,7 @@ class Trainer:
                  patience_target: str,
                  criterion: torch.nn.modules.loss,
                  device: Union[str, torch.device],
+                 num_layers: int,
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
                  auxloss: ConfigDict,
@@ -108,6 +108,8 @@ class Trainer:
                                                             separate=sample_configs.separate,
                                                             in_place=sample_configs.in_place,
                                                             directed_sampling=sample_configs.directed,
+                                                            num_layers=num_layers,
+                                                            rewire_layers=eval(sample_configs.rewire_layers) if hasattr(sample_configs, 'rewire_layers') else None,
                                                             auxloss_dict=auxloss)
                 elif sample_configs.sample_policy == 'global':
                     # learnable way with attention mask
