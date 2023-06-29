@@ -57,3 +57,14 @@ def set_nonetype(dic: Dict):
         elif isinstance(v, dict):
             dic[k] = set_nonetype(v)
     return dic
+
+
+def process_idx(lst, max_len):
+    assert isinstance(lst, str)
+    lst = eval(lst)
+    assert len(lst) <= max_len
+    for i, l in enumerate(lst):
+        assert l < max_len
+        if l < 0:
+            lst[i] = max_len + l
+    return lst

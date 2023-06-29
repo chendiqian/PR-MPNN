@@ -15,6 +15,7 @@ from data.utils.datatype_utils import (AttributedDataLoader,
                                        DuoDataStructure,
                                        BatchOriginalDataStructure)
 from data.utils.plot_utils import plot_score, plot_rewired_graphs
+from data.utils.args_utils import process_idx
 from training.construct import (construct_from_edge_candidate,
                                 construct_from_attention_mat)
 
@@ -109,7 +110,8 @@ class Trainer:
                                                             in_place=sample_configs.in_place,
                                                             directed_sampling=sample_configs.directed,
                                                             num_layers=num_layers,
-                                                            rewire_layers=eval(sample_configs.rewire_layers) if hasattr(sample_configs, 'rewire_layers') else None,
+                                                            rewire_layers=process_idx(sample_configs.rewire_layers,
+                                                                                      num_layers) if hasattr(sample_configs, 'rewire_layers') else None,
                                                             auxloss_dict=auxloss)
                 elif sample_configs.sample_policy == 'global':
                     # learnable way with attention mask
