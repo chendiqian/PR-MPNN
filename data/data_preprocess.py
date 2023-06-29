@@ -219,6 +219,8 @@ class AugmentWithEdgeCandidate(GraphModification):
             x = torch.nn.functional.normalize(x, p=2.0, dim=1).numpy()
             mat = x @ x.T
             mat[np.arange(x.shape[0]), np.arange(x.shape[0])] = 0.
+        elif self.heu == 'all':
+            mat = None
         else:
             raise NotImplementedError
 
