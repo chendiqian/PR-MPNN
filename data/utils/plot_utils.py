@@ -14,6 +14,7 @@ from data.utils.datatype_utils import DuoDataStructure
 from data.utils.neighbor_utils import get_khop_neighbors
 
 
+@torch.no_grad()
 def plot_rewired_graphs(new_batch: DuoDataStructure,
                         train: bool,
                         epoch,
@@ -52,20 +53,17 @@ def plot_rewired_graphs(new_batch: DuoDataStructure,
     graphs = [[] for _ in range(len(candidates))]
     for i_c, c in enumerate(candidates):
         if per_layer_sampled:
+            edge_index_slice = [w.clone() for w in c._slice_dict['edge_index']]
+            edge_attr_slice = [w.clone() for w in c._slice_dict['edge_attr']]
+            edge_weight_slice = [w.clone() for w in c._slice_dict['edge_weight']]
             for i in range(L):
                 graph = c.clone()
-                if isinstance(graph.edge_index, (list, tuple)):
-                    graph.edge_index = graph.edge_index[i]
-                if isinstance(graph.edge_attr, (list, tuple)):
-                    graph.edge_attr = graph.edge_attr[i]
-                if isinstance(graph.edge_weight, (list, tuple)):
-                    graph.edge_weight = graph.edge_weight[i]
-                if isinstance(graph._slice_dict['edge_index'], (list, tuple)):
-                    graph._slice_dict['edge_index'] = graph._slice_dict['edge_index'][i]
-                if isinstance(graph._slice_dict['edge_attr'], (list, tuple)):
-                    graph._slice_dict['edge_attr'] = graph._slice_dict['edge_attr'][i]
-                if isinstance(graph._slice_dict['edge_weight'], (list, tuple)):
-                    graph._slice_dict['edge_weight'] = graph._slice_dict['edge_weight'][i]
+                graph.edge_index = graph.edge_index[i]
+                graph.edge_attr = graph.edge_attr[i]
+                graph.edge_weight = graph.edge_weight[i]
+                graph._slice_dict['edge_index'] = edge_index_slice[i]
+                graph._slice_dict['edge_attr'] = edge_attr_slice[i]
+                graph._slice_dict['edge_weight'] = edge_weight_slice[i]
 
                 graphs[i_c].append(graph.to_data_list())
         else:
