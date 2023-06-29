@@ -183,7 +183,13 @@ def construct_from_edge_candidate(dat_batch: Data,
                                   separate: bool = False,
                                   in_place: bool = True,
                                   directed_sampling: bool = False,
+                                  num_layers: int = None,
+                                  rewire_layers: List = None,
                                   auxloss_dict: ConfigDict = None):
+    """
+    A super lengthy, cpmplicated and coupled function
+    should find time to clean and comment it
+    """
     assert in_place
     negative_sample = negative_sample if train else 'zero'
 
@@ -208,6 +214,9 @@ def construct_from_edge_candidate(dat_batch: Data,
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     VE, B, N, E = node_mask.shape
     E, L = ensemble, E // ensemble
+
+    if rewire_layers is not None:
+        assert L == 1, "Does not support layer-wise logits in this case"
 
     sampled_edge_weights = get_weighted_mask(weight_edges,
                                              node_mask,
@@ -280,6 +289,27 @@ def construct_from_edge_candidate(dat_batch: Data,
 
         rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
 
+        if rewire_layers is not None:
+            per_layer_slice_dict = [rewired_batch._slice_dict['edge_index'] if idx_l in rewire_layers
+                                    else dat_batch._slice_dict['edge_index'] for idx_l in range(num_layers)]
+            per_layer_edge_index = [rewired_batch.edge_index if idx_l in rewire_layers
+                                    else dat_batch.edge_index for idx_l in range(num_layers)]
+            per_layer_edge_attr = [rewired_batch.edge_attr if idx_l in rewire_layers
+                                   else dat_batch.edge_attr for idx_l in range(num_layers)] \
+                if dat_batch.edge_attr is not None else [None] * num_layers
+            pad = torch.ones(dat_batch.edge_index.shape[1], dtype=torch.float, device=dat_batch.edge_index.device)
+            per_layer_edge_weight = [rewired_batch.edge_weight if idx_l in rewire_layers
+                                     else pad for idx_l in range(num_layers)]
+
+            rewired_batch._slice_dict['edge_index'] = per_layer_slice_dict
+            rewired_batch.edge_index = per_layer_edge_index
+            rewired_batch.edge_attr = per_layer_edge_attr
+            rewired_batch.edge_weight = per_layer_edge_weight
+
+            rewired_batch._slice_dict['edge_weight'] = rewired_batch._slice_dict['edge_index']
+            if rewired_batch.edge_attr is not None:
+                rewired_batch._slice_dict['edge_attr'] = rewired_batch._slice_dict['edge_index']
+
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                      candidates=[rewired_batch],
                                      y=rewired_batch.y,
@@ -317,11 +347,61 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                                     (original_num_edges + new_num_edges).cumsum(dim=0)])
 
         add_rewired_batch = sparsify_edge_weight(add_rewired_batch, merged_edge_weight, negative_sample)
+
+        if rewire_layers is not None:
+            per_layer_slice_dict = [add_rewired_batch._slice_dict['edge_index'] if idx_l in rewire_layers
+                                    else dat_batch._slice_dict['edge_index'] for idx_l in range(num_layers)]
+            per_layer_edge_index = [add_rewired_batch.edge_index if idx_l in rewire_layers
+                                    else dat_batch.edge_index for idx_l in range(num_layers)]
+            per_layer_edge_attr = [add_rewired_batch.edge_attr if idx_l in rewire_layers
+                                   else dat_batch.edge_attr for idx_l in range(num_layers)] \
+                if dat_batch.edge_attr is not None else [None] * num_layers
+            pad = torch.ones(dat_batch.edge_index.shape[1], dtype=torch.float, device=dat_batch.edge_index.device)
+            per_layer_edge_weight = [add_rewired_batch.edge_weight if idx_l in rewire_layers
+                                     else pad for idx_l in range(num_layers)]
+
+            add_rewired_batch._slice_dict['edge_index'] = per_layer_slice_dict
+            add_rewired_batch.edge_index = per_layer_edge_index
+            add_rewired_batch.edge_attr = per_layer_edge_attr
+            add_rewired_batch.edge_weight = per_layer_edge_weight
+
+            add_rewired_batch._slice_dict['edge_weight'] = add_rewired_batch._slice_dict['edge_index']
+            if add_rewired_batch.edge_attr is not None:
+                add_rewired_batch._slice_dict['edge_attr'] = add_rewired_batch._slice_dict['edge_index']
+
         candidates = [add_rewired_batch]
 
         if del_edge_weight is not None:
             del_rewired_batch = Batch.from_data_list(new_graphs)
             del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, negative_sample)
+
+            if rewire_layers is not None:
+                per_layer_slice_dict = [
+                    del_rewired_batch._slice_dict['edge_index'] if idx_l in rewire_layers
+                    else dat_batch._slice_dict['edge_index'] for idx_l in
+                    range(num_layers)]
+                per_layer_edge_index = [
+                    del_rewired_batch.edge_index if idx_l in rewire_layers
+                    else dat_batch.edge_index for idx_l in range(num_layers)]
+                per_layer_edge_attr = [
+                    del_rewired_batch.edge_attr if idx_l in rewire_layers
+                    else dat_batch.edge_attr for idx_l in range(num_layers)] \
+                    if dat_batch.edge_attr is not None else [None] * num_layers
+                pad = torch.ones(dat_batch.edge_index.shape[1], dtype=torch.float,
+                                 device=dat_batch.edge_index.device)
+                per_layer_edge_weight = [
+                    del_rewired_batch.edge_weight if idx_l in rewire_layers
+                    else pad for idx_l in range(num_layers)]
+
+                del_rewired_batch._slice_dict['edge_index'] = per_layer_slice_dict
+                del_rewired_batch.edge_index = per_layer_edge_index
+                del_rewired_batch.edge_attr = per_layer_edge_attr
+                del_rewired_batch.edge_weight = per_layer_edge_weight
+
+                del_rewired_batch._slice_dict['edge_weight'] = del_rewired_batch._slice_dict['edge_index']
+                if del_rewired_batch.edge_attr is not None:
+                    del_rewired_batch._slice_dict['edge_attr'] = del_rewired_batch._slice_dict['edge_index']
+
             candidates.append(del_rewired_batch)
 
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
