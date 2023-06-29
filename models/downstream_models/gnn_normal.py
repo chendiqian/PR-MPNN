@@ -54,7 +54,10 @@ class GNN_Normal(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        self.mlp = MLP([hidden if graph_pooling != 'set2set' else hidden * 2] * mlp_layers_intragraph + [num_classes], dropout=0.)
+        if mlp_layers_intragraph > 0:
+            self.mlp = MLP([hidden if graph_pooling != 'set2set' else hidden * 2] * mlp_layers_intragraph + [num_classes], dropout=0.)
+        else:
+            self.mlp = lambda x: x
 
     def reset_parameters(self):
         raise NotImplementedError

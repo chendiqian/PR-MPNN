@@ -56,7 +56,10 @@ class BaseGIN(torch.nn.Module):
         self.dropout = dropout
         self.use_residual = use_residual
 
-        if num_layers == 1:
+        if num_layers == 0:
+            self.convs = torch.nn.ModuleList()
+            self.bns = torch.nn.ModuleList()
+        elif num_layers == 1:
             self.convs = torch.nn.ModuleList([GINConv(
                 in_features,
                 Sequential(
@@ -184,7 +187,10 @@ class BaseGINE(torch.nn.Module):
         self.dropout = dropout
         self.use_residual = use_residual
 
-        if num_layers == 1:
+        if num_layers == 0:
+            self.convs = torch.nn.ModuleList()
+            self.bns = torch.nn.ModuleList()
+        elif num_layers == 1:
             self.convs = torch.nn.ModuleList([GINEConv(
                 in_features,
                 Sequential(
