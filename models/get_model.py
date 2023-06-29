@@ -144,6 +144,7 @@ def get_model(args, device, *_args):
         sampler = partial(construct_from_edge_candidate,
                           samplek_dict={'add_k': args.sample_configs.sample_k,
                                         'del_k': args.sample_configs.sample_k2},
+                          ensemble=args.sample_configs.ensemble,
                           sampler_class=sampler_class,
                           train_forward=train_forward,
                           val_forward=val_forward,
@@ -159,7 +160,6 @@ def get_model(args, device, *_args):
         model = DynamicRewireGNN(
             sampler,
             make_intermediate_gnn=make_intermediate_gnn,
-            ensemble=args.sample_configs.ensemble,
             encoder=encoder,
             edge_encoder=edge_encoder,
             hid_size=args.hid_size,
