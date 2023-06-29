@@ -234,8 +234,13 @@ class AugmentWithEdgeCandidate(GraphModification):
         multi_hop_idx = np.logical_not(np.in1d(candidate_idx_id, org_edge_index_id))
         candidate_idx = candidate_idx[:, multi_hop_idx]
 
-        distances = mat[candidate_idx[0], candidate_idx[1]]
-        edge_candidate = candidate_idx[:, np.argsort(distances)[-self.num_candidate:]]
+        if self.heu in ['node_similarity', 'longest_path']:
+            distances = mat[candidate_idx[0], candidate_idx[1]]
+            edge_candidate = candidate_idx[:, np.argsort(distances)[-self.num_candidate:]]
+        elif self.heu == 'all':
+            edge_candidate = candidate_idx
+        else:
+            raise ValueError
 
         graph.edge_candidate = torch.from_numpy(edge_candidate).T
         graph.num_edge_candidate = edge_candidate.shape[1]
