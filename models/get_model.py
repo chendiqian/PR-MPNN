@@ -142,6 +142,7 @@ def get_model(args, device, *_args):
                 graph_pooling=None,
                 inter_graph_pooling=args.inter_graph_pooling)
         sampler = partial(construct_from_edge_candidate,
+                          ensemble=args.sample_configs.ensemble,
                           samplek_dict={'add_k': args.sample_configs.sample_k,
                                         'del_k': args.sample_configs.sample_k2},
                           sampler_class=sampler_class,
@@ -154,6 +155,8 @@ def get_model(args, device, *_args):
                           separate=args.sample_configs.separate,
                           in_place=args.sample_configs.in_place,
                           directed_sampling=args.sample_configs.directed,
+                          num_layers=None,
+                          rewire_layers=None,
                           auxloss_dict=args.imle_configs.auxloss if hasattr(args.imle_configs,
                                                                    'auxloss') else None)
         model = DynamicRewireGNN(
