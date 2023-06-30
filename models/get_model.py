@@ -145,7 +145,6 @@ def get_model(args, device, *_args):
                           ensemble=args.sample_configs.ensemble,
                           samplek_dict={'add_k': args.sample_configs.sample_k,
                                         'del_k': args.sample_configs.sample_k2},
-                          ensemble=args.sample_configs.ensemble,
                           sampler_class=sampler_class,
                           train_forward=train_forward,
                           val_forward=val_forward,
