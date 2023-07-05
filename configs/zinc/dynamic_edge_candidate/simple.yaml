@@ -18,10 +18,9 @@ fixed:
     include_original_graph: True
 
   imle_configs:
-    sampler: gumbel
-    tau: 0.1
+    sampler: simple
     logits_activation: null
-    weight_edges: null
+    weight_edges: marginals
     marginals_mask: True
     negative_sample: 'full'
     num_train_ensemble: 1
@@ -68,7 +67,7 @@ fixed:
     target: val_metric
   reg: 0.
   num_convlayers: 4
-  intermediate_gnn_layers: 0
+  intermediate_gnn_layers: 1
   sample_mlp_layer: 2
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
@@ -81,8 +80,8 @@ fixed:
   min_epochs: 400
   max_epochs: 1000
   data_path: './datasets'
-  debug: True
-  num_runs: 3
+  debug: False
+  num_runs: 1
 
 #  plot_graphs:
 #    batch_id: 0
