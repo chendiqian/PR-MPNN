@@ -21,7 +21,7 @@ class GINConv(MessagePassing):
 
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
 
-    def forward(self, x, edge_index, edge_weight):
+    def forward(self, x, edge_index, edge_attr, edge_weight):
         if edge_weight is not None and edge_weight.ndim < 2:
             edge_weight = edge_weight[:, None]
 
@@ -120,11 +120,11 @@ class BaseGIN(torch.nn.Module):
         raise NotImplementedError
 
     def forward(self, x, edge_index, edge_attr, edge_weight=None):
-        del edge_attr
 
         for i, conv in enumerate(self.convs):
             x_new = conv(x,
                          edge_index[i] if isinstance(edge_index, (list, tuple)) else edge_index,
+                         edge_attr,
                          edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
             if self.use_bn:
                 x_new = self.bns[i](x_new)
