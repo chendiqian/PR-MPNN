@@ -9,7 +9,7 @@ from models.downstream_models.dynamic_rewire_gnn import DynamicRewireGNN
 from models.my_encoder import FeatureEncoder, BondEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.upstream_models.transformer import Transformer
-from models.downstream_models.qm9_gin import QM9_NetGIN
+from models.downstream_models.qm9_gnn import QM9_Net
 from training.construct import construct_from_edge_candidate
 
 
@@ -176,13 +176,18 @@ def get_model(args, device, *_args):
             use_bn=args.bn,
             mlp_layers_intragraph=args.mlp_layers_intragraph,
             graph_pooling=args.graph_pooling)
-    elif args.model == 'qm9_gin':
-        model = QM9_NetGIN(num_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                           num_classes=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['num_class'],
-                           emb_sizes=args.hid_size,
-                           num_layers=args.num_convlayers,
-                           drpt_prob=args.dropout,
-                           graph_pooling=args.graph_pooling)
+    elif args.model in ['qm9_gin', 'qm9_gine']:
+        assert not (hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse')
+                    or hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap')), "Need a new node encoder!"
+        model = QM9_Net(
+            gnn_type=args.model.split('_')[-1],
+            edge_encoder=edge_encoder,
+            num_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['num_class'],
+            emb_sizes=args.hid_size,
+            num_layers=args.num_convlayers,
+            drpt_prob=args.dropout,
+            graph_pooling=args.graph_pooling)
     else:
         raise NotImplementedError
 

@@ -73,7 +73,7 @@ class QM9_Net(torch.nn.Module):
             self.pooling(self.initial_linear(x_feat), data.batch), p=self.drpt_prob
         )
 
-        for gin_layer, linear_layer in zip(self.gin_modules, self.linear_modules):
+        for gin_layer, linear_layer in zip(self.gnn_modules, self.linear_modules):
             x_feat = gin_layer(x_feat, data.edge_index, data.edge_attr, data.edge_weight)
 
             out += F.dropout(
