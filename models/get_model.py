@@ -81,13 +81,19 @@ def get_model(args, device, *_args):
             graph_pooling=args.graph_pooling)
     elif 'duo' in args.model.lower():
         share_weights = args.model.lower().endswith('shared')  # default False
+
+        gnn_type = args.model.lower().split('_')[0]
+        if gnn_type.startswith('qm9'):
+            assert not (hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse')
+                        or hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap')), "Need a new node encoder!"
+
         model = GNN_Duo(encoder,
                         edge_encoder,
-                        args.model.lower().split('_')[0],  # gin or gine
+                        gnn_type,
                         share_weights=share_weights,
                         include_org=args.sample_configs.include_original_graph,
                         num_candidates=2 if args.sample_configs.separate and args.sample_configs.sample_k2 > 0 else 1,
-                        in_features=args.hid_size,
+                        in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
                         num_layers=args.num_convlayers,
                         hidden=args.hid_size,
                         num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
