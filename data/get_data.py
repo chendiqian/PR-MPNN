@@ -10,6 +10,7 @@ from ogb.graphproppred import PygGraphPropPredDataset
 from torch.utils.data import DataLoader as PTDataLoader
 from torch_geometric.datasets import ZINC
 from torch_geometric.loader import DataLoader as PyGDataLoader
+from torch_geometric.utils import degree as pyg_degree
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
@@ -177,6 +178,14 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std, qm9_task_id = get_qm9(args)
     else:
         raise ValueError
+
+    # calculate degree stats for PNA model
+    if 'pna' in args.model.lower():
+        target_dataset = train_set[0] if isinstance(train_set, list) else train_set
+        degs = torch.cat([pyg_degree(g.edge_index[1],
+                                     num_nodes=g.num_nodes,
+                                     dtype=torch.long) for g in target_dataset], dim=0)
+        args.ds_deg = torch.bincount(degs)
 
     if args.imle_configs is not None:
         # collator that returns a batch and a list

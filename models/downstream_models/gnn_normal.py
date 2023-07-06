@@ -1,7 +1,7 @@
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set, global_max_pool
 
-from models.my_convs import BaseGIN, BaseGINE
+from models.my_convs import BaseGIN, BaseGINE, BasePNA
 from models.nn_modules import MLP
 
 
@@ -10,6 +10,7 @@ class GNN_Normal(torch.nn.Module):
                  encoder,
                  edge_encoder,
                  base_gnn,
+                 deg_hist,
                  in_features,
                  num_layers,
                  hidden,
@@ -24,13 +25,17 @@ class GNN_Normal(torch.nn.Module):
         self.encoder = encoder
 
         if base_gnn == 'gin':
-            model_class = BaseGIN
+            self.gnn = BaseGIN(in_features, num_layers, hidden, hidden, use_bn,
+                                   dropout, residual, edge_encoder)
         elif base_gnn == 'gine':
-            model_class = BaseGINE
+            self.gnn = BaseGINE(in_features, num_layers, hidden, hidden, use_bn,
+                               dropout, residual, edge_encoder)
+        elif base_gnn == 'pna':
+            assert deg_hist is not None
+            self.gnn = BasePNA(in_features, num_layers, hidden, hidden, use_bn,
+                                dropout, residual, deg_hist, edge_encoder)
         else:
             raise NotImplementedError
-
-        self.gnn = model_class(in_features, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
 
         # intra-graph pooling
         self.graph_pool_idx = 'batch'

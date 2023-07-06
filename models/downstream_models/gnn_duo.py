@@ -1,7 +1,7 @@
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, global_max_pool, Set2Set
 
-from models.my_convs import BaseGIN, BaseGINE
+from models.my_convs import BaseGIN, BaseGINE, BasePNA
 from models.downstream_models.qm9_gnn import QM9_Net
 from models.nn_modules import MLP
 
@@ -16,6 +16,7 @@ class GNN_Duo(torch.nn.Module):
                  share_weights,
                  include_org,
                  num_candidates,
+                 deg_hist,
                  in_features,
                  num_layers,
                  hidden,
@@ -44,6 +45,10 @@ class GNN_Duo(torch.nn.Module):
             self.encoder = None  # no encoder, qm9 model has one
             graph_pooling, qm9_graph_pooling = None, graph_pooling
             self.gnn = QM9_Net('gin', edge_encoder, in_features, hidden, hidden, num_layers, dropout, qm9_graph_pooling)
+        elif base_gnn == 'pna':
+            assert deg_hist is not None
+            self.gnn = BasePNA(hidden, num_layers, hidden, hidden, use_bn,
+                               dropout, residual, deg_hist, edge_encoder)
         else:
             raise NotImplementedError
 
@@ -74,6 +79,12 @@ class GNN_Duo(torch.nn.Module):
                              num_layers, dropout, qm9_graph_pooling)
                      for _ in range(num_candidates)]
                 )
+            elif base_gnn == 'pna':
+                assert deg_hist is not None
+                self.candid_gnns = torch.nn.ModuleList(
+                    [BasePNA(hidden, num_layers, hidden, hidden, use_bn,
+                                   dropout, residual, deg_hist, edge_encoder)
+                     for _ in range(num_candidates)])
             else:
                 raise NotImplementedError
 

@@ -65,11 +65,12 @@ def get_encoder(args, for_downstream):
 
 def get_model(args, device, *_args):
     type_encoder, encoder, edge_encoder = get_encoder(args, for_downstream=True)
-    if args.model.lower() in ['gin_normal', 'gine_normal']:
+    if args.model.lower() in ['gin_normal', 'gine_normal', 'pna_normal']:
         model = GNN_Normal(
             encoder,
             edge_encoder,
             args.model.lower().split('_')[0],  # gin or gine
+            deg_hist=args.ds_deg if hasattr(args, 'ds_deg') else None,
             in_features=args.hid_size,
             num_layers=args.num_convlayers,
             hidden=args.hid_size,
@@ -93,6 +94,7 @@ def get_model(args, device, *_args):
                         share_weights=share_weights,
                         include_org=args.sample_configs.include_original_graph,
                         num_candidates=2 if args.sample_configs.separate and args.sample_configs.sample_k2 > 0 else 1,
+                        deg_hist=args.ds_deg if hasattr(args, 'ds_deg') else None,
                         in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
                         num_layers=args.num_convlayers,
                         hidden=args.hid_size,

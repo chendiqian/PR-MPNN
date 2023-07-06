@@ -2,12 +2,16 @@ from typing import Optional, Union
 
 import torch
 import torch.nn.functional as F
-from torch.nn import Sequential, Linear, ReLU, BatchNorm1d as BN
+from torch import Tensor
+from torch.nn import BatchNorm1d as BN
+from torch.nn import Linear, ReLU, Sequential
 from torch_geometric.nn import MessagePassing
+from torch_geometric.nn import PNAConv
+from torch_geometric.typing import Adj, OptTensor
 
+from .my_encoder import BondEncoder
 from .nn_modules import MLP
 from .nn_utils import reset_sequential_parameters, residual
-from .my_encoder import BondEncoder
 
 
 class GINConv(MessagePassing):
@@ -360,3 +364,114 @@ class GNN_Placeholder(torch.nn.Module):
 #     def message(self, x_j, norm, edge_weight):
 #         m = norm.view(-1, 1) * x_j
 #         return m * edge_weight if edge_weight is not None else m
+
+
+class MyPNAConv(PNAConv):
+    def forward(self, x: Tensor, edge_index: Adj, edge_attr: OptTensor = None, edge_weight: OptTensor = None) -> Tensor:
+        """"""
+
+        if self.divide_input:
+            x = x.view(-1, self.towers, self.F_in)
+        else:
+            x = x.view(-1, 1, self.F_in).repeat(1, self.towers, 1)
+
+        # propagate_type: (x: Tensor, edge_attr: OptTensor)
+        out = self.propagate(edge_index, x=x, edge_attr=edge_attr, size=None, edge_weight=edge_weight)
+
+        out = torch.cat([x, out], dim=-1)
+        outs = [nn(out[:, i]) for i, nn in enumerate(self.post_nns)]
+        out = torch.cat(outs, dim=1)
+
+        return self.lin(out)
+
+    def message(self, x_i: Tensor, x_j: Tensor,
+                edge_attr: OptTensor, edge_weight: OptTensor) -> Tensor:
+
+        h: Tensor = x_i  # Dummy.
+        if edge_attr is not None:
+            edge_attr = self.edge_encoder(edge_attr)
+            edge_attr = edge_attr.view(-1, 1, self.F_in)
+            edge_attr = edge_attr.repeat(1, self.towers, 1)
+            h = torch.cat([x_i, x_j, edge_attr], dim=-1)
+        else:
+            h = torch.cat([x_i, x_j], dim=-1)
+
+        hs = torch.stack([nn(h[:, i]) for i, nn in enumerate(self.pre_nns)], dim=1)
+        return hs if edge_weight is None else hs * edge_weight[:, None, None]
+
+
+class BasePNA(torch.nn.Module):
+    def __init__(self, in_features, num_layers, hidden, out_feature, use_bn, dropout,
+                 use_residual, deg, edge_encoder=None,
+                 aggregators=None,
+                 scalers=None,
+                 towers=4, pre_layers=1, post_layers=1, divide_input=True):
+        super(BasePNA, self).__init__()
+
+        if scalers is None:
+            scalers = ['identity', 'amplification', 'attenuation']
+        if aggregators is None:
+            aggregators = ['mean', 'min', 'max', 'std']
+        self.use_bn = use_bn
+        self.dropout = dropout
+        self.use_residual = use_residual
+
+        if num_layers == 0:
+            self.convs = torch.nn.ModuleList()
+            self.bns = torch.nn.ModuleList()
+        elif num_layers == 1:
+            self.convs = torch.nn.ModuleList([MyPNAConv(
+                in_features, out_feature, aggregators=aggregators, scalers=scalers,
+                towers=towers,
+                pre_layers=pre_layers, post_layers=post_layers, divide_input=divide_input,
+                deg=deg, edge_dim=4)])
+            if use_bn:
+                self.bns = torch.nn.ModuleList([BN(out_feature)])
+        else:
+            self.convs = torch.nn.ModuleList()
+            self.bns = torch.nn.ModuleList()
+
+            self.convs.append(MyPNAConv(
+                in_features, hidden, aggregators=aggregators, scalers=scalers,
+                towers=towers,
+                pre_layers=pre_layers, post_layers=post_layers, divide_input=divide_input,
+                deg=deg, edge_dim=4))
+            if use_bn:
+                self.bns.append(BN(hidden))
+
+            for _ in range(num_layers - 2):
+                self.convs.append(MyPNAConv(
+                    hidden, hidden, aggregators=aggregators, scalers=scalers,
+                    towers=towers,
+                    pre_layers=pre_layers, post_layers=post_layers,
+                    divide_input=divide_input, deg=deg, edge_dim=4))
+                if use_bn:
+                    self.bns.append(BN(hidden))
+
+            self.convs.append(MyPNAConv(
+                hidden, out_feature, aggregators=aggregators, scalers=scalers,
+                towers=towers,
+                pre_layers=pre_layers, post_layers=post_layers, divide_input=divide_input,
+                deg=deg, edge_dim=4))
+            if use_bn:
+                self.bns.append(BN(out_feature))
+
+    def reset_parameters(self):
+        raise NotImplementedError
+
+    def forward(self, x, edge_index, edge_attr, edge_weight=None):
+        for i, conv in enumerate(self.convs):
+            x_new = conv(x,
+                         edge_index[i] if isinstance(edge_index, (list, tuple)) else edge_index,
+                         edge_attr[i] if isinstance(edge_attr, (list, tuple)) else edge_attr,
+                         edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
+            if self.use_bn:
+                x_new = self.bns[i](x_new)
+            x_new = F.relu(x_new)
+            x_new = F.dropout(x_new, p=self.dropout, training=self.training)
+            if self.use_residual:
+                x = residual(x, x_new)
+            else:
+                x = x_new
+
+        return x
