@@ -1,6 +1,7 @@
 import os
 from argparse import Namespace
 from functools import partial
+from collections import defaultdict
 from typing import Tuple, Union, List, Optional
 
 import torch
@@ -8,6 +9,7 @@ from ml_collections import ConfigDict
 from networkx import kamada_kawai_layout
 from ogb.graphproppred import PygGraphPropPredDataset
 from torch.utils.data import DataLoader as PTDataLoader
+from torch_geometric.data import Data
 from torch_geometric.datasets import ZINC
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.utils import degree as pyg_degree
@@ -513,23 +515,36 @@ def get_qm9(args: Union[Namespace, ConfigDict]):
             raise TypeError
     else:
         task_id = list(range(13))
-    train_set = [QM9(data_path,
-                     split='train',
-                     task_id=idx,
-                     transform=transform,
-                     pre_transform=pre_transform) for idx in task_id]
 
-    val_set = [QM9(data_path,
-                   split='valid',
-                   task_id=idx,
-                   transform=transform,
-                   pre_transform=pre_transform) for idx in task_id]
+    dataset_lists = defaultdict(list)
 
-    test_set = [QM9(data_path,
-                    split='test',
-                    task_id=idx,
+    for split in ['train', 'valid', 'test']:
+
+        dataset = QM9(data_path,
+                      split=split,
+                      transform=transform,
+                      pre_transform=pre_transform)
+
+        for i in task_id:
+            new_data = Data()
+            for k, v in dataset._data._store.items():
+                if k != 'y':
+                    setattr(new_data, k, v)
+                else:
+                    setattr(new_data, k, v[:, i:i + 1])
+
+            d = QM9(data_path,
+                    split=split,
+                    return_data=False,
                     transform=transform,
-                    pre_transform=pre_transform) for idx in task_id]
+                    pre_transform=pre_transform)
+            d.data = new_data
+            dataset_lists[split].append(d)
+
+    train_set = dataset_lists['train']
+    val_set = dataset_lists['valid']
+    test_set = dataset_lists['test']
+
     if args.debug:
         train_set = [t[:16] for t in train_set]
         val_set = [t[:16] for t in val_set]

@@ -48,14 +48,13 @@ class QM9(InMemoryDataset):
     def __init__(self,
                  root,
                  split,
-                 task_id,
+                 return_data=True,
                  transform=None, pre_transform=None, pre_filter=None):
         assert split in ['train', 'valid', 'test']
         self.split = split
         super().__init__(root, transform, pre_transform, pre_filter)
-        path = os.path.join(self.processed_dir, f'{split}.pt')
-        self.data, self.slices = torch.load(path)
-        self._data.y = self._data.y[:, task_id: task_id + 1]  # keep it (batchsize, 1)
+        self.slices = torch.load(os.path.join(self.processed_dir, f'{split}_slice.pt'))
+        self.data = torch.load(os.path.join(self.processed_dir, f'{split}_data.pt')) if return_data else None
 
     @property
     def raw_file_names(self):
@@ -63,7 +62,8 @@ class QM9(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return ['train.pt', 'valid.pt', 'test.pt']
+        return ['train_data.pt', 'valid_data.pt', 'test_data.pt',
+                'train_slice.pt', 'valid_slice.pt', 'test_slice.pt']
 
     def download(self):
         gdown.download(url=self.url['train'], output=os.path.join(self.raw_dir, 'train.jsonl.gz'), quiet=False)
@@ -87,5 +87,6 @@ class QM9(InMemoryDataset):
                 if self.pre_filter is not None:
                     pyg_graphs = [d for d in pyg_graphs if self.pre_filter(d)]
 
-            torch.save(self.collate(pyg_graphs),
-                       os.path.join(self.processed_dir, f'{split}.pt'))
+            d, s = self.collate(pyg_graphs)
+            torch.save(d, os.path.join(self.processed_dir, f'{split}_data.pt'))
+            torch.save(s, os.path.join(self.processed_dir, f'{split}_slice.pt'))
