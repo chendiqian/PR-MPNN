@@ -138,6 +138,7 @@ def get_model(args, device, *_args):
                 share_weights=False,
                 include_org=args.sample_configs.include_original_graph,
                 num_candidates=2 if args.sample_configs.separate and args.sample_configs.sample_k2 > 0 else 1,
+                deg_hist=args.ds_deg if hasattr(args, 'ds_deg') else None,
                 in_features=args.hid_size,
                 num_layers=args.intermediate_gnn_layers,
                 hidden=args.hid_size,
