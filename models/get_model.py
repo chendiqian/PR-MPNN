@@ -8,6 +8,7 @@ from models.downstream_models.gnn_normal import GNN_Normal
 from models.downstream_models.dynamic_rewire_gnn import DynamicRewireGNN
 from models.my_encoder import FeatureEncoder, BondEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
+from models.upstream_models.edge_candidate_selector_2wl import EdgeSelector2WL
 from models.upstream_models.transformer import Transformer
 from models.downstream_models.qm9_gnn import QM9_Net
 from training.construct import construct_from_edge_candidate
@@ -227,6 +228,14 @@ def get_model(args, device, *_args):
                                      dropout=args.imle_configs.dropout,
                                      ensemble=args.sample_configs.ensemble * (args.num_convlayers if args.sample_configs.per_layer else 1),
                                      use_bn=args.imle_configs.batchnorm)
+        elif args.imle_configs.model == '2wl_edge_selector':
+            emb_model = EdgeSelector2WL(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'] ** 2 +
+                                        DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
+                                        args.imle_configs.emb_hid_size,
+                                        args.sample_configs.ensemble,
+                                        args.imle_configs.gnn_layer,
+                                        args.imle_configs.mlp_layer,
+                                        args.sample_configs.directed)
         else:
             raise NotImplementedError
     else:
