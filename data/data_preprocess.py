@@ -14,7 +14,7 @@ from torch_geometric.utils import (is_undirected,
 from torch_geometric.transforms import AddRandomWalkPE, AddLaplacianEigenvectorPE
 from torch_sparse import SparseTensor
 from data.utils.datatype_utils import BatchOriginalDataStructure
-from data.utils.neighbor_utils import batch_get_subgraphs_nodeidx
+from data.utils.neighbor_utils import batch_get_subgraphs_nodeidx, get_2wl_local_neighbors
 
 
 class GraphModification:
@@ -304,6 +304,25 @@ class AugmentWithSEALSubgraphs(GraphModification):
         return gs
 
 
+class AugmentWith2WLSuperGraph(GraphModification):
+    def __init__(self):
+        super(AugmentWith2WLSuperGraph, self).__init__()
+
+    def __call__(self, graph: Data):
+        edge_idx = graph.edge_index[0] * graph.num_nodes + graph.edge_index[1]
+        node_label = torch.kron(graph.x, graph.x)
+
+        edge_label = graph.edge_attr.new_zeros(graph.num_nodes ** 2, graph.edge_attr.shape[1])
+        edge_label[edge_idx] = graph.edge_attr
+
+        graph.x_2wl = torch.cat([node_label, edge_label], dim=1)
+
+        edge_index1, edge_index2 = get_2wl_local_neighbors(graph.edge_index.numpy(), graph.num_nodes)
+        graph.edge_index1, graph.edge_index2 = torch.tensor(edge_index1).t(), torch.tensor(edge_index2).t()
+        graph.nedges_2wl = graph.edge_index1.shape[1]
+        return graph
+
+
 class AugmentWithPPR(GraphModification):
     def __init__(self, max_num_nodes, alpha = 0.2, iters = 20):
         super(AugmentWithPPR, self).__init__()
@@ -350,6 +369,25 @@ class AugmentWithPlotCoordinates(GraphModification):
         pos = np.vstack([pos[n] for n in range(data.num_nodes)])
         data.nx_layout = torch.from_numpy(pos)
         return data
+
+
+class MyData(Data):
+    def __inc__(self, key, value, *args, **kwargs):
+        if 'batch' in key:
+            return int(value.max()) + 1
+        elif key == 'edge_index':
+            return self.num_nodes
+        elif key in ['edge_index1', 'edge_index2']:
+            return self.x_2wl.shape[0]
+        else:
+            return 0
+
+class IncTransform(object):
+    def __call__(self, data):
+        new_data = MyData()
+        for key, item in data.items():
+            setattr(new_data, key, item)
+        return new_data
 
 
 def collate_fn_with_origin_list(graphs: List[Data]):

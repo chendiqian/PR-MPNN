@@ -27,6 +27,8 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPPR,
                               AugmentWithPlotCoordinates,
                               AugmentWithSEALSubgraphs,
+                              AugmentWith2WLSuperGraph,
+                              IncTransform,
                               collate_fn_with_origin_list)
 from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewired_batch
 from data.utils.datatype_utils import AttributedDataLoader
@@ -67,7 +69,8 @@ PRETRANSFORM_PRIORITY = {
     AddRandomWalkPE: 98,
     AddLaplacianEigenvectorPE: 98,
     AugmentWithPlotCoordinates: 98,
-    AugmentWithSEALSubgraphs: -1,  # this must be the last, it returns a list of graphs
+    AugmentWithSEALSubgraphs: -1,  # this must be the last, it returns a list of graphs. PLUS: this does not work due to OOM
+    AugmentWith2WLSuperGraph: -1,
 }
 
 
@@ -85,15 +88,18 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
         extra_path += 'rwse_'
     if hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap'):
         extra_path += 'lap_'
-    if hasattr(args.imle_configs, 'attenbias'):
-        extra_path += 'attenbias_'
+    if hasattr(args.imle_configs, 'model') and args.imle_configs.model == '2wl_edge_selector':
+        extra_path += '2wl_'
     return extra_path if len(extra_path) else None
 
 
 def get_transform(args: Union[Namespace, ConfigDict]):
     # I-MLE training does not require transform, instead the masks are given by upstream + I-MLE
     if args.imle_configs is not None:
-        return None
+        if hasattr(args.imle_configs, 'model') and args.imle_configs.model == '2wl_edge_selector':
+            return IncTransform()
+        else:
+            return None
     # normal training
     if args.sample_configs.sample_policy is None:
         return None
@@ -138,6 +144,9 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
         heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
         directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
         pretransform.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
+
+    if hasattr(args.imle_configs, 'model') and args.imle_configs.model == '2wl_edge_selector':
+        pretransform.append(AugmentWith2WLSuperGraph())
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)
