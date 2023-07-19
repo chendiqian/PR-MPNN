@@ -4,7 +4,7 @@ import torch
 from torch_geometric.data import Data, Batch
 
 from models.nn_modules import MLP
-from models.my_convs import BaseGINE, GNN_Placeholder
+from models.my_convs import BaseGINE, BasePNA, GNN_Placeholder
 
 
 class EdgeSelector(torch.nn.Module):
@@ -19,7 +19,9 @@ class EdgeSelector(torch.nn.Module):
                  directed_sampling=False,
                  dropout=0.,
                  ensemble=1,
-                 use_bn=False):
+                 use_bn=False,
+                 deg_hist=None,
+                 upstream_model=None):
         super(EdgeSelector, self).__init__()
 
         if isinstance(mlp_layer, int):
@@ -32,7 +34,12 @@ class EdgeSelector(torch.nn.Module):
         if gnn_layer == 0:
             self.gnn = GNN_Placeholder()
         else:
-            self.gnn = BaseGINE(in_dim, gnn_layer, hid_size, hid_size, True, dropout, True, edge_encoder)
+            if upstream_model == 'pna':
+                assert deg_hist is not None
+                self.gnn = BasePNA(in_dim, gnn_layer, hid_size, hid_size, True, dropout, True, deg_hist, edge_encoder)
+            else:
+                # default to GIN
+                self.gnn = BaseGINE(in_dim, gnn_layer, hid_size, hid_size, True, dropout, True, edge_encoder)
             in_dim = hid_size
 
         self.atom_encoder = encoder

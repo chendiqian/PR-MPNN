@@ -227,7 +227,10 @@ def get_model(args, device, *_args):
                                      directed_sampling=args.sample_configs.directed,
                                      dropout=args.imle_configs.dropout,
                                      ensemble=args.sample_configs.ensemble * (args.num_convlayers if args.sample_configs.per_layer else 1),
-                                     use_bn=args.imle_configs.batchnorm)
+                                     use_bn=args.imle_configs.batchnorm,
+                                     deg_hist=args.ds_deg if hasattr(args, 'ds_deg') else None,
+                                     upstream_model=args.imle_configs.upstream_model if hasattr(
+                                         args.imle_configs, 'upstream_model') else None, )
         elif args.imle_configs.model == '2wl_edge_selector':
             emb_model = EdgeSelector2WL(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'] ** 2 +
                                         DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'],
