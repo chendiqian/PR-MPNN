@@ -3,7 +3,7 @@ fixed:
   log_path: './logs'
 
   use_wandb: False
-  wandb_name: "best_edge_candid"
+  wandb_name: "dynamic_rewire"
 
   sample_configs:
     sample_policy: edge_candid
@@ -16,6 +16,8 @@ fixed:
     ensemble: 1
     heuristic: longest_path
     include_original_graph: True
+    sample_alpha: 0.5 # between 0 and 1; formula is ceil(k * (alpha ^ layer)); sampling less in first layers
+                      # if alpha == 1 then we sample k at each layer
 
   imle_configs:
     sampler: simple

@@ -185,7 +185,8 @@ def get_model(args, device, *_args):
             ensemble=args.sample_configs.ensemble,
             use_bn=args.bn,
             mlp_layers_intragraph=args.mlp_layers_intragraph,
-            graph_pooling=args.graph_pooling)
+            graph_pooling=args.graph_pooling,
+            sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,)
     elif args.model in ['qm9_gin', 'qm9_gine']:
         assert not (hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse')
                     or hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap')), "Need a new node encoder!"

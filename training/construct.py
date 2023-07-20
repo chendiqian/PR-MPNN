@@ -1,5 +1,8 @@
+import copy
+
 from typing import List, Callable, Dict, Any
 
+from math import ceil
 import numpy as np
 import torch
 from ml_collections import ConfigDict
@@ -185,7 +188,8 @@ def construct_from_edge_candidate(dat_batch: Data,
                                   directed_sampling: bool = False,
                                   num_layers: int = None,
                                   rewire_layers: List = None,
-                                  auxloss_dict: ConfigDict = None):
+                                  auxloss_dict: ConfigDict = None,
+                                  sample_ratio: float = 1.0):
     """
     A super lengthy, cpmplicated and coupled function
     should find time to clean and comment it
@@ -194,6 +198,16 @@ def construct_from_edge_candidate(dat_batch: Data,
     negative_sample = negative_sample if train else 'zero'
 
     auxloss = 0.
+
+    new_samplek_dict = copy.deepcopy(samplek_dict)
+
+    # # ==================update del and add k for dynamic gnn=====================
+    # Needed for strange behaviour in which samplek_dict remains modified after calling
+    # the function, even if the old values are restored
+    
+    if sample_ratio != 1.0:
+        new_samplek_dict['del_k'] = ceil(new_samplek_dict['del_k'] * sample_ratio)
+        new_samplek_dict['add_k'] = ceil(new_samplek_dict['add_k'] * sample_ratio)
 
     # ===============================edge addition======================================
     # (B x Nmax x E) (B x Nmax)
@@ -210,7 +224,7 @@ def construct_from_edge_candidate(dat_batch: Data,
     logits = output_logits - padding_bias
 
     # (#sampled, B, Nmax, E), (B, Nmax, E)
-    sampler_class.k = samplek_dict['add_k']
+    sampler_class.k = new_samplek_dict['add_k']
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     VE, B, N, E = node_mask.shape
     E, L = ensemble, E // ensemble
@@ -241,12 +255,12 @@ def construct_from_edge_candidate(dat_batch: Data,
     add_edge_weight = add_edge_weight.permute((1, 2, 0)).reshape(L, -1).squeeze(0)
 
     # =============================edge deletion===================================
-    if samplek_dict['del_k'] > 0:
+    if new_samplek_dict['del_k'] > 0:
         del_edge_weight, auxloss = sample4deletion(dat_batch,
                                                    deletion_logits,
                                                    train_forward if train else val_forward,
                                                    sampler_class,
-                                                   samplek_dict,
+                                                   new_samplek_dict,
                                                    ensemble,
                                                    directed_sampling,
                                                    auxloss,

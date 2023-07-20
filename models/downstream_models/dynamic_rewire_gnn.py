@@ -6,6 +6,7 @@ from torch.nn import Sequential, Linear, ReLU, BatchNorm1d as BN
 from torch_geometric.data import Data, Batch
 from torch_geometric.nn import global_mean_pool, global_add_pool
 
+from math import ceil
 from models.my_convs import GINEConv
 from models.nn_modules import MLP
 from models.nn_utils import residual
@@ -28,7 +29,8 @@ class DynamicRewireGNN(torch.nn.Module):
                  ensemble,
                  use_bn,
                  mlp_layers_intragraph,
-                 graph_pooling):
+                 graph_pooling,
+                 sample_alpha=1):
         super(DynamicRewireGNN, self).__init__()
 
         if isinstance(sample_mlp_layer, int):
@@ -47,6 +49,10 @@ class DynamicRewireGNN(torch.nn.Module):
             raise NotImplementedError
 
         self.atom_encoder = encoder
+
+        self.n_layers = gnn_layer
+        assert 0 <= sample_alpha <= 1, f'sample_alpha should be in [0, 1], got {sample_alpha}'
+        self.sample_alpha = sample_alpha
 
         self.directed_sampling = directed_sampling
         self.use_bn = use_bn
@@ -153,12 +159,16 @@ class DynamicRewireGNN(torch.nn.Module):
             xs = torch.split(x, split_idx)
             for idx, g in enumerate(graphs):
                 g.x = xs[idx]
+
+            sample_ratio = self.sample_alpha ** (self.n_layers - (i + 1))
+
             sampled_data, mask, auxloss = self.sampler(data,
                                                        graphs,
                                                        self.training,
                                                        select_edge_candidates,
                                                        delete_edge_candidates,
-                                                       edge_candidate_idx)
+                                                       edge_candidate_idx,
+                                                       sample_ratio = sample_ratio)
 
             # graph is still 21 dimensional
             x = self.intermediate_gnns[i](sampled_data)
