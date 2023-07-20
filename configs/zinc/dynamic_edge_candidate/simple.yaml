@@ -2,8 +2,9 @@ fixed:
   dataset: zinc
   log_path: './logs'
 
-  use_wandb: False
+  use_wandb: True
   wandb_name: "dynamic_rewire"
+  wandb_prefix: "increase_rewire"
 
   sample_configs:
     sample_policy: edge_candid
