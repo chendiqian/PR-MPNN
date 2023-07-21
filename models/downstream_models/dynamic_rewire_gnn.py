@@ -199,7 +199,8 @@ class DecoupledDynamicRewireGNN(torch.nn.Module):
                  use_bn,
                  mlp_layers_intragraph,
                  graph_pooling,
-                 sample_alpha=1):
+                 sample_alpha=1,
+                 input_from_downstream=False):
         super(DecoupledDynamicRewireGNN, self).__init__()
 
         if isinstance(sample_mlp_layer, int):
@@ -222,6 +223,8 @@ class DecoupledDynamicRewireGNN(torch.nn.Module):
         self.n_layers = gnn_layer
         assert 0 <= sample_alpha <= 1, f'sample_alpha should be in [0, 1], got {sample_alpha}'
         self.sample_alpha = sample_alpha
+        self.input_from_down = input_from_downstream
+        print(f'input from downstream: {self.input_from_down}')
 
         self.directed_sampling = directed_sampling
         self.use_bn = use_bn
@@ -301,9 +304,15 @@ class DecoupledDynamicRewireGNN(torch.nn.Module):
             edge_index = edge_index[:,edge_index[0] <= edge_index[1]]  # self loops included
 
         x_down = x.clone()
-        x_up = x
+
+        if not self.input_from_down:
+            x_up = x
+            
         for i, conv in enumerate(self.convs):
             # gnn layer
+            if self.input_from_down:
+                x_up = x_down.clone().detach()
+
             x_up_new = conv(x_up, data.edge_index, data.edge_attr, data.edge_weight)
 
             if self.use_bilinear:
@@ -357,3 +366,4 @@ class DecoupledDynamicRewireGNN(torch.nn.Module):
 
     def reset_parameters(self):
         raise NotImplementedError
+

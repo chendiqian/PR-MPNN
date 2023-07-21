@@ -187,7 +187,8 @@ def get_model(args, device, *_args):
                 use_bn=args.bn,
                 mlp_layers_intragraph=args.mlp_layers_intragraph,
                 graph_pooling=args.graph_pooling,
-                sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,)
+                sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,
+                input_from_downstream=args.imle_configs.input_from_downstream if hasattr(args.imle_configs, 'input_from_downstream') else 0,)
         else:
             model = DynamicRewireGNN(
                 sampler,

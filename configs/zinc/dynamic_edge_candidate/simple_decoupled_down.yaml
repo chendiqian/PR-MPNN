@@ -1,0 +1,94 @@
+fixed:
+  dataset: zinc
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "dynamic_rewire"
+  wandb_prefix: "decoupled_downstreamin"
+
+  sample_configs:
+    sample_policy: edge_candid
+    separate: False
+    directed: False
+    in_place: True
+    sample_k: 80   # edge addition
+    sample_k2: 20   # edge deletion
+    candid_pool: 100
+    ensemble: 1
+    heuristic: longest_path
+    include_original_graph: True
+    # sample_alpha: 0.5 # between 0 and 1; formula is ceil(k * (alpha ^ layer)); sampling less in first layers
+                      # if alpha == 1 then we sample k at each layer
+
+  imle_configs:
+    sampler: simple
+    logits_activation: null
+    weight_edges: marginals
+    marginals_mask: True
+    negative_sample: 'full'
+    num_train_ensemble: 1
+    num_val_ensemble: 1
+    input_from_downstream: True
+
+    model: null  # important
+    rwse:
+      kernel: 20
+      layers: 2
+      dim_pe: 32
+      raw_norm_type: 'BatchNorm'
+
+    lap:
+      max_freqs: 4
+      dim_pe: 32
+      layers: 2
+      raw_norm_type: null
+
+    auxloss: null
+
+  rwse:
+    kernel: 20
+    layers: 2
+    dim_pe: 16
+    raw_norm_type: 'BatchNorm'
+  lap:
+    max_freqs: 4
+    dim_pe: 16
+    layers: 2
+    raw_norm_type: null
+
+  optim: "adam"
+  model: dynamic_edge_candidate_decoupled_gine
+  hid_size: 256
+  lr: 1.e-3
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'max'
+    patience: 150
+    target: 'val_metric'
+  early_stop:
+    patience: 200
+    target: val_metric
+  reg: 0.
+  num_convlayers: 4
+  intermediate_gnn_layers: 1
+  sample_mlp_layer: 2
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 2
+  graph_pooling: mean
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 128
+  min_epochs: 400
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 1
+
+#  plot_graphs:
+#    batch_id: 0
+#    plot_every: 100
+#    n_graphs: 5
+#    plot_folder: './plots'
