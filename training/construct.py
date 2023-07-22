@@ -446,11 +446,17 @@ def construct_from_attention_mat(dat_batch: Data,
                                  include_original_graph: bool,
                                  negative_sample: str,
                                  in_place: bool,
-                                 separate: bool):
+                                 separate: bool,
+                                 sample_ratio: float = 1.0):
     negative_sample = negative_sample if train else 'zero'
 
     padding_bias = (~real_node_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
     logits = output_logits - padding_bias
+
+    new_samplek_dict = copy.deepcopy(samplek_dict)
+    if sample_ratio != 1.0:
+        new_samplek_dict['del_k'] = ceil(new_samplek_dict['del_k'] * sample_ratio)
+        new_samplek_dict['add_k'] = ceil(new_samplek_dict['add_k'] * sample_ratio)
 
     auxloss = 0.
     if train and auxloss_dict is not None:
@@ -462,7 +468,7 @@ def construct_from_attention_mat(dat_batch: Data,
     # (#sampled, B, N, N, E), (B, N, N, E)
     # ==================add edges from the N x N matrix============================
     sampler_class.policy = sample_policy
-    sampler_class.k = samplek_dict['add_k']
+    sampler_class.k = new_samplek_dict['add_k']
     original_adj, self_loop_adj = batched_edge_index_to_batched_adj(dat_batch)
     sampler_class.adj = self_loop_adj
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
@@ -482,7 +488,7 @@ def construct_from_attention_mat(dat_batch: Data,
     add_edge_weight = add_edge_weight.permute((1, 2, 3, 0)).reshape(L, -1).squeeze(0)
 
     # =============================edge deletion===================================
-    if samplek_dict['del_k'] > 0:
+    if new_samplek_dict['del_k'] > 0:
         deletion_logits = output_logits[original_adj]
         if not directed_sampling:
             direct_mask = dat_batch.edge_index[0] <= dat_batch.edge_index[1]
@@ -492,7 +498,7 @@ def construct_from_attention_mat(dat_batch: Data,
                                                    deletion_logits,
                                                    train_forward if train else val_forward,
                                                    sampler_class,
-                                                   samplek_dict,
+                                                   new_samplek_dict,
                                                    ensemble,
                                                    directed_sampling,
                                                    auxloss,
