@@ -2,9 +2,9 @@ fixed:
   dataset: zinc
   log_path: './logs'
 
-  use_wandb: True
+  use_wandb: False
   wandb_name: "dynamic_rewire"
-  wandb_prefix: "decoupled_downstreamin"
+  wandb_prefix: "increase_rewire"
 
   sample_configs:
     sample_policy: edge_candid
@@ -17,7 +17,7 @@ fixed:
     ensemble: 1
     heuristic: longest_path
     include_original_graph: True
-    # sample_alpha: 0.5 # between 0 and 1; formula is ceil(k * (alpha ^ layer)); sampling less in first layers
+    sample_alpha: 0.5 # between 0 and 1; formula is ceil(k * (alpha ^ layer)); sampling less in first layers
                       # if alpha == 1 then we sample k at each layer
 
   imle_configs:
@@ -28,7 +28,6 @@ fixed:
     negative_sample: 'full'
     num_train_ensemble: 1
     num_val_ensemble: 1
-    input_from_downstream: True
 
     model: null  # important
     rwse:
@@ -57,7 +56,7 @@ fixed:
     raw_norm_type: null
 
   optim: "adam"
-  model: dynamic_gine_decoupled_gine   # layer-wise, gine upstream, decoupled, gine down stream
+  model: dynamic_trans_decoupled_gine  # layer-wise, trans upstream, decoupled, gine down stream
   hid_size: 256
   lr: 1.e-3
   lr_decay:
@@ -72,12 +71,12 @@ fixed:
   reg: 0.
   num_convlayers: 4
   intermediate_gnn_layers: 1
-  sample_mlp_layer: 2
   mlp_layers_intragraph: 3
   mlp_layers_intergraph: 2
   graph_pooling: mean
   inter_graph_pooling: cat
   dropout: 0.
+  num_heads: 4
   bn: True
   residual: True
   batch_size: 128

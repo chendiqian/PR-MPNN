@@ -56,7 +56,7 @@ fixed:
     raw_norm_type: null
 
   optim: "adam"
-  model: dynamic_edge_candidate_gine
+  model: dynamic_gine_gine  # layer-wise, trans upstream, coupled, gine down stream
   hid_size: 256
   lr: 1.e-3
   lr_decay:
