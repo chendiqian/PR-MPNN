@@ -140,7 +140,8 @@ class TransformerLayer(nn.Module):
                  attn_dropout=0.0,
                  layer_norm=False,
                  batch_norm=True,
-                 use_spectral_norm=False,):
+                 use_spectral_norm=False,
+                 use_attn=True):
         super().__init__()
 
         self.dim_h = dim_h
@@ -153,11 +154,14 @@ class TransformerLayer(nn.Module):
         self.local_model = None
 
         # Global attention transformer-style model.
-        self.self_attn = AttentionLayer(dim_h,
-                                        dim_h,
-                                        num_heads,
-                                        attention_dropout=self.attn_dropout,
-                                        use_spectral_norm=use_spectral_norm)
+        if use_attn:
+            self.self_attn = AttentionLayer(dim_h,
+                                            dim_h,
+                                            num_heads,
+                                            attention_dropout=self.attn_dropout,
+                                            use_spectral_norm=use_spectral_norm)
+        else:
+            self.self_attn = None
 
         if self.layer_norm and self.batch_norm:
             raise ValueError("Cannot apply two types of normalization together")
@@ -203,6 +207,8 @@ class TransformerLayer(nn.Module):
             if self.batch_norm:
                 h_attn = self.norm1_attn(h_attn)
             h_out_list.append(h_attn)
+        else:
+            h_out_list.append(h_in1)
 
         # Combine local and global outputs.
         # h = torch.cat(h_out_list, dim=-1)
@@ -224,10 +230,4 @@ class TransformerLayer(nn.Module):
         return self.ff_dropout2(self.ff_linear2(x))
 
     def reset_parameters(self):
-        self.self_attn._reset_parameters()
-        if self.layer_norm or self.batch_norm:
-            self.norm1_local.reset_parameters()
-            self.norm1_attn.reset_parameters()
-            self.norm2.reset_parameters()
-        self.ff_linear1.reset_parameters()
-        self.ff_linear2.reset_parameters()
+        raise NotImplementedError
