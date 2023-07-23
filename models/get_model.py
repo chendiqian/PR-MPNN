@@ -5,13 +5,16 @@ from data.get_sampler import get_sampler
 from models.downstream_models.gnn_duo import GNN_Duo
 from models.downstream_models.gnn_halftransformer import GNN_HalfTransformer
 from models.downstream_models.gnn_normal import GNN_Normal
-from models.downstream_models.dynamic_rewire_gnn import DynamicRewireGNN, DecoupledDynamicRewireGNN
+from models.downstream_models.dynamic_rewire_gnn import (DynamicRewireGNN,
+                                                         DecoupledDynamicRewireGNN,
+                                                         DynamicRewireTransUpstreamGNN,
+                                                         DecoupledDynamicRewireTransUpstreamGNN)
 from models.my_encoder import FeatureEncoder, BondEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.upstream_models.edge_candidate_selector_2wl import EdgeSelector2WL
 from models.upstream_models.transformer import Transformer
 from models.downstream_models.qm9_gnn import QM9_Net
-from training.construct import construct_from_edge_candidate
+from training.construct import construct_from_edge_candidate, construct_from_attention_mat
 
 
 def get_encoder(args, for_downstream):
@@ -127,11 +130,12 @@ def get_model(args, device, *_args):
             use_spectral_norm=True,
             graph_pooling=args.graph_pooling,
         )
-    elif args.model.lower().startswith('dynamic_edge_candidate'):
+    elif args.model.lower().startswith('dynamic'):
         train_forward, val_forward, sampler_class = get_sampler(args.imle_configs,
                                                                 args.sample_configs,
                                                                 device)
         def make_intermediate_gnn():
+            # downstream GNN
             return GNN_Duo(
                 lambda data: data.x,
                 edge_encoder,
@@ -151,63 +155,119 @@ def get_model(args, device, *_args):
                 mlp_layers_intergraph=args.mlp_layers_intergraph,
                 graph_pooling=None,
                 inter_graph_pooling=args.inter_graph_pooling)
-        sampler = partial(construct_from_edge_candidate,
-                          ensemble=args.sample_configs.ensemble,
-                          samplek_dict={'add_k': args.sample_configs.sample_k,
-                                        'del_k': args.sample_configs.sample_k2},
-                          sampler_class=sampler_class,
-                          train_forward=train_forward,
-                          val_forward=val_forward,
-                          weight_edges=args.imle_configs.weight_edges,
-                          marginals_mask=args.imle_configs.marginals_mask,
-                          include_original_graph=args.sample_configs.include_original_graph,
-                          negative_sample=args.imle_configs.negative_sample,
-                          separate=args.sample_configs.separate,
-                          in_place=args.sample_configs.in_place,
-                          directed_sampling=args.sample_configs.directed,
-                          num_layers=None,
-                          rewire_layers=None,
-                          auxloss_dict=args.imle_configs.auxloss if hasattr(args.imle_configs,
-                                                                   'auxloss') else None)
-        if 'decoupled' in args.model.lower():
-            model = DecoupledDynamicRewireGNN(
-                sampler,
-                make_intermediate_gnn=make_intermediate_gnn,
-                encoder=encoder,
-                edge_encoder=edge_encoder,
-                hid_size=args.hid_size,
-                gnn_type=args.model.lower().split('_')[-1],
-                gnn_layer=args.num_convlayers,
-                sample_mlp_layer=args.sample_mlp_layer,
-                num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                directed_sampling=args.sample_configs.directed,
-                residual=args.residual,
-                dropout=args.dropout,
-                ensemble=args.sample_configs.ensemble,
-                use_bn=args.bn,
-                mlp_layers_intragraph=args.mlp_layers_intragraph,
-                graph_pooling=args.graph_pooling,
-                sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,
-                input_from_downstream=args.imle_configs.input_from_downstream if hasattr(args.imle_configs, 'input_from_downstream') else 0,)
+        if args.model.lower().split('_')[1] == 'trans':
+            # transformer upstream
+            sampler = partial(construct_from_attention_mat,
+                              ensemble=args.sample_configs.ensemble,
+                              samplek_dict={'add_k': args.sample_configs.sample_k,
+                                            'del_k': args.sample_configs.sample_k2},
+                              sample_policy='global_' + (
+                                  'directed' if args.sample_configs.directed else 'undirected'),
+                              directed_sampling=args.sample_configs.directed,
+                              auxloss_dict=args.imle_configs.auxloss if hasattr(
+                                  args.imle_configs,
+                                  'auxloss') else None,
+                              sampler_class=sampler_class,
+                              train_forward=train_forward,
+                              val_forward=val_forward,
+                              weight_edges=args.imle_configs.weight_edges,
+                              marginals_mask=args.imle_configs.marginals_mask,
+                              device=device,
+                              include_original_graph=args.sample_configs.include_original_graph,
+                              negative_sample=args.imle_configs.negative_sample,
+                              in_place=args.sample_configs.in_place,
+                              separate=args.sample_configs.separate, )
+            if 'decoupled' in args.model.lower():
+                model = DecoupledDynamicRewireTransUpstreamGNN(
+                    sampler,
+                    make_intermediate_gnn,
+                    encoder,
+                    hid_size=args.hid_size,
+                    gnn_layer=args.num_convlayers,
+                    num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                    dropout=args.dropout,
+                    num_heads=args.num_heads,
+                    ensemble=args.sample_configs.ensemble,
+                    mlp_layers_intragraph=args.mlp_layers_intragraph,
+                    graph_pooling=args.graph_pooling,
+                    sample_alpha=args.sample_configs.sample_alpha if hasattr(
+                        args.sample_configs,
+                        'sample_alpha') else 1,
+                    input_from_downstream=args.imle_configs.input_from_downstream if hasattr(args.imle_configs, 'input_from_downstream') else 0
+                )
+            else:
+                model = DynamicRewireTransUpstreamGNN(sampler,
+                                                      make_intermediate_gnn,
+                                                      encoder,
+                                                      hid_size=args.hid_size,
+                                                      num_heads=args.num_heads,
+                                                      gnn_layer=args.num_convlayers,
+                                                      num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                                                      dropout=args.dropout,
+                                                      ensemble=args.sample_configs.ensemble,
+                                                      mlp_layers_intragraph=args.mlp_layers_intragraph,
+                                                      graph_pooling=args.graph_pooling,
+                                                      sample_alpha=args.sample_configs.sample_alpha if hasattr(
+                                                          args.sample_configs,
+                                                          'sample_alpha') else 1, )
         else:
-            model = DynamicRewireGNN(
-                sampler,
-                make_intermediate_gnn=make_intermediate_gnn,
-                encoder=encoder,
-                edge_encoder=edge_encoder,
-                hid_size=args.hid_size,
-                gnn_type=args.model.lower().split('_')[-1],
-                gnn_layer=args.num_convlayers,
-                sample_mlp_layer=args.sample_mlp_layer,
-                num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-                directed_sampling=args.sample_configs.directed,
-                residual=args.residual,
-                dropout=args.dropout,
-                ensemble=args.sample_configs.ensemble,
-                use_bn=args.bn,
-                mlp_layers_intragraph=args.mlp_layers_intragraph,
-                graph_pooling=args.graph_pooling,
-                sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,)
+            sampler = partial(construct_from_edge_candidate,
+                              ensemble=args.sample_configs.ensemble,
+                              samplek_dict={'add_k': args.sample_configs.sample_k,
+                                            'del_k': args.sample_configs.sample_k2},
+                              sampler_class=sampler_class,
+                              train_forward=train_forward,
+                              val_forward=val_forward,
+                              weight_edges=args.imle_configs.weight_edges,
+                              marginals_mask=args.imle_configs.marginals_mask,
+                              include_original_graph=args.sample_configs.include_original_graph,
+                              negative_sample=args.imle_configs.negative_sample,
+                              separate=args.sample_configs.separate,
+                              in_place=args.sample_configs.in_place,
+                              directed_sampling=args.sample_configs.directed,
+                              num_layers=None,
+                              rewire_layers=None,
+                              auxloss_dict=args.imle_configs.auxloss if hasattr(args.imle_configs,
+                                                                       'auxloss') else None)
+            if 'decoupled' in args.model.lower():
+                model = DecoupledDynamicRewireGNN(
+                    sampler,
+                    make_intermediate_gnn=make_intermediate_gnn,
+                    encoder=encoder,
+                    edge_encoder=edge_encoder,
+                    hid_size=args.hid_size,
+                    gnn_type=args.model.lower().split('_')[-1],
+                    gnn_layer=args.num_convlayers,
+                    sample_mlp_layer=args.sample_mlp_layer,
+                    num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                    directed_sampling=args.sample_configs.directed,
+                    residual=args.residual,
+                    dropout=args.dropout,
+                    ensemble=args.sample_configs.ensemble,
+                    use_bn=args.bn,
+                    mlp_layers_intragraph=args.mlp_layers_intragraph,
+                    graph_pooling=args.graph_pooling,
+                    sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,
+                    input_from_downstream=args.imle_configs.input_from_downstream if hasattr(args.imle_configs, 'input_from_downstream') else 0,)
+            else:
+                model = DynamicRewireGNN(
+                    sampler,
+                    make_intermediate_gnn=make_intermediate_gnn,
+                    encoder=encoder,
+                    edge_encoder=edge_encoder,
+                    hid_size=args.hid_size,
+                    gnn_type=args.model.lower().split('_')[-1],
+                    gnn_layer=args.num_convlayers,
+                    sample_mlp_layer=args.sample_mlp_layer,
+                    num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+                    directed_sampling=args.sample_configs.directed,
+                    residual=args.residual,
+                    dropout=args.dropout,
+                    ensemble=args.sample_configs.ensemble,
+                    use_bn=args.bn,
+                    mlp_layers_intragraph=args.mlp_layers_intragraph,
+                    graph_pooling=args.graph_pooling,
+                    sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,)
     elif args.model in ['qm9_gin', 'qm9_gine']:
         assert not (hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse')
                     or hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap')), "Need a new node encoder!"
