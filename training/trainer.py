@@ -134,7 +134,13 @@ class Trainer:
                                                             include_original_graph=sample_configs.include_original_graph,
                                                             negative_sample=imle_configs.negative_sample,
                                                             in_place=sample_configs.in_place,
-                                                            separate=sample_configs.separate)
+                                                            separate=sample_configs.separate,
+                                                            num_layers=num_layers,
+                                                            rewire_layers=process_idx(
+                                                                sample_configs.rewire_layers,
+                                                                num_layers) if hasattr(
+                                                                sample_configs,
+                                                                'rewire_layers') else None)
                 else:
                     raise ValueError(f'unexpected policy {sample_configs.sample_policy}')
 
