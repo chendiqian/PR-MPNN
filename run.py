@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
 from data.get_data import get_data
@@ -102,8 +103,17 @@ def run(wandb, args):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(
                 zip(train_loaders, val_loaders, test_loaders)):
             model, emb_model = get_model(args, device)
-            optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
-            optimizer, scheduler = get_opt(model)
+
+            # super hacky and bad workaround to split the schedulers for the dynamic model down and up lr
+            # will break if we add params or change the params names
+            # proper way is to split the model into the model and emb_model as in the other cases
+            # the emb_model stays None since we just pass the params to get the optimizers
+            if 'dynamic' in args.model and args.imle_configs.separate_up_lr == True:
+                optimizer_embd, scheduler_embd = get_embed_opt(nn.ModuleList(modules=[model.convs, model.bns, model.add_mlp_heads, model.del_mlp_heads]))
+                optimizer, scheduler = get_opt(nn.ModuleList(modules=[model.atom_encoder, model.intermediate_gnns, model.mlp]))
+            else:
+                optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
+                optimizer, scheduler = get_opt(model)
 
             # wandb.watch(model, log="all", log_freq=10)
             # if emb_model is not None:

@@ -3,6 +3,8 @@ from typing import Any, Optional, Union
 
 import numpy as np
 import torch
+import torch.nn as nn
+
 from ml_collections import ConfigDict
 from torch_geometric.data import Data
 
@@ -223,7 +225,11 @@ class Trainer:
             optimizer.step()
             if optimizer_embd is not None:
                 # torch.nn.utils.clip_grad_value_(emb_model.parameters(), clip_value=1.0)
-                torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=False)
+                if emb_model is None:
+                    # dynamic case, hacky.
+                    torch.nn.utils.clip_grad_norm_(nn.ModuleList(modules=[model.convs, model.bns, model.add_mlp_heads, model.del_mlp_heads]).parameters(), max_norm=1.0, error_if_nonfinite=False)
+                else:
+                    torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=False)
                 optimizer_embd.step()
                 optimizer_embd.zero_grad()
 
