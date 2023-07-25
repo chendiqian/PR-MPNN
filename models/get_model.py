@@ -176,7 +176,9 @@ def get_model(args, device, *_args):
                               include_original_graph=args.sample_configs.include_original_graph,
                               negative_sample=args.imle_configs.negative_sample,
                               in_place=args.sample_configs.in_place,
-                              separate=args.sample_configs.separate, )
+                              separate=args.sample_configs.separate,
+                              num_layers=None,
+                              rewire_layers=None,)
             if 'decoupled' in args.model.lower():
                 model = DecoupledDynamicRewireTransUpstreamGNN(
                     sampler,
