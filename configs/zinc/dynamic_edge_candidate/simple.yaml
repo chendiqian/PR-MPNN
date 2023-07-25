@@ -30,6 +30,12 @@ fixed:
     num_val_ensemble: 1
 
     model: null  # important
+
+    emb_optim: "adamw"
+    emb_scheduler: None
+    embd_lr: 1.e-3
+    reg_embd: 0.
+
     rwse:
       kernel: 20
       layers: 2

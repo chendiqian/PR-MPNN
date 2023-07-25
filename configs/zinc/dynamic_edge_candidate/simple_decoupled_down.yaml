@@ -32,7 +32,6 @@ fixed:
 
     model: null  # important
 
-    separate_up_lr: True # if you want different schedulers for up,down
     emb_optim: "adamw"
     emb_scheduler: None
     embd_lr: 1.e-3

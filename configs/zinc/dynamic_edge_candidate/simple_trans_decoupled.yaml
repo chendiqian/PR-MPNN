@@ -7,15 +7,13 @@ fixed:
   wandb_prefix: "increase_rewire"
 
   sample_configs:
-    sample_policy: edge_candid
+    sample_policy: global
     separate: False
     directed: False
     in_place: True
     sample_k: 80   # edge addition
     sample_k2: 20   # edge deletion
-    candid_pool: 100
     ensemble: 1
-    heuristic: longest_path
     include_original_graph: True
     sample_alpha: 0.5 # between 0 and 1; formula is ceil(k * (alpha ^ layer)); sampling less in first layers
                       # if alpha == 1 then we sample k at each layer
@@ -30,6 +28,12 @@ fixed:
     num_val_ensemble: 1
 
     model: null  # important
+
+    emb_optim: "adamw"
+    emb_scheduler: None
+    embd_lr: 1.e-3
+    reg_embd: 0.
+
     rwse:
       kernel: 20
       layers: 2
