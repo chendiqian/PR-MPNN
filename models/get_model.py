@@ -1,3 +1,4 @@
+import torch.nn
 import torch.nn as nn
 from functools import partial
 from data.const import DATASET_FEATURE_STAT_DICT
@@ -68,6 +69,7 @@ def get_encoder(args, for_downstream):
 
 
 def get_model(args, device, *_args):
+    model, emb_model, surrogate_model = None, None, None
     type_encoder, encoder, edge_encoder = get_encoder(args, for_downstream=True)
     if args.model.lower() in ['gin_normal', 'gine_normal', 'pna_normal']:
         model = GNN_Normal(
@@ -197,6 +199,8 @@ def get_model(args, device, *_args):
                         'sample_alpha') else 1,
                     input_from_downstream=args.imle_configs.input_from_downstream if hasattr(args.imle_configs, 'input_from_downstream') else 0
                 )
+                surrogate_model = torch.nn.ModuleList([model.tfs, model.attns])
+                emb_model = torch.nn.ModuleList([model.mlp, model.intermediate_gnns, model.atom_encoder])
             else:
                 model = DynamicRewireTransUpstreamGNN(sampler,
                                                       make_intermediate_gnn,
@@ -212,6 +216,8 @@ def get_model(args, device, *_args):
                                                       sample_alpha=args.sample_configs.sample_alpha if hasattr(
                                                           args.sample_configs,
                                                           'sample_alpha') else 1, )
+                surrogate_model = torch.nn.ModuleList([model.tfs, model.attns])
+                emb_model = torch.nn.ModuleList([model.mlp, model.intermediate_gnns, model.atom_encoder])
         else:
             sampler = partial(construct_from_edge_candidate,
                               ensemble=args.sample_configs.ensemble,
@@ -251,6 +257,8 @@ def get_model(args, device, *_args):
                     graph_pooling=args.graph_pooling,
                     sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,
                     input_from_downstream=args.imle_configs.input_from_downstream if hasattr(args.imle_configs, 'input_from_downstream') else 0,)
+                surrogate_model = torch.nn.ModuleList([model.convs, model.bns, model.add_mlp_heads, model.del_mlp_heads])
+                emb_model = torch.nn.ModuleList([model.mlp, model.intermediate_gnns, model.atom_encoder])
             else:
                 model = DynamicRewireGNN(
                     sampler,
@@ -270,6 +278,8 @@ def get_model(args, device, *_args):
                     mlp_layers_intragraph=args.mlp_layers_intragraph,
                     graph_pooling=args.graph_pooling,
                     sample_alpha=args.sample_configs.sample_alpha if hasattr(args.sample_configs, 'sample_alpha') else 1,)
+                surrogate_model = torch.nn.ModuleList([model.convs, model.bns, model.add_mlp_heads, model.del_mlp_heads])
+                emb_model = torch.nn.ModuleList([model.mlp, model.intermediate_gnns, model.atom_encoder])
     elif args.model in ['qm9_gin', 'qm9_gine']:
         assert not (hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse')
                     or hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap')), "Need a new node encoder!"
@@ -325,7 +335,9 @@ def get_model(args, device, *_args):
                                         args.sample_configs.directed)
         else:
             raise NotImplementedError
-    else:
-        emb_model = None
 
-    return model.to(device), emb_model.to(device) if emb_model is not None else None
+    if emb_model is not None:
+        emb_model = emb_model.to(device)
+    if surrogate_model is not None:
+        surrogate_model = surrogate_model.to(device)
+    return model.to(device), emb_model, surrogate_model

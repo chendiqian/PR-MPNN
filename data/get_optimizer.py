@@ -41,20 +41,23 @@ class MyPlateau(optim.lr_scheduler.ReduceLROnPlateau):
 
 
 def make_get_embed_opt(args):
-    def get_embed_opt(model):
+    def get_embed_opt(model, surrogate_model):
+        if surrogate_model is None:
+            surrogate_model = model
+
         if model is None:
             return None, None
 
         if args.imle_configs.emb_optim == 'adam':
-            optimizer_embd = optim.Adam(model.parameters(),
+            optimizer_embd = optim.Adam(surrogate_model.parameters(),
                                         lr=args.imle_configs.embd_lr,
                                         weight_decay=args.imle_configs.reg_embd)
         elif args.imle_configs.emb_optim == 'sgd':
-            optimizer_embd = optim.SGD(model.parameters(),
+            optimizer_embd = optim.SGD(surrogate_model.parameters(),
                                        lr=args.imle_configs.embd_lr,
                                        weight_decay=args.imle_configs.reg_embd)
         elif args.imle_configs.emb_optim == 'adamw':
-            optimizer_embd = optim.AdamW(model.parameters(),
+            optimizer_embd = optim.AdamW(surrogate_model.parameters(),
                                          lr=args.imle_configs.embd_lr,
                                          weight_decay=args.imle_configs.reg_embd)
         else:

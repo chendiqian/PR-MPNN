@@ -101,9 +101,9 @@ def run(wandb, args):
     for _run in range(args.num_runs):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(
                 zip(train_loaders, val_loaders, test_loaders)):
-            model, emb_model = get_model(args, device)
+            model, emb_model, surrogate_model = get_model(args, device)
             optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
-            optimizer, scheduler = get_opt(model)
+            optimizer, scheduler = get_opt(model, surrogate_model)
 
             # wandb.watch(model, log="all", log_freq=10)
             # if emb_model is not None:
