@@ -1,0 +1,233 @@
+program: main.py
+method: bayes
+entity: mls-stuttgart
+project: sweep-1l
+name: sweep-1l
+run_cap: 50
+
+metric:
+  goal: minimize
+  name: final_metric
+
+parameters:
+  # read data
+  dataset:
+    value: zinc
+  log_path:
+    value: './logs'
+  data_path:
+    value: './datasets'
+
+  # debugger mode
+  num_runs:
+    value: 1
+  use_wandb:
+    value: True
+  debug:
+    value: False
+
+  # sample configs, shared by random and learnable sampling methods
+  sample_configs.sample_policy:
+    value: edge_candid
+  sample_configs.per_layer:
+    value: False
+  sample_configs.separate:
+    value: False
+  sample_configs.directed:
+    value: False
+  sample_configs.in_place:
+    value: True
+  sample_configs.sample_k:
+    value: 80
+  sample_configs.sample_k2:
+    value: 20
+  sample_configs.candid_pool:
+    value: 100
+  sample_configs.heuristic:
+    value: longest_path
+  sample_configs.ensemble:
+    value: 1
+  sample_configs.include_original_graph:
+    value: True
+  sample_configs.rewire_layers:
+    values:
+      - "[-1]"
+      - "[0]"
+      - "[-2]"
+      - "[-1, -2]"
+      - "[0, -1]"
+    distribution: categorical
+
+  # sampler and its hyperparams
+  imle_configs.sampler:
+    value: simple
+  imle_configs.logits_activation:
+    value: None
+  imle_configs.negative_sample:
+    value: full
+  imle_configs.num_train_ensemble:
+    values:
+      - 1
+      - 3
+      - 5
+      - 10
+    distribution: categorical
+  imle_configs.num_val_ensemble:
+    values:
+      - 1
+      - 3
+      - 5
+      - 10
+    distribution: categorical
+
+  # weighting the edges
+  imle_configs.weight_edges:
+    value: marginals
+  imle_configs.marginals_mask:
+    values: 
+      - True
+      - False
+    distribution: categorical
+
+  # upstream model
+  imle_configs.model:
+    value: "edge_selector"
+  imle_configs.rwse.kernel:
+    value: 20
+  imle_configs.rwse.layers:
+    value: 2
+  imle_configs.rwse.dim_pe:
+    value: 16
+  imle_configs.rwse.raw_norm_type:
+    value: 'BatchNorm'
+  imle_configs.lap.max_freqs:
+    value: 4
+  imle_configs.lap.dim_pe:
+    value: 16
+  imle_configs.lap.layers:
+    value: 2
+  imle_configs.lap.raw_norm_type:
+    value: None
+  imle_configs.emb_hid_size:
+    values:
+      - 32
+      - 64
+      - 96
+      - 128
+      - 256
+    distribution: categorical
+  imle_configs.gnn_layer:
+    values:
+      - 2
+      - 4
+      - 8
+      - 16
+    distribution: categorical
+  imle_configs.mlp_layer:
+    values:
+      - 1
+      - 2
+      - 4
+    distribution: categorical
+  imle_configs.dropout:
+    values: 
+      - 0.
+      - 0.1
+      - 0.5
+    distribution: categorical
+
+  # upstream training
+  imle_configs.embd_lr:
+    values:
+      - 1.e-1
+      - 1.e-2
+      - 1.e-3
+  imle_configs.emb_optim:
+    value: adamw
+  imle_configs.emb_scheduler:
+    value: "None"
+  imle_configs.reg_embd:
+    value: 0.
+  imle_configs.layernorm:
+    value: False
+  imle_configs.batchnorm:
+    value: True
+
+  # downstream model
+  model:
+    value: gine_duo
+  hid_size:
+    value: 256
+  num_convlayers:
+    values:
+      - 2 
+      - 4
+      - 8
+      - 16
+    distribution: categorical
+  mlp_layers_intragraph:
+    value: 3
+  mlp_layers_intergraph:
+    value: 2
+  graph_pooling:
+    values: 
+      - mean
+      - sum
+      - max
+    distribution: categorical
+  dropout:
+    value: 0.
+  bn:
+    value: True
+  residual:
+    value: True
+  inter_graph_pooling:
+    values: 
+      - cat
+      - mean
+    distribution: categorical
+
+  # downstream training
+  rwse.kernel:
+    value: 20
+  rwse.layers:
+    value: 2
+  rwse.dim_pe:
+    value: 16
+  rwse.raw_norm_type:
+    value: 'BatchNorm'
+  lap.max_freqs:
+    value: 4
+  lap.dim_pe:
+    value: 16
+  lap.layers:
+    value: 2
+  lap.raw_norm_type:
+    value: None
+
+  lr:
+    value: 1.e-3
+  lr_decay.scheduler:
+    value: 'plateau'
+  lr_decay.decay_rate:
+    value: 0.5
+  lr_decay.mode:
+    value: 'max'
+  lr_decay.patience:
+    value: 150
+  lr_decay.target:
+    value: 'val_metric'
+  optim:
+    value: adam
+  early_stop.patience:
+    value: 200
+  early_stop.target:
+    value: val_metric
+  reg:
+    value: 0.
+  batch_size:
+    value: 128
+  min_epochs:
+    value: 700
+  max_epochs:
+    value: 1000
