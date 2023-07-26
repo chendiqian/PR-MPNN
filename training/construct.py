@@ -167,27 +167,22 @@ def get_weighted_mask(weight_edges: str,
     return sampled_edge_weights
 
 
-def assign_layer_wise_info(rewire_layers: List, num_layers: int, rewired_batch: Batch, dat_batch: Batch,):
-    """
-
-    Args:
-        rewire_layers: target layers
-        num_layers:
-        rewired_batch: target batch data
-        dat_batch: original data containing original edge info
-
-    Returns:
-
-    """
+def assign_layer_wise_info(rewire_layers: List,
+                           num_layers: int,
+                           rewired_batch: Batch,
+                           dumb_repeat_edge_slice: torch.Tensor,
+                           dumb_repeat_edge_index: torch.Tensor,
+                           dumb_repeat_edge_attr: torch.Tensor,
+                           ):
     per_layer_slice_dict = [rewired_batch._slice_dict['edge_index'] if idx_l in rewire_layers
-                            else dat_batch._slice_dict['edge_index'] for idx_l in range(num_layers)]
+                            else dumb_repeat_edge_slice for idx_l in range(num_layers)]
     per_layer_edge_index = [rewired_batch.edge_index if idx_l in rewire_layers
-                            else dat_batch.edge_index for idx_l in range(num_layers)]
+                            else dumb_repeat_edge_index for idx_l in range(num_layers)]
     per_layer_edge_attr = [rewired_batch.edge_attr if idx_l in rewire_layers
-                           else dat_batch.edge_attr for idx_l in range(num_layers)] \
-        if dat_batch.edge_attr is not None else [None] * num_layers
-    pad = torch.ones(dat_batch.edge_index.shape[1], dtype=torch.float,
-                     device=dat_batch.edge_index.device)
+                           else dumb_repeat_edge_attr for idx_l in range(num_layers)] \
+        if dumb_repeat_edge_attr is not None else [None] * num_layers
+    pad = torch.ones(dumb_repeat_edge_index.shape[1], dtype=torch.float,
+                     device=dumb_repeat_edge_index.device)
     per_layer_edge_weight = [rewired_batch.edge_weight if idx_l in rewire_layers
                              else pad for idx_l in range(num_layers)]
 
@@ -306,9 +301,13 @@ def construct_from_edge_candidate(dat_batch: Data,
         del_edge_weight = None
 
     new_graphs = graphs * (E * VE)
+    dumb_repeat_batch = Batch.from_data_list(new_graphs)
+    dumb_repeat_edge_index = dumb_repeat_batch.edge_index
+    dumb_repeat_edge_slice = dumb_repeat_batch._slice_dict['edge_index'].to(dumb_repeat_edge_index.device)
+    dumb_repeat_edge_attr = dumb_repeat_batch.edge_attr if dumb_repeat_batch.edge_attr is not None else None
 
     if not separate:
-        rewired_batch = Batch.from_data_list(new_graphs)
+        rewired_batch = dumb_repeat_batch
         merged_edge_index = torch.cat([rewired_batch.edge_index, add_edge_index], dim=1)
         if del_edge_weight is None:
             del_edge_weight = add_edge_weight.new_ones(L, dat_batch.edge_index.shape[1] * E * VE).squeeze(0)
@@ -340,7 +339,12 @@ def construct_from_edge_candidate(dat_batch: Data,
         rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
 
         if rewire_layers is not None:
-            rewired_batch = assign_layer_wise_info(rewire_layers, num_layers, rewired_batch, dat_batch)
+            rewired_batch = assign_layer_wise_info(rewire_layers,
+                                                   num_layers,
+                                                   rewired_batch,
+                                                   dumb_repeat_edge_slice,
+                                                   dumb_repeat_edge_index,
+                                                   dumb_repeat_edge_attr)
 
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                      candidates=[rewired_batch],
@@ -349,10 +353,9 @@ def construct_from_edge_candidate(dat_batch: Data,
                                      num_unique_graphs=len(graphs))
         return new_batch, None, auxloss
     else:
-        original_edge_index = batch_repeat_edge_index(dat_batch.edge_index, dat_batch.num_nodes, E * VE)
         # for the graph adding with rewired edges in-place
-        merged_edge_index = torch.cat([original_edge_index, add_edge_index], dim=1)
-        merged_edge_weight = torch.cat([add_edge_weight.new_ones(L, original_edge_index.shape[1]).squeeze(0), add_edge_weight], dim=-1)
+        merged_edge_index = torch.cat([dumb_repeat_edge_index, add_edge_index], dim=1)
+        merged_edge_weight = torch.cat([add_edge_weight.new_ones(L, dumb_repeat_edge_index.shape[1]).squeeze(0), add_edge_weight], dim=-1)
         if dat_batch.edge_attr is not None:
             merged_edge_attr = torch.cat([dat_batch.edge_attr.repeat(E * VE, 1),
                                           dat_batch.edge_attr.new_zeros(
@@ -368,7 +371,7 @@ def construct_from_edge_candidate(dat_batch: Data,
             edge_weight=merged_edge_weight.t(),  # (#edges x E * VE) x L
             num_nodes=dat_batch.num_nodes * VE * E)
         merged_edge_weight = merged_edge_weight.t()  # L x (#edges x E * VE)
-        add_rewired_batch = Batch.from_data_list(new_graphs)
+        add_rewired_batch = dumb_repeat_batch
         add_rewired_batch.edge_index = merged_edge_index
         add_rewired_batch.edge_attr = merged_edge_attr
 
@@ -381,7 +384,12 @@ def construct_from_edge_candidate(dat_batch: Data,
         add_rewired_batch = sparsify_edge_weight(add_rewired_batch, merged_edge_weight, negative_sample)
 
         if rewire_layers is not None:
-            add_rewired_batch = assign_layer_wise_info(rewire_layers, num_layers, add_rewired_batch, dat_batch)
+            add_rewired_batch = assign_layer_wise_info(rewire_layers,
+                                                       num_layers,
+                                                       add_rewired_batch,
+                                                       dumb_repeat_edge_slice,
+                                                       dumb_repeat_edge_index,
+                                                       dumb_repeat_edge_attr)
 
         candidates = [add_rewired_batch]
 
@@ -390,7 +398,12 @@ def construct_from_edge_candidate(dat_batch: Data,
             del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, negative_sample)
 
             if rewire_layers is not None:
-                del_rewired_batch = assign_layer_wise_info(rewire_layers, num_layers, del_rewired_batch, dat_batch)
+                del_rewired_batch = assign_layer_wise_info(rewire_layers,
+                                                           num_layers,
+                                                           del_rewired_batch,
+                                                           dumb_repeat_edge_slice,
+                                                           dumb_repeat_edge_index,
+                                                           dumb_repeat_edge_attr)
 
             candidates.append(del_rewired_batch)
 
@@ -493,19 +506,22 @@ def construct_from_attention_mat(dat_batch: Data,
     new_graphs = new_graphs * (E * VE)
     rewired_batch = Batch.from_data_list(new_graphs)
 
-    original_edge_index = dat_batch.edge_index
-    original_edge_index = batch_repeat_edge_index(original_edge_index, dat_batch.num_nodes, E * VE)
-    original_num_edges = dat_batch.nedges.to(original_edge_index.device).repeat(E * VE)
+    dumb_repeat_graphs = graphs * (E * VE)
+    dumb_repeat_batch = Batch.from_data_list(dumb_repeat_graphs)
+    dumb_repeat_edge_index = dumb_repeat_batch.edge_index
+    dumb_repeat_edge_slice = dumb_repeat_batch._slice_dict['edge_index'].to(dumb_repeat_edge_index.device)
+    dumb_repeat_edge_attr = dumb_repeat_batch.edge_attr if dumb_repeat_batch.edge_attr is not None else None
+    original_num_edges = dat_batch.nedges.repeat(E * VE)
 
     if in_place:
         if separate:
             # for the graph adding with rewired edges in-place
             merged_edge_index = torch.cat(
-                [original_edge_index,
+                [dumb_repeat_edge_index,
                  rewired_batch.edge_index],
                 dim=1)
             merged_edge_weight = torch.cat(
-                [add_edge_weight.new_ones(L, original_edge_index.shape[1]).squeeze(0),
+                [add_edge_weight.new_ones(L, dumb_repeat_edge_index.shape[1]).squeeze(0),
                  add_edge_weight],
                 dim=-1)
             if dat_batch.edge_attr is not None:
@@ -530,12 +546,17 @@ def construct_from_attention_mat(dat_batch: Data,
             # inc dict
             original_num_edges = dat_batch.nedges.repeat(E * VE)
             new_num_edges = (dat_batch.nnodes ** 2).repeat(E * VE)
-            rewired_batch._slice_dict['edge_index'] = torch.hstack([original_edge_index.new_zeros(1), (original_num_edges + new_num_edges).cumsum(dim=0)])
+            rewired_batch._slice_dict['edge_index'] = torch.hstack([dumb_repeat_edge_index.new_zeros(1), (original_num_edges + new_num_edges).cumsum(dim=0)])
 
             add_rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
 
             if rewire_layers is not None:
-                add_rewired_batch = assign_layer_wise_info(rewire_layers, num_layers, add_rewired_batch, dat_batch)
+                add_rewired_batch = assign_layer_wise_info(rewire_layers,
+                                                           num_layers,
+                                                           add_rewired_batch,
+                                                           dumb_repeat_edge_slice,
+                                                           dumb_repeat_edge_index,
+                                                           dumb_repeat_edge_attr)
 
             candidates = [add_rewired_batch]
 
@@ -544,7 +565,12 @@ def construct_from_attention_mat(dat_batch: Data,
                 del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, negative_sample)
 
                 if rewire_layers is not None:
-                    del_rewired_batch = assign_layer_wise_info(rewire_layers, num_layers, del_rewired_batch, dat_batch)
+                    del_rewired_batch = assign_layer_wise_info(rewire_layers,
+                                                               num_layers,
+                                                               del_rewired_batch,
+                                                               dumb_repeat_edge_slice,
+                                                               dumb_repeat_edge_index,
+                                                               dumb_repeat_edge_attr)
 
                 candidates.append(del_rewired_batch)
 
@@ -556,9 +582,9 @@ def construct_from_attention_mat(dat_batch: Data,
                 num_unique_graphs=len(graphs))
             return new_batch, output_logits.detach() * real_node_node_mask[..., None], auxloss
         else:
-            merged_edge_index = torch.cat([original_edge_index, rewired_batch.edge_index], dim=1)
+            merged_edge_index = torch.cat([dumb_repeat_edge_index, rewired_batch.edge_index], dim=1)
             if del_edge_weight is None:
-                del_edge_weight = add_edge_weight.new_ones(L, original_edge_index.shape[1]).squeeze(0)
+                del_edge_weight = add_edge_weight.new_ones(L, dumb_repeat_edge_index.shape[1]).squeeze(0)
             merged_edge_weight = torch.cat([del_edge_weight, add_edge_weight], dim=-1)
             if dat_batch.edge_attr is not None:
                 merged_edge_attr = torch.cat([dat_batch.edge_attr.repeat(E * VE, 1),
@@ -586,7 +612,12 @@ def construct_from_attention_mat(dat_batch: Data,
             rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, negative_sample)
 
             if rewire_layers is not None:
-                rewired_batch = assign_layer_wise_info(rewire_layers, num_layers, rewired_batch, dat_batch)
+                rewired_batch = assign_layer_wise_info(rewire_layers,
+                                                       num_layers,
+                                                       rewired_batch,
+                                                       dumb_repeat_edge_slice,
+                                                       dumb_repeat_edge_index,
+                                                       dumb_repeat_edge_attr)
 
             new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                          candidates=[rewired_batch],
@@ -600,8 +631,7 @@ def construct_from_attention_mat(dat_batch: Data,
         if dat_batch.edge_attr is not None:
             new_edge_index = rewired_batch.edge_index
             new_edge_index_id = (new_edge_index[0] * rewired_batch.num_nodes + new_edge_index[1]).cpu().numpy()
-            original_edge_index_id = (
-                        original_edge_index[0] * rewired_batch.num_nodes + original_edge_index[1]).cpu().numpy()
+            original_edge_index_id = (dumb_repeat_edge_index[0] * rewired_batch.num_nodes + dumb_repeat_edge_index[1]).cpu().numpy()
             new_edge_attr = dat_batch.edge_attr.new_zeros(new_edge_index.shape[1], dat_batch.edge_attr.shape[1])
             fill_idx = np.in1d(new_edge_index_id, original_edge_index_id)
             new_edge_attr[fill_idx] = dat_batch.edge_attr.repeat(E * VE, 1)
@@ -610,7 +640,12 @@ def construct_from_attention_mat(dat_batch: Data,
         rewired_batch = sparsify_edge_weight(rewired_batch, add_edge_weight, negative_sample)
 
         if rewire_layers is not None:
-            rewired_batch = assign_layer_wise_info(rewire_layers, num_layers, rewired_batch, dat_batch)
+            rewired_batch = assign_layer_wise_info(rewire_layers,
+                                                   num_layers,
+                                                   rewired_batch,
+                                                   dumb_repeat_edge_slice,
+                                                   dumb_repeat_edge_index,
+                                                   dumb_repeat_edge_attr)
 
         candidates = [rewired_batch]
 
@@ -619,7 +654,12 @@ def construct_from_attention_mat(dat_batch: Data,
             del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, negative_sample)
 
             if rewire_layers is not None:
-                del_rewired_batch = assign_layer_wise_info(rewire_layers, num_layers, del_rewired_batch, dat_batch)
+                del_rewired_batch = assign_layer_wise_info(rewire_layers,
+                                                           num_layers,
+                                                           del_rewired_batch,
+                                                           dumb_repeat_edge_slice,
+                                                           dumb_repeat_edge_index,
+                                                           dumb_repeat_edge_attr)
             candidates.append(del_rewired_batch)
 
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
