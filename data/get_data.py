@@ -1,20 +1,32 @@
 import os
 from argparse import Namespace
-from functools import partial
 from collections import defaultdict
-from typing import Tuple, Union, List, Optional
+from functools import partial
+from typing import Union, List, Optional
 
+import numpy as np
 import torch
 from ml_collections import ConfigDict
 from networkx import kamada_kawai_layout
 from ogb.graphproppred import PygGraphPropPredDataset
+from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import DataLoader as PTDataLoader
 from torch_geometric.data import Data
 from torch_geometric.datasets import ZINC
 from torch_geometric.loader import DataLoader as PyGDataLoader
-from torch_geometric.utils import degree as pyg_degree
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
+from torch_geometric.utils import degree as pyg_degree
 
+from data.custom_datasets.heterophilic import HeterophilicDataset
+from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
+from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
+from data.custom_datasets.qm9 import QM9
+from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
+from data.custom_datasets.tudataset import MyTUDataset
+from data.custom_datasets.voc_superpixels import VOCSuperpixels
+from data.custom_datasets.planarsatpairsdataset import PlanarSATPairsDataset
+from data.utils.datatype_utils import AttributedDataLoader
+from data.utils.plot_utils import circular_tree_layout
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
@@ -31,15 +43,6 @@ from .data_preprocess import (GraphExpandDim,
                               IncTransform,
                               collate_fn_with_origin_list)
 from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewired_batch
-from data.utils.datatype_utils import AttributedDataLoader
-from data.utils.plot_utils import circular_tree_layout
-from data.custom_datasets.heterophilic import HeterophilicDataset
-from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
-from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
-from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
-from data.custom_datasets.tudataset import MyTUDataset
-from data.custom_datasets.voc_superpixels import VOCSuperpixels
-from data.custom_datasets.qm9 import QM9
 
 NUM_WORKERS = 0
 
@@ -187,6 +190,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std = get_peptides(args, set='func')
     elif args.dataset.lower() == 'qm9':
         train_set, val_set, test_set, std, qm9_task_id = get_qm9(args)
+    elif args.dataset.lower() in ['exp', 'cexp']:
+        train_set, val_set, test_set, std = get_exp_dataset(args, 10)
     else:
         raise ValueError
 
@@ -578,3 +583,50 @@ def get_qm9(args: Union[Namespace, ConfigDict]):
     std = 1. / torch.tensor(norm_const, dtype=torch.float)
 
     return train_set, val_set, test_set, std, task_id
+
+
+def get_exp_dataset(args, num_fold=10):
+    extra_path = get_additional_path(args)
+    extra_path = extra_path if extra_path is not None else 'normal'
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphToUndirected(),
+                                                                GraphExpandDim(),
+                                                                GraphAttrToOneHot(
+                                                                    DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                                                                    0)])
+    transform = get_transform(args)
+
+    dataset = PlanarSATPairsDataset(os.path.join(args.data_path, args.dataset.upper()),
+                                    extra_path,
+                                    transform=transform,
+                                    pre_transform=pre_transform)
+    dataset.data.y = dataset.data.y.float()
+
+    def separate_data(fold_idx, dataset):
+        assert 0 <= fold_idx < 10, "fold_idx must be from 0 to 9."
+        skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=0)
+
+        labels = dataset.data.y.numpy()
+        idx_list = []
+        for idx in skf.split(np.zeros(len(labels)), labels):
+            idx_list.append(idx)
+        train_idx, test_idx = idx_list[fold_idx]
+
+        return torch.tensor(train_idx), torch.tensor(test_idx), torch.tensor(test_idx)
+
+    train_sets, val_sets, test_sets = [], [], []
+    for idx in range(num_fold):
+        train, val, test = separate_data(idx, dataset)
+        train_set = dataset[train]
+        val_set = dataset[val]
+        test_set = dataset[test]
+
+        train_sets.append(train_set)
+        val_sets.append(val_set)
+        test_sets.append(test_set)
+
+    if args.debug:
+        train_sets = train_sets[0]
+        val_sets = val_sets[0]
+        test_sets = test_sets[0]
+
+    return train_sets, val_sets, test_sets, None
