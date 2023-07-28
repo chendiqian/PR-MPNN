@@ -1,0 +1,81 @@
+fixed:
+  dataset: exp
+  log_path: './logs'
+
+  use_wandb: False
+  wandb_name: "exp_edge_candid"
+
+  sample_configs:
+    sample_policy: edge_candid
+    per_layer: False
+    separate: False
+    directed: True
+    in_place: True
+    sample_k: 1   # edge addition
+    sample_k2: 30   # edge deletion
+    candid_pool: 100
+    ensemble: 3
+    heuristic: longest_path
+    include_original_graph: False
+
+  imle_configs:
+    sampler: imle
+    noise_scale: 0.3
+    beta: 10.
+    logits_activation: null
+    weight_edges: null
+    marginals_mask: True
+    negative_sample: 'full'
+    num_train_ensemble: 1
+    num_val_ensemble: 1
+
+    model: "edge_selector"
+
+    emb_hid_size: 64
+    emb_optim: "adamw"
+    emb_scheduler: None
+    gnn_layer: 8
+    mlp_layer: 4
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+
+  optim: "adam"
+  model: gin_duo
+  hid_size: 32
+  lr: 1.e-3
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'max'
+    patience: 50
+    target: 'val_metric'
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 6
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 2
+  graph_pooling: mean
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 32
+  min_epochs: 0
+  max_epochs: 300
+  data_path: './datasets'
+  debug: True
+  num_runs: 1
+
+#  plot_graphs:
+#    batch_id: 0
+#    plot_every: 5
+#    n_graphs: 1
+#    plot_folder: './plots'
+
+#  connectedness:
+#    metric: eigval
+#    every: 10
