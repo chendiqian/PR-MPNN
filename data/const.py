@@ -12,7 +12,7 @@ DATASET_FEATURE_STAT_DICT = {
     'ogbg-molhiv': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
     'ogbg-moltox21': {'node': 9, 'edge': 3, 'num_class': 12},  # binary classification, but 12 tasks
     'qm9': {'node': 15, 'edge': 4, 'num_class': 1},  # regression, 13 labels, but we train 1 each split
-    'exp': {'node': 1, 'edge': 0, 'num_class': 1},  # bin classification
+    'exp': {'node': 2, 'edge': 0, 'num_class': 1},  # bin classification
     'protein': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
 
     'peptides-struct': {'node': 9, 'edge': 4, 'num_class': 11},  # regression, but 11 labels
