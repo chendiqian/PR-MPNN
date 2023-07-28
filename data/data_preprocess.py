@@ -82,10 +82,11 @@ class GraphAttrToOneHot(GraphModification):
 
     def __call__(self, graph: Data):
         assert graph.x.dtype == torch.long
-        assert graph.edge_attr.dtype == torch.long
-
         graph.x = torch.nn.functional.one_hot(graph.x.squeeze(), self.num_node_classes).to(torch.float)
-        graph.edge_attr = torch.nn.functional.one_hot(graph.edge_attr.squeeze(), self.num_edge_classes).to(torch.float)
+
+        if graph.edge_attr is not None:
+            assert graph.edge_attr.dtype == torch.long
+            graph.edge_attr = torch.nn.functional.one_hot(graph.edge_attr.squeeze(), self.num_edge_classes).to(torch.float)
 
         return graph
 
