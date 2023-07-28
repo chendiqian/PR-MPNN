@@ -592,6 +592,8 @@ def get_exp_dataset(args, num_fold=10):
     extra_path = extra_path if extra_path is not None else 'normal'
     pre_transform = get_pretransform(args, extra_pretransforms=[GraphToUndirected(),
                                                                 GraphExpandDim(),
+                                                                AugmentWithPlotCoordinates(
+                                                                    layout=kamada_kawai_layout),
                                                                 GraphAttrToOneHot(
                                                                     DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                                                                     0)])
