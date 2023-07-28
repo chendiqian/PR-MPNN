@@ -54,7 +54,9 @@ DATASET = (PygGraphPropPredDataset,
            PeptidesStructuralDataset,
            PeptidesFunctionalDataset,
            VOCSuperpixels,
-           HeterophilicDataset)
+           HeterophilicDataset,
+           PlanarSATPairsDataset,
+           QM9)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
