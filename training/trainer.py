@@ -55,6 +55,13 @@ class Trainer:
         self.wandb = wandb
         self.use_wandb = use_wandb
 
+        if hasattr(sample_configs, 'merge_priors') and sample_configs.merge_priors:
+            ensemble = 1
+            merge_priors = True
+        else:
+            ensemble = sample_configs.ensemble
+            merge_priors = False
+
         # plot functions
         if plot_args is None:
             self.plot = None
@@ -64,7 +71,7 @@ class Trainer:
                                 wandb=wandb,
                                 use_wandb=use_wandb,
                                 plot_args=plot_args,
-                                ensemble=sample_configs.ensemble,
+                                ensemble=ensemble,
                                 num_train_ensemble=imle_configs.num_train_ensemble if imle_configs is not None else 1,
                                 num_val_ensemble=imle_configs.num_val_ensemble if imle_configs is not None else 1,
                                 include_original_graph=sample_configs.include_original_graph)
@@ -95,7 +102,8 @@ class Trainer:
             else:
                 if sample_configs.sample_policy == 'edge_candid':
                     construct_duplicate_data = partial(construct_from_edge_candidate,
-                                                       ensemble=sample_configs.ensemble,
+                                                       ensemble=ensemble,
+                                                       merge_priors=merge_priors,
                                                        samplek_dict={
                                                            'add_k': sample_configs.sample_k,
                                                            'del_k': sample_configs.sample_k2 if
@@ -131,7 +139,8 @@ class Trainer:
                     policy = 'global_' + ('directed' if sample_configs.directed else 'undirected')
                     sampler_class.policy = policy
                     construct_duplicate_data = partial(construct_from_attention_mat,
-                                                       ensemble=sample_configs.ensemble,
+                                                       ensemble=ensemble,
+                                                       merge_priors=merge_priors,
                                                        sample_policy=policy,
                                                        samplek_dict={
                                                            'add_k': sample_configs.sample_k,

@@ -92,6 +92,7 @@ def sample4deletion(dat_batch: Data,
                     sampler_class: Any,
                     samplek_dict: Dict,
                     ensemble: int,
+                    merge_priors: bool,
                     directed_sampling: bool,
                     auxloss: float,
                     auxloss_dict: ConfigDict,
@@ -125,6 +126,8 @@ def sample4deletion(dat_batch: Data,
     sampler_class.policy = 'edge_candid'  # because we are sampling from edge_index candidate
     sampler_class.k = samplek_dict['del_k']
     node_mask, _ = forward_func(logits)
+    if merge_priors:
+        node_mask = node_mask.sum(-1, keepdims=True) / (node_mask.detach().sum(-1, keepdims=True) + (1 / LARGE_NUMBER))
     VE, B, N, E = node_mask.shape
     E, L = ensemble, E // ensemble
     node_mask = node_mask.reshape(VE, B, N, E, L)
@@ -206,6 +209,7 @@ def construct_from_edge_candidate(dat_batch: Data,
                                   edge_candidate_idx: torch.Tensor,
 
                                   ensemble: int,
+                                  merge_priors: bool,
                                   samplek_dict: Dict,
                                   sampler_class,
                                   train_forward: Callable,
@@ -257,6 +261,14 @@ def construct_from_edge_candidate(dat_batch: Data,
     # (#sampled, B, Nmax, E), (B, Nmax, E)
     sampler_class.k = new_samplek_dict['add_k']
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
+
+    if merge_priors:
+        if merge_priors:
+            node_mask = node_mask.sum(-1, keepdims=True) / (
+                        node_mask.detach().sum(-1, keepdims=True) + (1 / LARGE_NUMBER))
+        if marginals is not None:
+            marginals = marginals.mean(-1, keepdims=True)
+
     VE, B, N, E = node_mask.shape
     E, L = ensemble, E // ensemble
 
@@ -293,6 +305,7 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                    sampler_class,
                                                    new_samplek_dict,
                                                    ensemble,
+                                                   merge_priors,
                                                    directed_sampling,
                                                    auxloss,
                                                    auxloss_dict if train else None,
@@ -422,6 +435,7 @@ def construct_from_attention_mat(dat_batch: Data,
                                  real_node_node_mask: torch.Tensor,
 
                                  ensemble: int,
+                                 merge_priors: bool,
                                  sample_policy: str,
                                  samplek_dict: Dict,
                                  directed_sampling: bool,
@@ -463,6 +477,14 @@ def construct_from_attention_mat(dat_batch: Data,
     original_adj, self_loop_adj = batched_edge_index_to_batched_adj(dat_batch)
     sampler_class.adj = self_loop_adj
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
+
+    if merge_priors:
+        if merge_priors:
+            node_mask = node_mask.sum(-1, keepdims=True) / (
+                        node_mask.detach().sum(-1, keepdims=True) + (1 / LARGE_NUMBER))
+        if marginals is not None:
+            marginals = marginals.mean(-1, keepdims=True)
+
     VE, B, N, _, E = node_mask.shape
     E, L = ensemble, E // ensemble
 
@@ -491,6 +513,7 @@ def construct_from_attention_mat(dat_batch: Data,
                                                    sampler_class,
                                                    new_samplek_dict,
                                                    ensemble,
+                                                   merge_priors,
                                                    directed_sampling,
                                                    auxloss,
                                                    auxloss_dict if train else None,

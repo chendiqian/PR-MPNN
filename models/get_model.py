@@ -161,6 +161,8 @@ def get_model(args, device, *_args):
             # transformer upstream
             sampler = partial(construct_from_attention_mat,
                               ensemble=args.sample_configs.ensemble,
+                              merge_priors=True if hasattr(args.sample_configs, 'merge_priors')
+                                                   and args.sample_configs.merge_priors else False,
                               samplek_dict={'add_k': args.sample_configs.sample_k,
                                             'del_k': args.sample_configs.sample_k2},
                               sample_policy='global_' + (
@@ -221,6 +223,8 @@ def get_model(args, device, *_args):
         else:
             sampler = partial(construct_from_edge_candidate,
                               ensemble=args.sample_configs.ensemble,
+                              merge_priors=True if hasattr(args.sample_configs, 'merge_priors')
+                                                   and args.sample_configs.merge_priors else False,
                               samplek_dict={'add_k': args.sample_configs.sample_k,
                                             'del_k': args.sample_configs.sample_k2},
                               sampler_class=sampler_class,
