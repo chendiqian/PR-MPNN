@@ -34,8 +34,8 @@ class EdgeSelector2WL(torch.nn.Module):
             self.bns.append(torch.nn.BatchNorm1d(dim))
             self.inter_mlps.append(MLP([2 * dim, dim, dim]))
 
-        self.mlp1 = MLP([dim * 4] + [dim] * (mlp_layer - 1) + [num_classes], batch_norm=True, dropout=0.)
-        self.mlp2 = MLP([dim * 4] + [dim] * (mlp_layer - 1) + [num_classes], batch_norm=True, dropout=0.)
+        self.mlp1 = MLP([dim * conv_layer] + [dim] * (mlp_layer - 1) + [num_classes], batch_norm=True, dropout=0.)
+        self.mlp2 = MLP([dim * conv_layer] + [dim] * (mlp_layer - 1) + [num_classes], batch_norm=True, dropout=0.)
 
     def forward(self, data):
         x = data.x_2wl
