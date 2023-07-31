@@ -313,10 +313,12 @@ class AugmentWith2WLSuperGraph(GraphModification):
         edge_idx = graph.edge_index[0] * graph.num_nodes + graph.edge_index[1]
         node_label = torch.kron(graph.x, graph.x)
 
-        edge_label = graph.edge_attr.new_zeros(graph.num_nodes ** 2, graph.edge_attr.shape[1])
-        edge_label[edge_idx] = graph.edge_attr
-
-        graph.x_2wl = torch.cat([node_label, edge_label], dim=1)
+        if graph.edge_attr is not None:
+            edge_label = graph.edge_attr.new_zeros(graph.num_nodes ** 2, graph.edge_attr.shape[1])
+            edge_label[edge_idx] = graph.edge_attr
+            graph.x_2wl = torch.cat([node_label, edge_label], dim=1)
+        else:
+            graph.x_2wl = node_label
 
         edge_index1, edge_index2 = get_2wl_local_neighbors(graph.edge_index.numpy(), graph.num_nodes)
         graph.edge_index1, graph.edge_index2 = torch.tensor(edge_index1).t(), torch.tensor(edge_index2).t()
