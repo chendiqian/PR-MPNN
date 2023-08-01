@@ -166,12 +166,13 @@ class Trainer:
                                                            num_layers) if hasattr(
                                                            sample_configs,
                                                            'rewire_layers') else None)
-                    def func(data, emb_model):
+                    def func(data, emb_model, batch_id):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,
                                                                          graphs,
                                                                          emb_model.training,
-                                                                         *emb_model(dat_batch))
+                                                                         *emb_model(dat_batch),
+                                                                         batch_id=batch_id)
                         return data, scores, auxloss
                     self.construct_duplicate_data = func
                 else:
@@ -294,9 +295,9 @@ class Trainer:
 
         preds_uncertainty = []
 
-        for data in dataloader.loader:
+        for batch_id, data in enumerate(dataloader.loader):
             data, num_preds = self.check_datatype(data, dataloader.task)
-            data, _, _ = self.construct_duplicate_data(data, emb_model)
+            data, _, _ = self.construct_duplicate_data(data, emb_model, batch_id=batch_id)
 
             pred = model(data)
 
