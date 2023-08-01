@@ -224,7 +224,9 @@ def construct_from_edge_candidate(dat_batch: Data,
                                   num_layers: int = None,
                                   rewire_layers: List = None,
                                   auxloss_dict: ConfigDict = None,
-                                  sample_ratio: float = 1.0):
+                                  sample_ratio: float = 1.0,
+                                  wandb = None,
+                                  batch_id: int = None,):
     """
     A super lengthy, cpmplicated and coupled function
     should find time to clean and comment it
@@ -261,6 +263,47 @@ def construct_from_edge_candidate(dat_batch: Data,
     # (#sampled, B, Nmax, E), (B, Nmax, E)
     sampler_class.k = new_samplek_dict['add_k']
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
+    
+    if batch_id == 0 and wandb is not None:
+        wandb_logits = logits.detach().cpu().numpy()
+        wandb_mask = node_mask.detach().squeeze(0).cpu().numpy()
+
+        # for idx, logits_log in enumerate(wandb_logits):
+        #     wandb.log(
+        #         {f'logits_add_{idx}': wandb.plots.HeatMap(
+        #             x_labels=[i for i in range(logits_log.shape[0])],
+        #             y_labels=[f'p_{i}' for i in range(logits_log.shape[1])], 
+        #             matrix_values=logits_log.T, 
+        #             show_text=False)}
+        #         )
+            
+        #     if idx == 2:
+        #         break
+        
+        # wandb_mask = node_mask.detach().squeeze(0).cpu().numpy()
+        # for idx, mask_log in enumerate(wandb_mask):
+        #     wandb.log(
+        #         {f'mask_add_{idx}': wandb.plots.HeatMap(
+        #             x_labels=[i for i in range(mask_log.shape[0])],
+        #             y_labels=[f'm_{i}' for i in range(mask_log.shape[1])], 
+        #             matrix_values=mask_log.T, 
+        #             show_text=False)}
+        #         )
+        #     if idx == 2:
+        #         break
+
+        # both together
+        for idx, (mask_log, logits_log) in enumerate(zip(wandb_logits, wandb_mask)):
+            concatenated = np.concatenate([logits_log, mask_log], axis=1)
+            wandb.log(
+                {f'add_{idx}': wandb.plots.HeatMap(
+                    x_labels=[i for i in range(concatenated.shape[0])],
+                    y_labels=[f'msk_{i}' if i < concatenated.shape[1]//2 else f'pri_{i}' for i in range(concatenated.shape[1])], 
+                    matrix_values=concatenated.T, 
+                    show_text=False)}
+                )
+            if idx == 5:
+                break
 
     if merge_priors:
         if merge_priors:

@@ -419,7 +419,7 @@ class DecoupledDynamicRewireGNN(torch.nn.Module):
         for i, conv in enumerate(self.convs):
             # gnn layer
             if self.input_from_down:
-                x_up = x_down.clone().detach()
+                x_up = x_down#.clone().detach()
 
             x_up_new = conv(x_up, data.edge_index, data.edge_attr, data.edge_weight)
 

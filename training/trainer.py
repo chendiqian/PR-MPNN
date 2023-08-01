@@ -125,13 +125,15 @@ class Trainer:
                                                            num_layers) if hasattr(
                                                            sample_configs,
                                                            'rewire_layers') else None,
-                                                       auxloss_dict=auxloss)
-                    def func(data, emb_model):
+                                                       auxloss_dict=auxloss,
+                                                       wandb=wandb,)
+                    def func(data, emb_model, batch_id):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,
                                                                          graphs,
                                                                          emb_model.training,
-                                                                         *emb_model(dat_batch))
+                                                                         *emb_model(dat_batch),
+                                                                         batch_id=batch_id)
                         return data, scores, auxloss
                     self.construct_duplicate_data = func
                 elif sample_configs.sample_policy == 'global':
@@ -232,7 +234,7 @@ class Trainer:
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
             data, _ = self.check_datatype(data, dataloader.task)
-            data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
+            data, scores, auxloss = self.construct_duplicate_data(data, emb_model, batch_id)
 
             if self.plot is not None:
                 self.plot(data, True, self.epoch, batch_id)
