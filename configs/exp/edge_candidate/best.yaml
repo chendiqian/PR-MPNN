@@ -2,8 +2,9 @@ fixed:
   dataset: exp
   log_path: './logs'
 
-  use_wandb: False
+  use_wandb: True
   wandb_name: "exp_edge_candid"
+  wandb_prefix: "add30_plot"
 
   sample_configs:
     sample_policy: edge_candid
@@ -11,10 +12,11 @@ fixed:
     separate: False
     directed: True
     in_place: True
-    sample_k: 1   # edge addition
+    sample_k: 30   # edge addition
     sample_k2: 30   # edge deletion
     candid_pool: 100
     ensemble: 3
+    merge_priors: True
     heuristic: longest_path
     include_original_graph: False
 
@@ -69,6 +71,11 @@ fixed:
   data_path: './datasets'
   debug: True
   num_runs: 1
+
+  plot_heatmaps:
+    batch_id: 0
+    n_graphs: 5
+    plot_every: 10
 
 #  plot_graphs:
 #    batch_id: 0

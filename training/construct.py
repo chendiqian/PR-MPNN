@@ -13,6 +13,7 @@ from torch_scatter import scatter
 from data.utils.datatype_utils import (DuoDataStructure)
 from data.utils.tensor_utils import batched_edge_index_to_batched_adj, non_merge_coalesce, \
     batch_repeat_edge_index
+import seaborn as sns
 from training.aux_loss import get_variance_regularization, get_variance_regularization_3d
 
 LARGE_NUMBER = 1.e10
@@ -96,7 +97,12 @@ def sample4deletion(dat_batch: Data,
                     directed_sampling: bool,
                     auxloss: float,
                     auxloss_dict: ConfigDict,
-                    device: torch.device):
+                    device: torch.device,
+                    wandb=None,
+                    batch_id: int = None,
+                    phase: str = None,
+                    epoch: int = None,
+                    plot_heatmaps = None,):
     batch_idx = torch.arange(len(dat_batch.nedges), device=device).repeat_interleave(dat_batch.nedges)
     if directed_sampling:
         deletion_logits, real_node_mask = to_dense_batch(deletion_logits,
@@ -126,6 +132,34 @@ def sample4deletion(dat_batch: Data,
     sampler_class.policy = 'edge_candid'  # because we are sampling from edge_index candidate
     sampler_class.k = samplek_dict['del_k']
     node_mask, _ = forward_func(logits)
+
+    if wandb is not None and plot_heatmaps is not None:
+        heatmap_batch_id = plot_heatmaps['batch_id']
+        n_graphs = plot_heatmaps['n_graphs']
+        plot_every = plot_heatmaps['plot_every']
+
+        if batch_id == heatmap_batch_id and epoch % plot_every == 0:
+            wandb_logits = deletion_logits.detach().cpu().numpy()
+            wandb_mask = node_mask.detach().squeeze(0).cpu().numpy()
+
+            # both together
+            for idx, (mask_log, logits_log) in enumerate(zip(wandb_logits, wandb_mask)):
+                concatenated = np.concatenate([logits_log, mask_log], axis=1)
+
+                x_labels = [i for i in range(concatenated.shape[0])]
+                y_labels = [f'msk_{i}' if i < concatenated.shape[1]//2 else f'pri_{i}' for i in range(concatenated.shape[1])]
+
+                wandb.log(
+                    {f'del_{phase}_{idx}': wandb.plots.HeatMap(
+                        x_labels=x_labels,
+                        y_labels=y_labels, 
+                        matrix_values=concatenated.T, 
+                        show_text=False)},
+                    # step=epoch,
+                    )
+                if idx == n_graphs:
+                    break
+
     if merge_priors:
         node_mask = node_mask.sum(-1, keepdims=True) / (node_mask.detach().sum(-1, keepdims=True) + (1 / LARGE_NUMBER))
     VE, B, N, E = node_mask.shape
@@ -226,7 +260,10 @@ def construct_from_edge_candidate(dat_batch: Data,
                                   auxloss_dict: ConfigDict = None,
                                   sample_ratio: float = 1.0,
                                   wandb = None,
-                                  batch_id: int = None,):
+                                  batch_id: int = None,
+                                  phase: str = None,
+                                  epoch: int = None,
+                                  plot_heatmaps = None,):
     """
     A super lengthy, cpmplicated and coupled function
     should find time to clean and comment it
@@ -264,46 +301,32 @@ def construct_from_edge_candidate(dat_batch: Data,
     sampler_class.k = new_samplek_dict['add_k']
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
     
-    if batch_id == 0 and wandb is not None:
-        wandb_logits = logits.detach().cpu().numpy()
-        wandb_mask = node_mask.detach().squeeze(0).cpu().numpy()
+    if wandb is not None and plot_heatmaps is not None:
+        heatmap_batch_id = plot_heatmaps['batch_id']
+        n_graphs = plot_heatmaps['n_graphs']
+        plot_every = plot_heatmaps['plot_every']
 
-        # for idx, logits_log in enumerate(wandb_logits):
-        #     wandb.log(
-        #         {f'logits_add_{idx}': wandb.plots.HeatMap(
-        #             x_labels=[i for i in range(logits_log.shape[0])],
-        #             y_labels=[f'p_{i}' for i in range(logits_log.shape[1])], 
-        #             matrix_values=logits_log.T, 
-        #             show_text=False)}
-        #         )
-            
-        #     if idx == 2:
-        #         break
-        
-        # wandb_mask = node_mask.detach().squeeze(0).cpu().numpy()
-        # for idx, mask_log in enumerate(wandb_mask):
-        #     wandb.log(
-        #         {f'mask_add_{idx}': wandb.plots.HeatMap(
-        #             x_labels=[i for i in range(mask_log.shape[0])],
-        #             y_labels=[f'm_{i}' for i in range(mask_log.shape[1])], 
-        #             matrix_values=mask_log.T, 
-        #             show_text=False)}
-        #         )
-        #     if idx == 2:
-        #         break
+        if batch_id == heatmap_batch_id and epoch % plot_every == 0:
+            wandb_logits = output_logits.detach().cpu().numpy()
+            wandb_mask = node_mask.detach().squeeze(0).cpu().numpy()
 
-        # both together
-        for idx, (mask_log, logits_log) in enumerate(zip(wandb_logits, wandb_mask)):
-            concatenated = np.concatenate([logits_log, mask_log], axis=1)
-            wandb.log(
-                {f'add_{idx}': wandb.plots.HeatMap(
-                    x_labels=[i for i in range(concatenated.shape[0])],
-                    y_labels=[f'msk_{i}' if i < concatenated.shape[1]//2 else f'pri_{i}' for i in range(concatenated.shape[1])], 
-                    matrix_values=concatenated.T, 
-                    show_text=False)}
-                )
-            if idx == 5:
-                break
+            # both together
+            for idx, (mask_log, logits_log) in enumerate(zip(wandb_logits, wandb_mask)):
+                concatenated = np.concatenate([logits_log, mask_log], axis=1)
+
+                x_labels = [i for i in range(concatenated.shape[0])]
+                y_labels = [f'msk_{i}' if i < concatenated.shape[1]//2 else f'pri_{i}' for i in range(concatenated.shape[1])]
+
+                wandb.log(
+                    {f'add_{phase}_{idx}': wandb.plots.HeatMap(
+                        x_labels=x_labels,
+                        y_labels=y_labels, 
+                        matrix_values=concatenated.T, 
+                        show_text=False)},
+                    # step=epoch,
+                    )
+                if idx == n_graphs:
+                    break
 
     if merge_priors:
         if merge_priors:
@@ -352,7 +375,12 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                    directed_sampling,
                                                    auxloss,
                                                    auxloss_dict if train else None,
-                                                   add_edge_weight.device)
+                                                   add_edge_weight.device,
+                                                   wandb=wandb,
+                                                   batch_id=batch_id,
+                                                   phase=phase,
+                                                   epoch=epoch,
+                                                   plot_heatmaps=plot_heatmaps,)
     else:
         del_edge_weight = None
 

@@ -36,7 +36,7 @@ class Trainer:
                  auxloss: ConfigDict,
                  wandb: Optional[Any] = None,
                  use_wandb: bool = False,
-                 plot_args: Optional[ConfigDict] = None,
+                 args: ConfigDict = None,
                  connectedness_metric_args: Optional[ConfigDict] = None,):
         super(Trainer, self).__init__()
 
@@ -61,6 +61,8 @@ class Trainer:
         else:
             ensemble = sample_configs.ensemble
             merge_priors = False
+
+        plot_args = args.plot_args if hasattr(args, 'plot_args') else None
 
         # plot functions
         if plot_args is None:
@@ -126,14 +128,17 @@ class Trainer:
                                                            sample_configs,
                                                            'rewire_layers') else None,
                                                        auxloss_dict=auxloss,
-                                                       wandb=wandb,)
-                    def func(data, emb_model, batch_id):
+                                                       wandb=wandb,
+                                                       plot_heatmaps=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else False,)
+                    def func(data, emb_model, batch_id, epoch, phase):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,
                                                                          graphs,
                                                                          emb_model.training,
                                                                          *emb_model(dat_batch),
-                                                                         batch_id=batch_id)
+                                                                         batch_id=batch_id,
+                                                                         epoch=epoch,
+                                                                         phase=phase)
                         return data, scores, auxloss
                     self.construct_duplicate_data = func
                 elif sample_configs.sample_policy == 'global':
@@ -166,13 +171,15 @@ class Trainer:
                                                            num_layers) if hasattr(
                                                            sample_configs,
                                                            'rewire_layers') else None)
-                    def func(data, emb_model, batch_id):
+                    def func(data, emb_model, batch_id, epoch, phase):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,
                                                                          graphs,
                                                                          emb_model.training,
                                                                          *emb_model(dat_batch),
-                                                                         batch_id=batch_id)
+                                                                         batch_id=batch_id,
+                                                                         epoch=epoch,
+                                                                         phase=phase)
                         return data, scores, auxloss
                     self.construct_duplicate_data = func
                 else:
@@ -235,7 +242,7 @@ class Trainer:
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
             data, _ = self.check_datatype(data, dataloader.task)
-            data, scores, auxloss = self.construct_duplicate_data(data, emb_model, batch_id)
+            data, scores, auxloss = self.construct_duplicate_data(data, emb_model, batch_id=batch_id, epoch=self.epoch, phase='train')
 
             if self.plot is not None:
                 self.plot(data, True, self.epoch, batch_id)
@@ -297,7 +304,7 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             data, num_preds = self.check_datatype(data, dataloader.task)
-            data, _, _ = self.construct_duplicate_data(data, emb_model, batch_id=batch_id)
+            data, _, _ = self.construct_duplicate_data(data, emb_model, batch_id=batch_id, epoch=self.epoch, phase='test')
 
             pred = model(data)
 

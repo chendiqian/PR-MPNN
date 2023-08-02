@@ -241,7 +241,9 @@ def get_model(args, device, wandb, *_args):
                               rewire_layers=None,
                               auxloss_dict=args.imle_configs.auxloss if hasattr(args.imle_configs,
                                                                        'auxloss') else None,
-                              wandb=wandb,)
+                              wandb=wandb,
+                              plot_heatmaps=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else False,
+            )
             if 'decoupled' in args.model.lower():
                 model = DecoupledDynamicRewireGNN(
                     sampler,

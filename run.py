@@ -86,7 +86,7 @@ def run(wandb, args):
                       auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else None,
                       wandb=wandb,
                       use_wandb=args.use_wandb,
-                      plot_args=args.plot_graphs if hasattr(args, 'plot_graphs') else None,
+                      args=args,
                       connectedness_metric_args=args.connectedness if hasattr(args, 'connectedness') else None)
 
     best_train_metrics = [[] for _ in range(args.num_runs)]
