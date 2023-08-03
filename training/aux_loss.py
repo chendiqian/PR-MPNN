@@ -51,7 +51,7 @@ def cosine_similarity_loss(inputs, auxloss):
     # Return average loss
     return (loss / inputs.size(0)) * auxloss
 
-def l2_distance_loss(inputs):
+def l2_distance_loss(inputs, auxloss):
     loss = 0
     for sample in inputs:
         # Calculate pairwise L2 distance
@@ -65,7 +65,7 @@ def l2_distance_loss(inputs):
         # Sum the negative minimum L2 distance to the loss
         loss -= min_l2_distance
     # Return average loss
-    return loss / inputs.size(0)
+    return (loss / inputs.size(0)) * auxloss
 
 def get_variance_regularization_3d(logits: torch.Tensor, auxloss: float):
     B, N, E = logits.shape
