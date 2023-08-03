@@ -14,7 +14,7 @@ from data.utils.datatype_utils import (DuoDataStructure)
 from data.utils.tensor_utils import batched_edge_index_to_batched_adj, non_merge_coalesce, \
     batch_repeat_edge_index
 import seaborn as sns
-from training.aux_loss import get_variance_regularization, get_variance_regularization_3d
+from training.aux_loss import get_variance_regularization, get_variance_regularization_3d, cosine_similarity_loss, l2_distance_loss
 
 LARGE_NUMBER = 1.e10
 
@@ -155,7 +155,7 @@ def sample4deletion(dat_batch: Data,
                         y_labels=y_labels, 
                         matrix_values=concatenated.T, 
                         show_text=False)},
-                    # step=epoch,
+                    step=epoch,
                     )
                 if idx == n_graphs:
                     break
@@ -291,8 +291,13 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                        dat_batch.num_edge_candidate),
                                                    max_num_nodes=dat_batch.num_edge_candidate.max())
 
-    if train and auxloss_dict is not None and auxloss_dict.variance > 0:
-        auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance, )
+    if train and auxloss_dict is not None:
+        if auxloss_dict.variance > 0:
+            auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance, )
+        if auxloss_dict.l2 > 0:
+            auxloss = auxloss + l2_distance_loss(output_logits, auxloss_dict.l2, )
+        if auxloss_dict.cos > 0:
+            auxloss = auxloss + cosine_similarity_loss(output_logits, auxloss_dict.cos, )
 
     padding_bias = (~real_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
     logits = output_logits - padding_bias
@@ -323,7 +328,7 @@ def construct_from_edge_candidate(dat_batch: Data,
                         y_labels=y_labels, 
                         matrix_values=concatenated.T, 
                         show_text=False)},
-                    # step=epoch,
+                    step=epoch,
                     )
                 if idx == n_graphs:
                     break

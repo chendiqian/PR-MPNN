@@ -39,6 +39,31 @@ def get_variance_regularization(logits: torch.Tensor, auxloss: float, real_node_
     loss = ((dot - eye) ** 2).mean()
     return loss * auxloss
 
+def cosine_similarity_loss(inputs, auxloss):
+    loss = 0
+    for sample in inputs:
+        # Calculate pairwise cosine similarity
+        cosine_similarity_matrix = F.cosine_similarity(sample.unsqueeze(0), sample.unsqueeze(1), dim=2)
+        # Calculate mean cosine similarity
+        mean_cosine_similarity = cosine_similarity_matrix.mean()
+        # Sum the negative mean cosine similarity to the loss
+        loss -= mean_cosine_similarity
+    # Return average loss
+    return (loss / inputs.size(0)) * auxloss
+
+def l2_distance_loss(inputs, auxloss):
+    loss = 0
+    for sample in inputs:
+        # Calculate pairwise L2 distance
+        l2_distance_matrix = torch.cdist(sample, sample, p=2)
+        # Zero out diagonal elements (self-distances) by adding a large value to them
+        l2_distance_matrix += torch.eye(l2_distance_matrix.size(0)).to(sample.device) * 1e6
+        # Calculate minimum L2 distance
+        min_l2_distance = l2_distance_matrix.min()
+        # Sum the negative minimum L2 distance to the loss
+        loss -= min_l2_distance
+    # Return average loss
+    return (loss / inputs.size(0)) * auxloss
 
 def get_variance_regularization_3d(logits: torch.Tensor, auxloss: float):
     B, N, E = logits.shape

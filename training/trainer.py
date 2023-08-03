@@ -129,7 +129,7 @@ class Trainer:
                                                            'rewire_layers') else None,
                                                        auxloss_dict=auxloss,
                                                        wandb=wandb,
-                                                       plot_heatmaps=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else False,)
+                                                       plot_heatmaps=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else None,)
                     def func(data, emb_model, batch_id, epoch, phase):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,

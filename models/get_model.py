@@ -242,7 +242,7 @@ def get_model(args, device, wandb, *_args):
                               auxloss_dict=args.imle_configs.auxloss if hasattr(args.imle_configs,
                                                                        'auxloss') else None,
                               wandb=wandb,
-                              plot_heatmaps=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else False,
+                              plot_heatmaps=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else None,
             )
             if 'decoupled' in args.model.lower():
                 model = DecoupledDynamicRewireGNN(
