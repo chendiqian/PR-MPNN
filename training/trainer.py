@@ -238,9 +238,10 @@ class Trainer:
         labels = []
         num_graphs = 0
 
-        auxlosses = 0.
         for batch_id, data in enumerate(dataloader.loader):
             optimizer.zero_grad()
+            if optimizer_embd is not None:
+                optimizer_embd.zero_grad()
             data, _ = self.check_datatype(data, dataloader.task)
             data, scores, auxloss = self.construct_duplicate_data(data, emb_model, batch_id=batch_id, epoch=self.epoch, phase='train')
 
@@ -249,14 +250,12 @@ class Trainer:
             if self.plot_score is not None and scores is not None:
                 self.plot_score(scores, self.epoch, batch_id)
 
-            auxlosses = auxlosses + auxloss
-
             pred = model(data)
             is_labeled = data.y == data.y
             loss = self.criterion(pred[is_labeled], data.y[is_labeled])
             train_losses += loss.detach() * data.num_graphs
 
-            loss = loss + auxlosses
+            loss = loss + auxloss
 
             loss.backward()
             optimizer.step()
@@ -264,12 +263,10 @@ class Trainer:
                 # torch.nn.utils.clip_grad_value_(emb_model.parameters(), clip_value=1.0)
                 torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=False)
                 optimizer_embd.step()
-                optimizer_embd.zero_grad()
 
             num_graphs += data.num_graphs
             preds.append(pred)
             labels.append(data.y)
-
         train_loss = train_losses.item() / num_graphs
         self.best_train_loss = min(self.best_train_loss, train_loss)
 

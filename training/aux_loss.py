@@ -51,19 +51,21 @@ def cosine_similarity_loss(inputs, auxloss):
     # Return average loss
     return (loss / inputs.size(0)) * auxloss
 
-def l2_distance_loss(inputs, auxloss):
+def l2_distance_loss(inputs):
     loss = 0
     for sample in inputs:
         # Calculate pairwise L2 distance
         l2_distance_matrix = torch.cdist(sample, sample, p=2)
-        # Zero out diagonal elements (self-distances) by adding a large value to them
-        l2_distance_matrix += torch.eye(l2_distance_matrix.size(0)).to(sample.device) * 1e6
-        # Calculate minimum L2 distance
-        min_l2_distance = l2_distance_matrix.min()
+        # Create a mask for off-diagonal elements
+        mask = 1 - torch.eye(l2_distance_matrix.size(0)).to(sample.device)
+        # Apply mask to L2 distance matrix
+        l2_distance_matrix_masked = l2_distance_matrix * mask
+        # Calculate minimum L2 distance, ignoring zero distances
+        min_l2_distance = l2_distance_matrix_masked[l2_distance_matrix_masked.nonzero()].min()
         # Sum the negative minimum L2 distance to the loss
         loss -= min_l2_distance
     # Return average loss
-    return (loss / inputs.size(0)) * auxloss
+    return loss / inputs.size(0)
 
 def get_variance_regularization_3d(logits: torch.Tensor, auxloss: float):
     B, N, E = logits.shape
