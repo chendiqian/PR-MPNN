@@ -11,9 +11,13 @@ from torch_geometric.utils import to_dense_batch, to_undirected
 from torch_scatter import scatter
 
 from data.utils.datatype_utils import (DuoDataStructure)
-from data.utils.tensor_utils import batched_edge_index_to_batched_adj, non_merge_coalesce, \
-    batch_repeat_edge_index
-from training.aux_loss import get_variance_regularization, get_variance_regularization_3d, cosine_similarity_loss, l2_distance_loss
+from data.utils.tensor_utils import (batched_edge_index_to_batched_adj,
+                                     non_merge_coalesce,
+                                     batch_repeat_edge_index)
+from training.aux_loss import (get_variance_regularization,
+                               cosine_similarity_loss,
+                               max_min_l2_distance_loss,
+                               pairwise_KL_divergence)
 
 LARGE_NUMBER = 1.e10
 
@@ -113,9 +117,13 @@ def sample4deletion(dat_batch: Data,
                                                          batch_idx[direct_mask],
                                                          max_num_nodes=num_direct_edges.max())
 
-    if auxloss_dict is not None and auxloss_dict.variance > 0:
-        auxloss = auxloss + get_variance_regularization_3d(deletion_logits,
-                                                           auxloss_dict.variance)
+    if auxloss_dict is not None:
+        if hasattr(auxloss_dict, 'l2') and auxloss_dict.l2 > 0:
+            auxloss = auxloss + max_min_l2_distance_loss(deletion_logits, auxloss_dict.l2, )
+        if hasattr(auxloss_dict, 'cos') and auxloss_dict.cos > 0:
+            auxloss = auxloss + cosine_similarity_loss(deletion_logits, auxloss_dict.cos, )
+        if hasattr(auxloss_dict, 'kl') and auxloss_dict.kl > 0.:
+            auxloss = auxloss + pairwise_KL_divergence(deletion_logits, auxloss_dict.kl, )
 
     # we select the least scores
     deletion_logits = -deletion_logits
@@ -256,12 +264,12 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                    max_num_nodes=dat_batch.num_edge_candidate.max())
 
     if train and auxloss_dict is not None:
-        if auxloss_dict.variance > 0:
-            auxloss = auxloss + get_variance_regularization_3d(output_logits, auxloss_dict.variance, )
-        if auxloss_dict.l2 > 0:
-            auxloss = auxloss + l2_distance_loss(output_logits, auxloss_dict.l2, )
-        if auxloss_dict.cos > 0:
+        if hasattr(auxloss_dict, 'l2') and auxloss_dict.l2 > 0:
+            auxloss = auxloss + max_min_l2_distance_loss(output_logits, auxloss_dict.l2, )
+        if hasattr(auxloss_dict, 'cos') and auxloss_dict.cos > 0:
             auxloss = auxloss + cosine_similarity_loss(output_logits, auxloss_dict.cos, )
+        if hasattr(auxloss_dict, 'kl') and auxloss_dict.kl > 0.:
+            auxloss = auxloss + pairwise_KL_divergence(output_logits, auxloss_dict.kl, )
 
     padding_bias = (~real_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
     logits = output_logits - padding_bias

@@ -1,6 +1,10 @@
+from functools import partial
 from typing import Tuple
+
+import numpy as np
 import torch
 import torch.nn.functional as F
+from torch_scatter import scatter
 
 SMALL_EPS = 1.e-10
 
@@ -39,35 +43,85 @@ def get_variance_regularization(logits: torch.Tensor, auxloss: float, real_node_
     loss = ((dot - eye) ** 2).mean()
     return loss * auxloss
 
-def cosine_similarity_loss(inputs, auxloss):
-    loss = 0
-    for sample in inputs:
-        # Calculate pairwise cosine similarity
-        cosine_similarity_matrix = F.cosine_similarity(sample.unsqueeze(0), sample.unsqueeze(1), dim=2)
-        # Calculate mean cosine similarity
-        mean_cosine_similarity = cosine_similarity_matrix.mean()
-        # Sum the negative mean cosine similarity to the loss
-        loss -= mean_cosine_similarity
-    # Return average loss
-    return (loss / inputs.size(0)) * auxloss
 
-def l2_distance_loss(inputs, auxloss):
-    loss = 0
-    for sample in inputs:
-        # Calculate pairwise L2 distance
-        l2_distance_matrix = torch.cdist(sample, sample, p=2)
-        # Create a mask for off-diagonal elements
-        mask = 1 - torch.eye(l2_distance_matrix.size(0)).to(sample.device)
-        # Apply mask to L2 distance matrix
-        l2_distance_matrix_masked = l2_distance_matrix * mask
-        # Calculate minimum L2 distance, ignoring zero distances
-        min_l2_distance = l2_distance_matrix_masked[l2_distance_matrix_masked.nonzero()].min()
-        # Sum the negative minimum L2 distance to the loss
-        loss -= min_l2_distance
-    # Return average loss
-    return (loss / inputs.size(0)) * auxloss
+def pairwise_KL_divergence(inputs, auxloss):
+    """
+    maximize the pair wise KL divergence
+    https://pytorch.org/docs/stable/generated/torch.nn.functional.kl_div.html?highlight=kl_div#torch.nn.functional.kl_div
 
-def get_variance_regularization_3d(logits: torch.Tensor, auxloss: float):
+    Args:
+        inputs:
+        auxloss:
+
+    Returns:
+
+    """
+    B, N, E = inputs.shape
+    if E == 1:
+        return 0.
+    idx = np.triu_indices(N, k=1)
+    inputs = torch.log_softmax(inputs, dim=-1)
+    loss = torch.vmap(partial(F.kl_div, reduction='batchmean', log_target=True))(inputs[:, idx[0]], inputs[:, idx[1]]).mean()
+    return -loss * auxloss
+
+
+def max_l2_distance_loss(inputs, auxloss):
+    """
+    Try to maximize the L2 distance of every pairs
+
+    Args:
+        inputs: shape (B, N, E)
+        auxloss:
+
+    Returns:
+
+    """
+    B, N, E = inputs.shape
+    if E == 1:
+        return 0.
+    pair_wise_dist = (inputs[:, :, None, :] - inputs[:, None, :, :]).norm(2, dim=-1)
+    # do not calculate the inverse pair
+    idx = np.triu_indices(N, k=1)
+    vals = pair_wise_dist[:, idx[0], idx[1]]
+    loss = -vals.mean()
+    return loss * auxloss
+
+
+def max_min_l2_distance_loss(inputs, auxloss):
+    """
+    Try to maximize the minimum L2 distance
+
+    Args:
+        inputs: shape (B, N, E)
+        auxloss:
+
+    Returns:
+
+    """
+    B, N, E = inputs.shape
+    if E == 1:
+        return 0.
+    pair_wise_dist = (inputs[:, :, None, :] - inputs[:, None, :, :]).norm(2, dim=-1)
+    # mask = 1. - torch.eye(N).to(inputs.device)[None]
+    # masked_pair_wise_dist = pair_wise_dist * mask
+    idx = pair_wise_dist.nonzero().t()
+    nonzero_vals = pair_wise_dist[idx[0], idx[1], idx[2]]
+    # use scatter in case idx[0] for each graph is not uniform
+    loss = -scatter(nonzero_vals, idx[0], dim=0, reduce='min').mean()
+    return loss * auxloss
+
+
+def cosine_similarity_loss(logits: torch.Tensor, auxloss: float):
+    """
+    Try to minimize the dot prod of different vecs dot(v, w)
+
+    Args:
+        logits:
+        auxloss:
+
+    Returns:
+
+    """
     B, N, E = logits.shape
     if E == 1:
         return 0.
