@@ -17,6 +17,7 @@ from data.utils.tensor_utils import (batched_edge_index_to_batched_adj,
 from training.aux_loss import (get_variance_regularization,
                                cosine_similarity_loss,
                                max_min_l2_distance_loss,
+                               max_l2_distance_loss,
                                pairwise_KL_divergence)
 
 LARGE_NUMBER = 1.e10
@@ -118,8 +119,10 @@ def sample4deletion(dat_batch: Data,
                                                          max_num_nodes=num_direct_edges.max())
 
     if auxloss_dict is not None:
+        if hasattr(auxloss_dict, 'min_l2') and auxloss_dict.min_l2 > 0:
+            auxloss = auxloss + max_min_l2_distance_loss(deletion_logits, auxloss_dict.min_l2, )
         if hasattr(auxloss_dict, 'l2') and auxloss_dict.l2 > 0:
-            auxloss = auxloss + max_min_l2_distance_loss(deletion_logits, auxloss_dict.l2, )
+            auxloss = auxloss + max_l2_distance_loss(deletion_logits, auxloss_dict.l2, )
         if hasattr(auxloss_dict, 'cos') and auxloss_dict.cos > 0:
             auxloss = auxloss + cosine_similarity_loss(deletion_logits, auxloss_dict.cos, )
         if hasattr(auxloss_dict, 'kl') and auxloss_dict.kl > 0.:
@@ -264,8 +267,10 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                    max_num_nodes=dat_batch.num_edge_candidate.max())
 
     if train and auxloss_dict is not None:
+        if hasattr(auxloss_dict, 'min_l2') and auxloss_dict.min_l2 > 0:
+            auxloss = auxloss + max_min_l2_distance_loss(output_logits, auxloss_dict.min_l2, )
         if hasattr(auxloss_dict, 'l2') and auxloss_dict.l2 > 0:
-            auxloss = auxloss + max_min_l2_distance_loss(output_logits, auxloss_dict.l2, )
+            auxloss = auxloss + max_l2_distance_loss(output_logits, auxloss_dict.l2, )
         if hasattr(auxloss_dict, 'cos') and auxloss_dict.cos > 0:
             auxloss = auxloss + cosine_similarity_loss(output_logits, auxloss_dict.cos, )
         if hasattr(auxloss_dict, 'kl') and auxloss_dict.kl > 0.:
@@ -484,6 +489,7 @@ def construct_from_attention_mat(dat_batch: Data,
 
     auxloss = 0.
     if train and auxloss_dict is not None:
+        # Todo: consider delete var auxloss
         if auxloss_dict.variance > 0:
             auxloss = auxloss + get_variance_regularization(output_logits,
                                                             auxloss_dict.variance,
