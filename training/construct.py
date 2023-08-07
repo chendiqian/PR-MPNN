@@ -127,7 +127,7 @@ def sample4deletion(dat_batch: Data,
     sampler_class.k = samplek_dict['del_k']
     node_mask, _ = forward_func(logits)
 
-    return_logits = (deletion_logits.clone().detach(), node_mask.clone().detach())
+    return_logits = (deletion_logits.detach().clone(), node_mask.detach().clone())
 
     if merge_priors:
         node_mask = node_mask.sum(-1, keepdims=True) / (node_mask.detach().sum(-1, keepdims=True) + (1 / LARGE_NUMBER))
@@ -270,7 +270,7 @@ def construct_from_edge_candidate(dat_batch: Data,
     sampler_class.k = new_samplek_dict['add_k']
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
 
-    plot_scores = {'add': (output_logits.clone().detach(), node_mask.clone().detach())}
+    plot_scores = {'add': (output_logits.detach().clone(), node_mask.detach().clone())}
 
     if merge_priors:
         if merge_priors:
