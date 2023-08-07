@@ -32,6 +32,7 @@ def plot_rewired_graphs(new_batch: DuoDataStructure,
 
     assert isinstance(new_batch, DuoDataStructure), f"unsupported dtype {type(new_batch)}"
 
+    phase = 'train' if train else 'val'
     if hasattr(plot_args, 'plot_folder'):
         plot_folder = plot_args.plot_folder
         if not os.path.exists(plot_folder):
@@ -133,10 +134,10 @@ def plot_rewired_graphs(new_batch: DuoDataStructure,
                     ax_idx += 1
 
         if hasattr(plot_args, 'plot_folder'):
-            fig.savefig(os.path.join(plot_folder, f'e_{epoch}_graph_{graph_id}.png'), bbox_inches='tight')
+            fig.savefig(os.path.join(plot_folder, f'{phase}_e_{epoch}_graph_{graph_id}.png'), bbox_inches='tight')
 
         if wandb is not None and use_wandb:
-            wandb.log({f"graph_{graph_id}": wandb.Image(fig)}, step=epoch)
+            wandb.log({f"graph_{phase}_{graph_id}": wandb.Image(fig)}, step=epoch)
 
         plt.close(fig)
 
@@ -144,12 +145,14 @@ def plot_rewired_graphs(new_batch: DuoDataStructure,
 def plot_score(scores: torch.Tensor,
                epoch,
                batch_id,
+               train: bool,
                plot_args: ConfigDict,
                wandb,
                use_wandb: bool):
     if batch_id != plot_args.batch_id or epoch % plot_args.plot_every != 0:
         return
 
+    phase = 'train' if train else 'val'
     scores = scores.cpu().numpy()
     n_ensemble = scores.shape[-1]
     unique_graphs = scores.shape[0]
@@ -178,13 +181,70 @@ def plot_score(scores: torch.Tensor,
             sns.heatmap(atten_scores[..., e], ax=axs[e] if not is_only_one_plot else axs)
 
         if hasattr(plot_args, 'plot_folder'):
-            fig.savefig(os.path.join(plot_folder, f'scores_epoch_{epoch}_graph_{graph_id}.png'),
+            fig.savefig(os.path.join(plot_folder, f'scores_{phase}_epoch_{epoch}_graph_{graph_id}.png'),
                         bbox_inches='tight')
 
         if wandb is not None and use_wandb:
-            wandb.log({f"scores_{graph_id}": wandb.Image(fig)}, step=epoch)
+            wandb.log({f"scores_{phase}_{graph_id}": wandb.Image(fig)}, step=epoch)
 
         plt.close(fig)
+
+
+def plot_score_and_mask(scores: torch.Tensor,
+                        mask: torch.Tensor,
+                        epoch,
+                        batch_id,
+                        train: bool,
+                        plot_args: ConfigDict,
+                        wandb,
+                        use_wandb: bool,
+                        prefix: str = ''):
+
+    if batch_id != plot_args.batch_id or epoch % plot_args.plot_every != 0:
+        return
+
+    unique_graphs = scores.shape[0]
+    total_plotted_graphs = min(plot_args.n_graphs, unique_graphs)
+
+    if hasattr(plot_args, 'plot_folder'):
+        plot_folder = plot_args.plot_folder
+        if not os.path.exists(plot_folder):
+            os.makedirs(plot_folder)
+
+    phase = 'train' if train else 'val'
+    scores = scores.cpu().numpy()
+    mask = mask.squeeze(0).cpu().numpy()
+
+    for graph_id in range(total_plotted_graphs):
+        logits_log, mask_log = scores[graph_id], mask[graph_id]
+
+        if hasattr(plot_args, 'plot_folder'):
+            for target, _scores in zip(['scores', 'mask'], [logits_log, mask_log]):
+
+                fig, axs = plt.subplots(nrows=1, ncols=1,
+                                        figsize=(20, 7),
+                                        gridspec_kw={'wspace': 0.1, 'hspace': 0.1})
+                axs.set_axis_off()
+
+                sns.heatmap(_scores.T, ax=axs)
+                fig.savefig(os.path.join(plot_folder, f'{target}_{prefix}_epoch{epoch}_graph{graph_id}_{phase}.png'), bbox_inches='tight')
+
+                plt.close(fig)
+
+        concatenated = np.concatenate([logits_log, mask_log], axis=1)
+        if wandb is not None and use_wandb:
+            x_labels = [i for i in range(concatenated.shape[0])]
+            y_labels = [f'msk_{i}' if i < concatenated.shape[1] // 2 else f'pri_{i}' for i
+                        in range(concatenated.shape[1])]
+
+            wandb.log(
+                {f'{prefix}_{phase}_{graph_id}': wandb.plots.HeatMap(
+                    x_labels=x_labels,
+                    y_labels=y_labels,
+                    matrix_values=concatenated.T,
+                    show_text=False)},
+                step=epoch,
+            )
 
 
 def circular_tree_layout(graph: nx.DiGraph):

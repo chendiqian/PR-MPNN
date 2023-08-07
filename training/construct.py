@@ -13,7 +13,6 @@ from torch_scatter import scatter
 from data.utils.datatype_utils import (DuoDataStructure)
 from data.utils.tensor_utils import batched_edge_index_to_batched_adj, non_merge_coalesce, \
     batch_repeat_edge_index
-import seaborn as sns
 from training.aux_loss import get_variance_regularization, get_variance_regularization_3d, cosine_similarity_loss, l2_distance_loss
 
 LARGE_NUMBER = 1.e10
@@ -97,12 +96,7 @@ def sample4deletion(dat_batch: Data,
                     directed_sampling: bool,
                     auxloss: float,
                     auxloss_dict: ConfigDict,
-                    device: torch.device,
-                    wandb=None,
-                    batch_id: int = None,
-                    phase: str = None,
-                    epoch: int = None,
-                    plot_heatmaps = None,):
+                    device: torch.device,):
     batch_idx = torch.arange(len(dat_batch.nedges), device=device).repeat_interleave(dat_batch.nedges)
     if directed_sampling:
         deletion_logits, real_node_mask = to_dense_batch(deletion_logits,
@@ -133,32 +127,7 @@ def sample4deletion(dat_batch: Data,
     sampler_class.k = samplek_dict['del_k']
     node_mask, _ = forward_func(logits)
 
-    if wandb is not None and plot_heatmaps is not None:
-        heatmap_batch_id = plot_heatmaps['batch_id']
-        n_graphs = plot_heatmaps['n_graphs']
-        plot_every = plot_heatmaps['plot_every']
-
-        if batch_id == heatmap_batch_id and epoch % plot_every == 0:
-            wandb_logits = deletion_logits.detach().cpu().numpy()
-            wandb_mask = node_mask.detach().squeeze(0).cpu().numpy()
-
-            # both together
-            for idx, (mask_log, logits_log) in enumerate(zip(wandb_logits, wandb_mask)):
-                concatenated = np.concatenate([logits_log, mask_log], axis=1)
-
-                x_labels = [i for i in range(concatenated.shape[0])]
-                y_labels = [f'msk_{i}' if i < concatenated.shape[1]//2 else f'pri_{i}' for i in range(concatenated.shape[1])]
-
-                wandb.log(
-                    {f'del_{phase}_{idx}': wandb.plots.HeatMap(
-                        x_labels=x_labels,
-                        y_labels=y_labels, 
-                        matrix_values=concatenated.T, 
-                        show_text=False)},
-                    step=epoch,
-                    )
-                if idx == n_graphs:
-                    break
+    return_logits = (deletion_logits.clone().detach(), node_mask.clone().detach())
 
     if merge_priors:
         node_mask = node_mask.sum(-1, keepdims=True) / (node_mask.detach().sum(-1, keepdims=True) + (1 / LARGE_NUMBER))
@@ -177,7 +146,7 @@ def sample4deletion(dat_batch: Data,
                                            reduce='mean')
     del_edge_weight = del_edge_weight.permute((1, 2, 0)).reshape(L, -1).squeeze(0)
 
-    return del_edge_weight, auxloss
+    return del_edge_weight, return_logits, auxloss
 
 
 def get_weighted_mask(weight_edges: str,
@@ -258,12 +227,7 @@ def construct_from_edge_candidate(dat_batch: Data,
                                   num_layers: int = None,
                                   rewire_layers: List = None,
                                   auxloss_dict: ConfigDict = None,
-                                  sample_ratio: float = 1.0,
-                                  wandb = None,
-                                  batch_id: int = None,
-                                  phase: str = None,
-                                  epoch: int = None,
-                                  plot_heatmaps = None,):
+                                  sample_ratio: float = 1.0):
     """
     A super lengthy, cpmplicated and coupled function
     should find time to clean and comment it
@@ -305,33 +269,8 @@ def construct_from_edge_candidate(dat_batch: Data,
     # (#sampled, B, Nmax, E), (B, Nmax, E)
     sampler_class.k = new_samplek_dict['add_k']
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
-    
-    if wandb is not None and plot_heatmaps is not None:
-        heatmap_batch_id = plot_heatmaps['batch_id']
-        n_graphs = plot_heatmaps['n_graphs']
-        plot_every = plot_heatmaps['plot_every']
 
-        if batch_id == heatmap_batch_id and epoch % plot_every == 0:
-            wandb_logits = output_logits.detach().cpu().numpy()
-            wandb_mask = node_mask.detach().squeeze(0).cpu().numpy()
-
-            # both together
-            for idx, (mask_log, logits_log) in enumerate(zip(wandb_logits, wandb_mask)):
-                concatenated = np.concatenate([logits_log, mask_log], axis=1)
-
-                x_labels = [i for i in range(concatenated.shape[0])]
-                y_labels = [f'msk_{i}' if i < concatenated.shape[1]//2 else f'pri_{i}' for i in range(concatenated.shape[1])]
-
-                wandb.log(
-                    {f'add_{phase}_{idx}': wandb.plots.HeatMap(
-                        x_labels=x_labels,
-                        y_labels=y_labels, 
-                        matrix_values=concatenated.T, 
-                        show_text=False)},
-                    step=epoch,
-                    )
-                if idx == n_graphs:
-                    break
+    plot_scores = {'add': (output_logits.clone().detach(), node_mask.clone().detach())}
 
     if merge_priors:
         if merge_priors:
@@ -370,7 +309,7 @@ def construct_from_edge_candidate(dat_batch: Data,
 
     # =============================edge deletion===================================
     if new_samplek_dict['del_k'] > 0:
-        del_edge_weight, auxloss = sample4deletion(dat_batch,
+        del_edge_weight, return_logits, auxloss = sample4deletion(dat_batch,
                                                    deletion_logits,
                                                    train_forward if train else val_forward,
                                                    sampler_class,
@@ -380,12 +319,8 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                    directed_sampling,
                                                    auxloss,
                                                    auxloss_dict if train else None,
-                                                   add_edge_weight.device,
-                                                   wandb=wandb,
-                                                   batch_id=batch_id,
-                                                   phase=phase,
-                                                   epoch=epoch,
-                                                   plot_heatmaps=plot_heatmaps,)
+                                                   add_edge_weight.device)
+        plot_scores['del'] = return_logits
     else:
         del_edge_weight = None
 
@@ -440,7 +375,7 @@ def construct_from_edge_candidate(dat_batch: Data,
                                      y=rewired_batch.y,
                                      num_graphs=rewired_batch.num_graphs,
                                      num_unique_graphs=len(graphs))
-        return new_batch, None, auxloss
+        return new_batch, plot_scores, auxloss
     else:
         # for the graph adding with rewired edges in-place
         merged_edge_index = torch.cat([dumb_repeat_edge_index, add_edge_index], dim=1)
@@ -501,7 +436,7 @@ def construct_from_edge_candidate(dat_batch: Data,
                                      y=add_rewired_batch.y,
                                      num_graphs=add_rewired_batch.num_graphs,
                                      num_unique_graphs=len(graphs))
-        return new_batch, None, auxloss
+        return new_batch, plot_scores, auxloss
 
 
 def construct_from_attention_mat(dat_batch: Data,
@@ -583,7 +518,7 @@ def construct_from_attention_mat(dat_batch: Data,
             direct_mask = dat_batch.edge_index[0] <= dat_batch.edge_index[1]
             deletion_logits = deletion_logits[direct_mask]
 
-        del_edge_weight, auxloss = sample4deletion(dat_batch,
+        del_edge_weight, _, auxloss = sample4deletion(dat_batch,
                                                    deletion_logits,
                                                    train_forward if train else val_forward,
                                                    sampler_class,

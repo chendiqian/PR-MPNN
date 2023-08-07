@@ -14,7 +14,7 @@ from data.utils.datatype_utils import (AttributedDataLoader,
                                        IsBetter,
                                        DuoDataStructure,
                                        BatchOriginalDataStructure)
-from data.utils.plot_utils import plot_score, plot_rewired_graphs
+from data.utils.plot_utils import plot_score, plot_rewired_graphs, plot_score_and_mask
 from data.utils.args_utils import process_idx
 from training.construct import (construct_from_edge_candidate,
                                 construct_from_attention_mat)
@@ -33,10 +33,12 @@ class Trainer:
                  num_layers: int,
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
+                 plot_graph_args: ConfigDict,
+                 plot_scores_args: ConfigDict,
+                 plot_heatmap_args: ConfigDict,
                  auxloss: ConfigDict,
                  wandb: Optional[Any] = None,
                  use_wandb: bool = False,
-                 args: ConfigDict = None,
                  connectedness_metric_args: Optional[ConfigDict] = None,):
         super(Trainer, self).__init__()
 
@@ -62,25 +64,28 @@ class Trainer:
             ensemble = sample_configs.ensemble
             merge_priors = False
 
-        plot_args = args.plot_args if hasattr(args, 'plot_args') else None
-
         # plot functions
-        if plot_args is None:
-            self.plot = None
-            self.plot_score = None
-        else:
-            self.plot = partial(plot_rewired_graphs,
-                                wandb=wandb,
-                                use_wandb=use_wandb,
-                                plot_args=plot_args,
-                                ensemble=ensemble,
-                                num_train_ensemble=imle_configs.num_train_ensemble if imle_configs is not None else 1,
-                                num_val_ensemble=imle_configs.num_val_ensemble if imle_configs is not None else 1,
-                                include_original_graph=sample_configs.include_original_graph)
-            self.plot_score = partial(plot_score,
-                                      plot_args=plot_args,
-                                      wandb=wandb,
-                                      use_wandb=use_wandb)
+        self.plot = None if plot_graph_args is None else partial(
+            plot_rewired_graphs,
+            wandb=wandb,
+            use_wandb=use_wandb,
+            plot_args=plot_graph_args,
+            ensemble=ensemble,
+            num_train_ensemble=imle_configs.num_train_ensemble if imle_configs is not None else 1,
+            num_val_ensemble=imle_configs.num_val_ensemble if imle_configs is not None else 1,
+            include_original_graph=sample_configs.include_original_graph)
+
+        self.plot_score = None if plot_scores_args is None else partial(
+            plot_score,
+            plot_args=plot_scores_args,
+            wandb=wandb,
+            use_wandb=use_wandb)
+
+        self.plot_score_and_mask = None if plot_heatmap_args is None else partial(
+            plot_score_and_mask,
+            plot_args=plot_heatmap_args,
+            wandb=wandb,
+            use_wandb=use_wandb)
 
         if connectedness_metric_args is not None:
             self.connectedness_metric = partial(get_connectedness_metric,
@@ -127,18 +132,13 @@ class Trainer:
                                                            num_layers) if hasattr(
                                                            sample_configs,
                                                            'rewire_layers') else None,
-                                                       auxloss_dict=auxloss,
-                                                       wandb=wandb,
-                                                       plot_heatmaps=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else None,)
-                    def func(data, emb_model, batch_id, epoch, phase):
+                                                       auxloss_dict=auxloss)
+                    def func(data, emb_model):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,
                                                                          graphs,
                                                                          emb_model.training,
-                                                                         *emb_model(dat_batch),
-                                                                         batch_id=batch_id,
-                                                                         epoch=epoch,
-                                                                         phase=phase)
+                                                                         *emb_model(dat_batch))
                         return data, scores, auxloss
                     self.construct_duplicate_data = func
                 elif sample_configs.sample_policy == 'global':
@@ -171,15 +171,12 @@ class Trainer:
                                                            num_layers) if hasattr(
                                                            sample_configs,
                                                            'rewire_layers') else None)
-                    def func(data, emb_model, batch_id, epoch, phase):
+                    def func(data, emb_model):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,
                                                                          graphs,
                                                                          emb_model.training,
-                                                                         *emb_model(dat_batch),
-                                                                         batch_id=batch_id,
-                                                                         epoch=epoch,
-                                                                         phase=phase)
+                                                                         *emb_model(dat_batch))
                         return data, scores, auxloss
                     self.construct_duplicate_data = func
                 else:
@@ -243,12 +240,17 @@ class Trainer:
             if optimizer_embd is not None:
                 optimizer_embd.zero_grad()
             data, _ = self.check_datatype(data, dataloader.task)
-            data, scores, auxloss = self.construct_duplicate_data(data, emb_model, batch_id=batch_id, epoch=self.epoch, phase='train')
+            data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
 
             if self.plot is not None:
                 self.plot(data, True, self.epoch, batch_id)
-            if self.plot_score is not None and scores is not None:
-                self.plot_score(scores, self.epoch, batch_id)
+            if self.plot_score is not None:
+                if scores is not None and isinstance(scores, torch.Tensor):
+                    self.plot_score(scores, self.epoch, batch_id, train=True)
+            if self.plot_score_and_mask is not None:
+                if scores is not None and isinstance(scores, dict):
+                    for k, (score, mask) in scores.items():
+                        self.plot_score_and_mask(score, mask, self.epoch, batch_id, True, prefix=k)
 
             pred = model(data)
             is_labeled = data.y == data.y
@@ -301,7 +303,17 @@ class Trainer:
 
         for batch_id, data in enumerate(dataloader.loader):
             data, num_preds = self.check_datatype(data, dataloader.task)
-            data, _, _ = self.construct_duplicate_data(data, emb_model, batch_id=batch_id, epoch=self.epoch, phase='test')
+            data, scores, _ = self.construct_duplicate_data(data, emb_model)
+
+            if self.plot is not None:
+                self.plot(data, False, self.epoch, batch_id)
+            if self.plot_score is not None:
+                if scores is not None and isinstance(scores, torch.Tensor):
+                    self.plot_score(scores, self.epoch, batch_id, train=False)
+            if self.plot_score_and_mask is not None:
+                if scores is not None and isinstance(scores, dict):
+                    for k, (score, mask) in scores.items():
+                        self.plot_score_and_mask(score, mask, self.epoch, batch_id, False, prefix=k)
 
             pred = model(data)
 

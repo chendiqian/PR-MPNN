@@ -83,10 +83,12 @@ def run(wandb, args):
                       num_layers=args.num_convlayers,
                       imle_configs=args.imle_configs,
                       sample_configs=args.sample_configs,
+                      plot_graph_args=args.plot_graphs if hasattr(args, 'plot_graphs') else None,
+                      plot_scores_args=args.plot_scores if hasattr(args, 'plot_scores') else None,
+                      plot_heatmap_args=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else None,
                       auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else None,
                       wandb=wandb,
                       use_wandb=args.use_wandb,
-                      args=args,
                       connectedness_metric_args=args.connectedness if hasattr(args, 'connectedness') else None)
 
     best_train_metrics = [[] for _ in range(args.num_runs)]
@@ -101,7 +103,7 @@ def run(wandb, args):
     for _run in range(args.num_runs):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(
                 zip(train_loaders, val_loaders, test_loaders)):
-            model, emb_model, surrogate_model = get_model(args, device, wandb)
+            model, emb_model, surrogate_model = get_model(args, device)
             optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
             optimizer, scheduler = get_opt(model, surrogate_model)
 

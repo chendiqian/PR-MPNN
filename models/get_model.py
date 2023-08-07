@@ -68,7 +68,7 @@ def get_encoder(args, for_downstream):
     return type_encoder, encoder, edge_encoder
 
 
-def get_model(args, device, wandb, *_args):
+def get_model(args, device, *_args):
     model, emb_model, surrogate_model = None, None, None
     type_encoder, encoder, edge_encoder = get_encoder(args, for_downstream=True)
     if args.model.lower() in ['gin_normal', 'gine_normal', 'pna_normal']:
@@ -241,8 +241,6 @@ def get_model(args, device, wandb, *_args):
                               rewire_layers=None,
                               auxloss_dict=args.imle_configs.auxloss if hasattr(args.imle_configs,
                                                                        'auxloss') else None,
-                              wandb=wandb,
-                              plot_heatmaps=args.plot_heatmaps if hasattr(args, 'plot_heatmaps') else None,
             )
             if 'decoupled' in args.model.lower():
                 model = DecoupledDynamicRewireGNN(
