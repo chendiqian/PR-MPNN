@@ -231,11 +231,13 @@ def plot_score_and_mask(scores: torch.Tensor,
 
                 plt.close(fig)
 
-        concatenated = np.concatenate([logits_log, mask_log], axis=1)
+        # concatenated = np.concatenate([logits_log, mask_log], axis=1)
+        concatenated = np.concatenate([mask_log], axis=1)
         if wandb is not None and use_wandb:
             x_labels = [i for i in range(concatenated.shape[0])]
-            y_labels = [f'msk_{i}' if i < concatenated.shape[1] // 2 else f'pri_{i}' for i
-                        in range(concatenated.shape[1])]
+            # y_labels = [f'msk_{i}' if i < concatenated.shape[1] // 2 else f'pri_{i}' for i
+            #             in range(concatenated.shape[1])]
+            y_labels = [f'msk_{i}' for i in range(concatenated.shape[1])]
 
             wandb.log(
                 {f'{prefix}_{phase}_{graph_id}': wandb.plots.HeatMap(
