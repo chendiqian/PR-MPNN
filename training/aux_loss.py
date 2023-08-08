@@ -61,7 +61,11 @@ def pairwise_KL_divergence(inputs, auxloss):
         return 0.
     idx = np.triu_indices(N, k=1)
     inputs = torch.log_softmax(inputs, dim=-1)
-    loss = torch.vmap(partial(F.kl_div, reduction='batchmean', log_target=True))(inputs[:, idx[0]], inputs[:, idx[1]]).mean()
+    func = torch.vmap(partial(F.kl_div, reduction='batchmean', log_target=True))
+    src = inputs[:, idx[0]]
+    dst = inputs[:, idx[1]]
+    # KL is asymmetric
+    loss = func(src, dst).mean() + func(dst, src).mean()
     return -loss * auxloss
 
 
