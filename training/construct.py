@@ -18,7 +18,8 @@ from training.aux_loss import (get_variance_regularization,
                                cosine_similarity_loss,
                                max_min_l2_distance_loss,
                                max_l2_distance_loss,
-                               pairwise_KL_divergence)
+                               pairwise_KL_divergence,
+                               batch_kl_divergence)
 
 LARGE_NUMBER = 1.e10
 
@@ -118,16 +119,6 @@ def sample4deletion(dat_batch: Data,
                                                          batch_idx[direct_mask],
                                                          max_num_nodes=num_direct_edges.max())
 
-    if auxloss_dict is not None:
-        if hasattr(auxloss_dict, 'min_l2') and auxloss_dict.min_l2 > 0:
-            auxloss = auxloss + max_min_l2_distance_loss(deletion_logits, auxloss_dict.min_l2, )
-        if hasattr(auxloss_dict, 'l2') and auxloss_dict.l2 > 0:
-            auxloss = auxloss + max_l2_distance_loss(deletion_logits, auxloss_dict.l2, )
-        if hasattr(auxloss_dict, 'cos') and auxloss_dict.cos > 0:
-            auxloss = auxloss + cosine_similarity_loss(deletion_logits, auxloss_dict.cos, )
-        if hasattr(auxloss_dict, 'kl') and auxloss_dict.kl > 0.:
-            auxloss = auxloss + pairwise_KL_divergence(deletion_logits, auxloss_dict.kl, )
-
     # we select the least scores
     deletion_logits = -deletion_logits
     padding_bias = (~real_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
@@ -137,6 +128,25 @@ def sample4deletion(dat_batch: Data,
     sampler_class.policy = 'edge_candid'  # because we are sampling from edge_index candidate
     sampler_class.k = samplek_dict['del_k']
     node_mask, _ = forward_func(logits)
+
+    if auxloss_dict is not None:
+        if hasattr(auxloss_dict, 'min_l2'):
+            auxloss = auxloss + max_min_l2_distance_loss(deletion_logits, auxloss_dict.min_l2, )
+        if hasattr(auxloss_dict, 'l2'):
+            auxloss = auxloss + max_l2_distance_loss(deletion_logits, auxloss_dict.l2, )
+        if hasattr(auxloss_dict, 'mask_l2'):
+            auxloss = auxloss + max_l2_distance_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_l2, )
+        if hasattr(auxloss_dict, 'cos'):
+            auxloss = auxloss + cosine_similarity_loss(deletion_logits, auxloss_dict.cos, )
+        if hasattr(auxloss_dict, 'mask_cos'):
+            auxloss = auxloss + cosine_similarity_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_cos, )
+        if hasattr(auxloss_dict, 'kl'):
+            auxloss = auxloss + pairwise_KL_divergence(deletion_logits, auxloss_dict.kl, )
+        if hasattr(auxloss_dict, 'mask_kl'):
+            auxloss = auxloss + pairwise_KL_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_kl, )
+        if hasattr(auxloss_dict, 'batch_kl'):
+            # targeted at node mask
+            auxloss = auxloss + batch_kl_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.batch_kl, )
 
     return_logits = (deletion_logits.detach().clone(), node_mask.detach().clone())
 
@@ -266,22 +276,31 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                        dat_batch.num_edge_candidate),
                                                    max_num_nodes=dat_batch.num_edge_candidate.max())
 
-    if train and auxloss_dict is not None:
-        if hasattr(auxloss_dict, 'min_l2') and auxloss_dict.min_l2 > 0:
-            auxloss = auxloss + max_min_l2_distance_loss(output_logits, auxloss_dict.min_l2, )
-        if hasattr(auxloss_dict, 'l2') and auxloss_dict.l2 > 0:
-            auxloss = auxloss + max_l2_distance_loss(output_logits, auxloss_dict.l2, )
-        if hasattr(auxloss_dict, 'cos') and auxloss_dict.cos > 0:
-            auxloss = auxloss + cosine_similarity_loss(output_logits, auxloss_dict.cos, )
-        if hasattr(auxloss_dict, 'kl') and auxloss_dict.kl > 0.:
-            auxloss = auxloss + pairwise_KL_divergence(output_logits, auxloss_dict.kl, )
-
     padding_bias = (~real_node_mask)[..., None].to(torch.float) * LARGE_NUMBER
     logits = output_logits - padding_bias
 
     # (#sampled, B, Nmax, E), (B, Nmax, E)
     sampler_class.k = new_samplek_dict['add_k']
     node_mask, marginals = train_forward(logits) if train else val_forward(logits)
+
+    if train and auxloss_dict is not None:
+        if hasattr(auxloss_dict, 'min_l2'):
+            auxloss = auxloss + max_min_l2_distance_loss(output_logits, auxloss_dict.min_l2, )
+        if hasattr(auxloss_dict, 'l2'):
+            auxloss = auxloss + max_l2_distance_loss(output_logits, auxloss_dict.l2, )
+        if hasattr(auxloss_dict, 'mask_l2'):
+            auxloss = auxloss + max_l2_distance_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_l2, )
+        if hasattr(auxloss_dict, 'cos'):
+            auxloss = auxloss + cosine_similarity_loss(output_logits, auxloss_dict.cos, )
+        if hasattr(auxloss_dict, 'mask_cos'):
+            auxloss = auxloss + cosine_similarity_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_cos, )
+        if hasattr(auxloss_dict, 'kl'):
+            auxloss = auxloss + pairwise_KL_divergence(output_logits, auxloss_dict.kl, )
+        if hasattr(auxloss_dict, 'mask_kl'):
+            auxloss = auxloss + pairwise_KL_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_kl, )
+        if hasattr(auxloss_dict, 'batch_kl'):
+            # targeted at node mask
+            auxloss = auxloss + batch_kl_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.batch_kl, )
 
     plot_scores = {'add': (output_logits.detach().clone(), node_mask.detach().clone())}
 

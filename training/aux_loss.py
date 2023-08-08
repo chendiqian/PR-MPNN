@@ -1,4 +1,3 @@
-from functools import partial
 from typing import Tuple
 
 import numpy as np
@@ -48,6 +47,7 @@ def pairwise_KL_divergence(inputs, auxloss):
     """
     maximize the pair wise KL divergence
     https://pytorch.org/docs/stable/generated/torch.nn.functional.kl_div.html?highlight=kl_div#torch.nn.functional.kl_div
+    We implement our own for pytorch does not batch the KL function
 
     Args:
         inputs:
@@ -61,12 +61,33 @@ def pairwise_KL_divergence(inputs, auxloss):
         return 0.
     idx = np.triu_indices(N, k=1)
     inputs = torch.log_softmax(inputs, dim=-1)
-    func = torch.vmap(partial(F.kl_div, reduction='batchmean', log_target=True))
+    # func = torch.vmap(partial(F.kl_div, reduction='batchmean', log_target=True))
     src = inputs[:, idx[0]]
     dst = inputs[:, idx[1]]
     # KL is asymmetric
-    loss = func(src, dst).mean() + func(dst, src).mean()
+    # loss = func(src, dst).mean() + func(dst, src).mean()
+    loss = (dst.exp() * (dst - src)).sum(-1).mean() + (src.exp() * (src - dst)).sum(-1).mean()
     return -loss * auxloss
+
+
+def batch_kl_divergence(inputs, auxloss):
+    """
+    Sum the inputs across the batchsize dimension, and minimize KL between the result vec and 1s vector.
+
+    Args:
+        inputs:
+        auxloss:
+
+    Returns:
+
+    """
+    B, N, E = inputs.shape
+    if E == 1:
+        return 0.
+    src = torch.log_softmax(inputs.sum(-1), dim=-1)
+    dst = inputs.new_ones(B, N) / float(N)
+    loss = F.kl_div(src, dst, reduction='batchmean', log_target=False)
+    return loss * auxloss
 
 
 def max_l2_distance_loss(inputs, auxloss):
