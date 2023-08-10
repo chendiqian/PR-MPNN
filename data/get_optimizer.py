@@ -85,7 +85,9 @@ def make_get_opt(args):
         if args.optim == 'sgd':
             optimizer = optim.SGD(surrogate_model.parameters(), lr=args.lr, weight_decay=args.reg)
         elif args.optim == 'adam':
-            optimizer = optim.Adam(surrogate_model.parameters(), lr=args.lr, weight_decay=args.reg)
+            optimizer = optim.Adam(surrogate_model.parameters(), lr=args.lr, weight_decay=args.reg)        
+        elif args.optim == 'adamw':
+            optimizer = optim.AdamW(surrogate_model.parameters(), lr=args.lr, weight_decay=args.reg)
         else:
             raise ValueError
 
