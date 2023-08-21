@@ -48,6 +48,12 @@ def naming(args) -> str:
 
     name += f'ensemble_{args.sample_configs.ensemble}_'
     name += f'policy_{args.sample_configs.sample_policy}_'
+
+    if hasattr(args.sample_configs, 'candid_pool'):
+        name = f'candid{args.sample_configs.candid_pool}_ens{args.sample_configs.ensemble}' + name
+    else:
+        name = f'ens{args.sample_configs.ensemble}' + name
+
     return name
 
 
@@ -106,6 +112,20 @@ def run(wandb, args):
             model, emb_model, surrogate_model = get_model(args, device)
             optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
             optimizer, scheduler = get_opt(model, surrogate_model)
+
+            # count the number of parameters for model and emb_model
+            num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            if emb_model is not None:
+                num_params_emb = sum(p.numel() for p in emb_model.parameters() if p.requires_grad)
+                total_params = num_params + num_params_emb
+            else:
+                total_params = num_params
+            #log to wandb
+            wandb.run.summary['n_params_downstream'] = num_params
+            wandb.run.summary['total_params'] = total_params
+            wandb.run.summary['n_params_upstream'] = num_params_emb if emb_model is not None else 0
+
+            logger.info(f'Number of params: {total_params} (upstream: {num_params_emb}, downstream: {num_params})')
 
             # wandb.watch(model, log="all", log_freq=10)
             # if emb_model is not None:
