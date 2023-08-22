@@ -119,11 +119,12 @@ def run(wandb, args):
                 num_params_emb = sum(p.numel() for p in emb_model.parameters() if p.requires_grad)
                 total_params = num_params + num_params_emb
             else:
+                num_params_emb = 0
                 total_params = num_params
             #log to wandb
             wandb.run.summary['n_params_downstream'] = num_params
             wandb.run.summary['total_params'] = total_params
-            wandb.run.summary['n_params_upstream'] = num_params_emb if emb_model is not None else 0
+            wandb.run.summary['n_params_upstream'] = num_params_emb
 
             logger.info(f'Number of params: {total_params} (upstream: {num_params_emb}, downstream: {num_params})')
 
