@@ -271,7 +271,9 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
 
 
 def get_ogbg_data(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args)
+    pre_transform = get_pretransform(args, extra_pretransforms=[
+        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
+        GraphToUndirected()])
     transform = get_transform(args)
 
     # if there are specific pretransforms, create individual folders for the dataset

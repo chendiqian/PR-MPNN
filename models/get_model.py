@@ -27,8 +27,8 @@ def get_encoder(args, for_downstream):
         type_encoder = 'bi_embedding'
     elif args.dataset.lower().startswith('leafcolor'):
         type_encoder = 'bi_embedding_cat'
-    elif args.dataset.lower().startswith('peptides'):
-        type_encoder = 'peptides'
+    elif args.dataset.lower().startswith('peptides') or args.dataset.lower().startswith('ogbg'):
+        type_encoder = 'atomencoder'
     else:
         raise ValueError
 
@@ -58,9 +58,12 @@ def get_encoder(args, for_downstream):
             nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], edge_hidden),
             nn.ReLU(),
             nn.Linear(edge_hidden, edge_hidden))
-    elif args.dataset.lower().startswith('hetero') or args.dataset.lower().startswith('tree') or args.dataset.lower().startswith('leafcolor'):
+    elif args.dataset.lower().startswith('hetero') or \
+            args.dataset.lower().startswith('tree') or \
+            args.dataset.lower().startswith('leafcolor'):
         edge_encoder = None
-    elif args.dataset.lower().startswith('peptides'):
+    elif args.dataset.lower().startswith('peptides') or \
+            args.dataset.lower().startswith('ogbg'):
         edge_encoder = BondEncoder(edge_hidden)
     else:
         raise NotImplementedError("we need torch.nn.Embedding, to be implemented")

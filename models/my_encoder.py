@@ -99,7 +99,7 @@ class FeatureEncoder(torch.nn.Module):
             assert lin_hidden % 2 == 0, 'lin_hidden must be even'
             # n_features hardcoded right now
             self.linear_embed = BiEmbedding_cat(n_nodes=dim_in, n_features=2, hidden=lin_hidden//2)
-        elif type_encoder == 'peptides':
+        elif type_encoder == 'atomencoder':
             self.linear_embed = AtomEncoder(lin_hidden)
         elif type_encoder == 'embedding':
             # https://github.com/rampasek/GraphGPS/blob/28015707cbab7f8ad72bed0ee872d068ea59c94b/graphgps/encoder/type_dict_encoder.py#L82
