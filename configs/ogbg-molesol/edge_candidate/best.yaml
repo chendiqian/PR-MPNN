@@ -2,8 +2,8 @@ fixed:
   dataset: ogbg-molesol
   log_path: './logs'
 
-  use_wandb: False
-  wandb_name: "best_edge_candid"
+  use_wandb: True
+  wandb_name: "molesol_normal"
 
   sample_configs:
     sample_policy: edge_candid
@@ -11,19 +11,19 @@ fixed:
     separate: False
     directed: False
     in_place: True
-    sample_k: 80   # edge addition
-    sample_k2: 20   # edge deletion
+    sample_k: 10   # edge addition
+    sample_k2: 10   # edge deletion
     candid_pool: 100
-    ensemble: 1
+    ensemble: 5
     heuristic: longest_path
-    include_original_graph: True
+    include_original_graph: False
 
   imle_configs:
-    sampler: imle
+    sampler: simple
     noise_scale: 0.3
     beta: 10.
     logits_activation: null
-    weight_edges: null
+    weight_edges: marginals
     marginals_mask: True
     negative_sample: 'full'
     num_train_ensemble: 5
@@ -61,7 +61,7 @@ fixed:
   lr_decay:
     scheduler: 'plateau'
     decay_rate: 0.5
-    mode: 'max'
+    mode: 'min'
     patience: 50
     target: 'val_metric'
   early_stop:
