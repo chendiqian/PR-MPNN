@@ -388,6 +388,8 @@ class Trainer:
                 is_better = val_is_better
             elif self.patience_target == 'train_metric':
                 is_better = train_is_better
+            elif self.patience_target == 'val_loss':
+                is_better = val_loss < self.best_val_loss
             else:
                 raise NotImplementedError
 
