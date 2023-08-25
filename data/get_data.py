@@ -586,7 +586,7 @@ def get_qm9(args: Union[Namespace, ConfigDict]):
     ]
     std = 1. / torch.tensor(norm_const, dtype=torch.float)
 
-    return train_set, val_set, test_set, std, task_id
+    return train_set, val_set, test_set, [std[i] for i in task_id], task_id
 
 
 def get_exp_dataset(args, num_fold=10):
