@@ -1,0 +1,43 @@
+fixed:
+  dataset: ppgnqm9
+  log_path: './logs'
+
+  use_wandb: False
+  wandb_name: "qm9_normal"
+
+  sample_configs:
+    sample_policy: null
+    sample_k: null
+    ensemble: 0   # config just for plots
+    include_original_graph: True   # config just for plots
+
+  imle_configs: null
+
+  # down stream model
+  task_id: 6  # remove task_id to train on all
+  model: qm9_gine
+  hid_size: 64
+  lr: 1.e-3
+  optim: adam
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'min'
+    patience: 50
+    target: 'val_metric'
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 8
+#  mlp_layers_intragraph: 0
+#  mlp_layers_intergraph: 2
+  graph_pooling: max
+#  inter_graph_pooling: null
+  dropout: 0.5
+  batch_size: 32
+  min_epochs: 300
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: True
+  num_runs: 1

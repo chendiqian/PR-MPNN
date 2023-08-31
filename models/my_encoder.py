@@ -51,6 +51,84 @@ class AtomEncoder(torch.nn.Module):
             torch.nn.init.xavier_uniform_(emb.weight.data)
 
 
+class QM9AtomEncoder(torch.nn.Module):
+
+    def __init__(self, emb_dim):
+        super(QM9AtomEncoder, self).__init__()
+        qm9_features = [2, 2, 2, 2, 2, 10, 2, 2, 2, 2, 2, 2, 5]
+        self.atom_embedding_list = torch.nn.ModuleList()
+
+        for i, dim in enumerate(qm9_features):
+            emb = torch.nn.Embedding(dim, emb_dim)
+            torch.nn.init.xavier_uniform_(emb.weight.data)
+            self.atom_embedding_list.append(emb)
+
+    def forward(self, x):
+        x_embedding = 0
+        for i in range(x.shape[1]):
+            x_embedding += self.atom_embedding_list[i](x[:, i])
+
+        return x_embedding
+
+    def reset_parameters(self):
+        for emb in self.atom_embedding_list:
+            torch.nn.init.xavier_uniform_(emb.weight.data)
+
+
+class QM9FeatureEncoder(torch.nn.Module):
+
+    def __init__(self,
+                 dim_in,
+                 hidden,
+                 type_encoder,
+                 lap_encoder: ConfigDict = None,
+                 rw_encoder: ConfigDict = None):
+        super(QM9FeatureEncoder, self).__init__()
+
+        lin_hidden = hidden
+        if lap_encoder is not None:
+            lin_hidden -= lap_encoder.dim_pe
+        if rw_encoder is not None:
+            lin_hidden -= rw_encoder.dim_pe
+
+        if type_encoder == 'linear':
+            self.linear_embed = nn.Linear(dim_in, lin_hidden)
+        elif type_encoder == 'atomencoder':
+            self.linear_embed = QM9AtomEncoder(lin_hidden)
+        else:
+            raise ValueError
+
+        if lap_encoder is not None:
+            self.lap_encoder = LapPENodeEncoder(hidden,
+                                                hidden - rw_encoder.dim_pe if rw_encoder is not None else hidden,
+                                                lap_encoder,
+                                                expand_x=False)
+        else:
+            self.lap_encoder = None
+
+        if rw_encoder is not None:
+            self.rw_encoder = RWSENodeEncoder(hidden, hidden, rw_encoder, expand_x=False)
+        else:
+            self.rw_encoder = None
+
+        self.postmlp = nn.Sequential(nn.BatchNorm1d(hidden),
+                                     nn.ReLU(),
+                                     nn.Linear(hidden, hidden),
+                                     nn.BatchNorm1d(hidden),
+                                     nn.ReLU())
+
+    def forward(self, batch):
+        x = self.linear_embed(batch.x)
+        if self.lap_encoder is not None:
+            x = self.lap_encoder(x, batch)
+        if self.rw_encoder is not None:
+            x = self.rw_encoder(x, batch)
+
+        x = self.postmlp(x)
+
+        return x
+
+
 class BondEncoder(torch.nn.Module):
 
     def __init__(self, emb_dim):

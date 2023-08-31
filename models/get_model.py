@@ -10,7 +10,7 @@ from models.downstream_models.dynamic_rewire_gnn import (DynamicRewireGNN,
                                                          DecoupledDynamicRewireGNN,
                                                          DynamicRewireTransUpstreamGNN,
                                                          DecoupledDynamicRewireTransUpstreamGNN)
-from models.my_encoder import FeatureEncoder, BondEncoder
+from models.my_encoder import FeatureEncoder, BondEncoder, QM9FeatureEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.upstream_models.edge_candidate_selector_2wl import EdgeSelector2WL
 from models.upstream_models.transformer import Transformer
@@ -28,6 +28,8 @@ def get_encoder(args, for_downstream):
     elif args.dataset.lower().startswith('leafcolor'):
         type_encoder = 'bi_embedding_cat'
     elif args.dataset.lower().startswith('peptides') or args.dataset.lower().startswith('ogbg'):
+        type_encoder = 'atomencoder'
+    elif args.dataset.lower() == 'ppgnqm9':
         type_encoder = 'atomencoder'
     else:
         raise ValueError
@@ -47,13 +49,20 @@ def get_encoder(args, for_downstream):
         # need to overwrite
         hidden = args.tf_hid_size
 
-    encoder = FeatureEncoder(
-        dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-        hidden=hidden,
-        type_encoder=type_encoder,
-        lap_encoder=lap,
-        rw_encoder=rwse)
-    if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary', 'qm9', 'exp', 'cexp']:
+    if 'qm9' in args.dataset.lower():
+        encoder = QM9FeatureEncoder(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+                                    hidden,
+                                    type_encoder,
+                                    lap,
+                                    rwse)
+    else:
+        encoder = FeatureEncoder(
+            dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
+            hidden=hidden,
+            type_encoder=type_encoder,
+            lap_encoder=lap,
+            rw_encoder=rwse)
+    if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary', 'qm9', 'ppgnqm9', 'exp', 'cexp']:
         edge_encoder = nn.Sequential(
             nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], edge_hidden),
             nn.ReLU(),
@@ -68,12 +77,12 @@ def get_encoder(args, for_downstream):
     else:
         raise NotImplementedError("we need torch.nn.Embedding, to be implemented")
 
-    return type_encoder, encoder, edge_encoder
+    return encoder, edge_encoder
 
 
 def get_model(args, device, *_args):
     model, emb_model, surrogate_model = None, None, None
-    type_encoder, encoder, edge_encoder = get_encoder(args, for_downstream=True)
+    encoder, edge_encoder = get_encoder(args, for_downstream=True)
     if args.model.lower() in ['gin_normal', 'gine_normal', 'pna_normal']:
         model = GNN_Normal(
             encoder,
@@ -292,9 +301,9 @@ def get_model(args, device, *_args):
         assert not (hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse')
                     or hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap')), "Need a new node encoder!"
         model = QM9_Net(
+            encoder=encoder,
             gnn_type=args.model.split('_')[-1],
             edge_encoder=edge_encoder,
-            num_features=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
             num_classes=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['num_class'],
             emb_sizes=args.hid_size,
             num_layers=args.num_convlayers,
@@ -305,7 +314,7 @@ def get_model(args, device, *_args):
 
     if args.imle_configs is not None and args.imle_configs.model is not None:
         # not shared with the downstream
-        type_encoder, encoder, edge_encoder = get_encoder(args, for_downstream=False)
+        encoder, edge_encoder = get_encoder(args, for_downstream=False)
         if args.imle_configs.model == 'transformer':
             emb_model = Transformer(encoder=encoder,
                                     hidden=args.imle_configs.emb_hid_size,

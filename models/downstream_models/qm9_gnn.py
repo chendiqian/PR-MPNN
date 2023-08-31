@@ -10,9 +10,9 @@ from models.my_convs import GINConv, GINEConv
 class QM9_Net(torch.nn.Module):
     def __init__(
         self,
+        encoder,
         gnn_type,
         edge_encoder,
-        num_features,
         num_classes,
         emb_sizes,
         num_layers,
@@ -23,12 +23,7 @@ class QM9_Net(torch.nn.Module):
         self.drpt_prob = drpt_prob
         self.graph_pooling = graph_pooling
 
-        self.initial_mlp = Sequential(Linear(num_features, emb_sizes),
-                                      BatchNorm1d(emb_sizes),
-                                      ReLU(),
-                                      Linear(emb_sizes, emb_sizes),
-                                      BatchNorm1d(emb_sizes),
-                                      ReLU(), )
+        self.initial_mlp = encoder
         self.initial_linear = Linear(emb_sizes, num_classes)
 
         gnn_layers = []
@@ -66,9 +61,7 @@ class QM9_Net(torch.nn.Module):
             self.pooling = global_mean_pool
 
     def forward(self, data):
-        x_feat = data.x
-
-        x_feat = self.initial_mlp(x_feat)  # Otherwise by an MLP
+        x_feat = self.initial_mlp(data)  # Otherwise by an MLP
         out = F.dropout(
             self.pooling(self.initial_linear(x_feat), data.batch), p=self.drpt_prob
         )

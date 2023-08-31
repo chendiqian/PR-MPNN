@@ -40,11 +40,11 @@ class GNN_Duo(torch.nn.Module):
         elif base_gnn == 'qm9gine':
             self.encoder = None  # no encoder, qm9 model has one
             graph_pooling, qm9_graph_pooling = None, graph_pooling
-            self.gnn = QM9_Net('gine', edge_encoder, in_features, hidden, hidden, num_layers, dropout, qm9_graph_pooling)
+            self.gnn = QM9_Net(encoder, 'gine', edge_encoder, hidden, hidden, num_layers, dropout, qm9_graph_pooling)
         elif base_gnn == 'qm9gin':
             self.encoder = None  # no encoder, qm9 model has one
             graph_pooling, qm9_graph_pooling = None, graph_pooling
-            self.gnn = QM9_Net('gin', edge_encoder, in_features, hidden, hidden, num_layers, dropout, qm9_graph_pooling)
+            self.gnn = QM9_Net(encoder, 'gin', edge_encoder, hidden, hidden, num_layers, dropout, qm9_graph_pooling)
         elif base_gnn == 'pna':
             assert deg_hist is not None
             self.gnn = BasePNA(hidden, num_layers, hidden, hidden, use_bn,
@@ -69,13 +69,13 @@ class GNN_Duo(torch.nn.Module):
                 )
             elif base_gnn == 'qm9gine':
                 self.candid_gnns = torch.nn.ModuleList(
-                    [QM9_Net('gine', edge_encoder, in_features, hidden, hidden,
+                    [QM9_Net(encoder, 'gine', edge_encoder, hidden, hidden,
                              num_layers, dropout, qm9_graph_pooling)
                      for _ in range(num_candidates)]
                 )
             elif base_gnn == 'qm9gin':
                 self.candid_gnns = torch.nn.ModuleList(
-                    [QM9_Net('gin', edge_encoder, in_features, hidden, hidden,
+                    [QM9_Net(encoder, 'gin', edge_encoder, hidden, hidden,
                              num_layers, dropout, qm9_graph_pooling)
                      for _ in range(num_candidates)]
                 )
