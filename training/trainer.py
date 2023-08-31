@@ -361,7 +361,6 @@ class Trainer:
 
         early_stop = False
         if not test:
-            self.best_val_loss = min(self.best_val_loss, val_loss)
 
             if scheduler is not None:
                 if isinstance(scheduler, MyPlateau):
@@ -388,8 +387,12 @@ class Trainer:
                 is_better = val_is_better
             elif self.patience_target == 'train_metric':
                 is_better = train_is_better
+            elif self.patience_target == 'val_loss':
+                is_better = val_loss < self.best_val_loss
             else:
                 raise NotImplementedError
+            
+            self.best_val_loss = min(self.best_val_loss, val_loss)
 
             if is_better:
                 self.patience = 0
