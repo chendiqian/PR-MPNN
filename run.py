@@ -137,6 +137,14 @@ def run(wandb, args):
             best_epoch = 0
             epoch_timer = SyncMeanTimer()
             for epoch in range(args.max_epochs):
+
+                if hasattr(args, 'reset_downstream') and args.reset_downstream == epoch:
+                    logger.info('Resetting downstream model...')
+                    model, _, _ = get_model(args, device)
+                    optimizer, scheduler = get_opt(model, surrogate_model)
+                    trainer.clear_stats()
+
+
                 trainer.epoch = epoch
                 train_loss, train_metric = trainer.train(train_loader,
                                                          emb_model,
