@@ -83,7 +83,7 @@ def get_encoder(args, for_downstream):
 def get_model(args, device, *_args):
     model, emb_model, surrogate_model = None, None, None
     encoder, edge_encoder = get_encoder(args, for_downstream=True)
-    if args.model.lower() in ['gin_normal', 'gine_normal', 'pna_normal']:
+    if args.model.lower() in ['gin_normal', 'gine_normal', 'pna_normal', 'gcn_normal']:
         model = GNN_Normal(
             encoder,
             edge_encoder,

@@ -1,7 +1,7 @@
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set, global_max_pool
 
-from models.my_convs import BaseGIN, BaseGINE, BasePNA
+from models.my_convs import BaseGIN, BaseGINE, BasePNA, BaseGCN
 from models.nn_modules import MLP
 
 
@@ -34,6 +34,9 @@ class GNN_Normal(torch.nn.Module):
             assert deg_hist is not None
             self.gnn = BasePNA(in_features, num_layers, hidden, hidden, use_bn,
                                 dropout, residual, deg_hist, edge_encoder)
+        elif base_gnn == 'gcn':
+            self.gnn = BaseGCN(in_features, num_layers, hidden, hidden, use_bn,
+                                dropout, residual)
         else:
             raise NotImplementedError
 

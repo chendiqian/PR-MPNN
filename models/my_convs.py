@@ -3,11 +3,10 @@ from typing import Optional, Union
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import BatchNorm1d as BN
-from torch.nn import Linear, ReLU, Sequential
-from torch_geometric.nn import MessagePassing
-from torch_geometric.nn import PNAConv
+from torch.nn import Linear, ReLU, Sequential, BatchNorm1d as BN
+from torch_geometric.nn import MessagePassing, PNAConv
 from torch_geometric.typing import Adj, OptTensor
+from torch_geometric.utils import degree
 
 from .my_encoder import BondEncoder
 from .nn_modules import MLP
@@ -336,34 +335,93 @@ class GNN_Placeholder(torch.nn.Module):
 
     def reset_parameters(self):
         pass
-#
-#
-# class GCNConv(MessagePassing):
-#
-#     def __init__(self, in_channels: int, out_channels: int):
-#         super(GCNConv, self).__init__(aggr='add')
-#         self.lin = torch.nn.Linear(in_channels, out_channels)
-#
-#     def reset_parameters(self):
-#         self.lin.reset_parameters()
-#
-#     def forward(self, x, edge_index, edge_weight):
-#         """"""
-#         if edge_weight is not None and edge_weight.ndim == 1:
-#             edge_weight = edge_weight[:, None]
-#
-#         row, col = edge_index
-#         deg = degree(row, x.shape[0], dtype=torch.float)
-#         deg_inv_sqrt = deg.pow(-0.5)
-#         deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-#         norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
-#
-#         x = self.lin(x)
-#         return self.propagate(edge_index, x=x, norm=norm, edge_weight=edge_weight)
-#
-#     def message(self, x_j, norm, edge_weight):
-#         m = norm.view(-1, 1) * x_j
-#         return m * edge_weight if edge_weight is not None else m
+
+
+class GCNConv(MessagePassing):
+
+    def __init__(self, in_channels: int, out_channels: int):
+        super(GCNConv, self).__init__(aggr='add')
+        self.lin = torch.nn.Linear(in_channels, out_channels)
+
+    def reset_parameters(self):
+        self.lin.reset_parameters()
+
+    def forward(self, x, edge_index, edge_weight):
+        """"""
+        if edge_weight is not None and edge_weight.ndim == 1:
+            edge_weight = edge_weight[:, None]
+
+        row, col = edge_index.detach()
+        deg = degree(row, x.shape[0], dtype=torch.float)
+        deg_inv_sqrt = deg.pow(-0.5)
+        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+
+        x = self.lin(x)
+        return self.propagate(edge_index, x=x, norm=norm, edge_weight=edge_weight)
+
+    def message(self, x_j, norm, edge_weight):
+        m = norm.view(-1, 1) * x_j
+        return m * edge_weight if edge_weight is not None else m
+
+
+class BaseGCN(torch.nn.Module):
+    def __init__(self, in_features, num_layers, hidden, out_feature, use_bn, dropout, use_residual, edge_encoder=None):
+        super(BaseGCN, self).__init__()
+
+        del edge_encoder
+
+        self.use_bn = use_bn
+        self.dropout = dropout
+        self.use_residual = use_residual
+
+        if num_layers == 0:
+            self.convs = torch.nn.ModuleList()
+            self.bns = torch.nn.ModuleList()
+        elif num_layers == 1:
+            self.convs = torch.nn.ModuleList([GCNConv(in_features, out_feature)])
+            if use_bn:
+                self.bns = torch.nn.ModuleList([BN(out_feature)])
+        else:
+            self.convs = torch.nn.ModuleList()
+            self.bns = torch.nn.ModuleList()
+
+            # first layer
+            self.convs.append(GCNConv(in_features, hidden))
+            if use_bn:
+                self.bns.append(BN(hidden))
+
+            # middle layer
+            for i in range(num_layers - 2):
+                self.convs.append(GCNConv(hidden, hidden))
+                if use_bn:
+                    self.bns.append(BN(hidden))
+
+            # last layer
+            self.convs.append(GCNConv(hidden, out_feature))
+            if use_bn:
+                self.bns.append(BN(out_feature))
+
+    def reset_parameters(self):
+        raise NotImplementedError
+
+    def forward(self, x, edge_index, edge_attr, edge_weight=None):
+        del edge_attr
+
+        for i, conv in enumerate(self.convs):
+            x_new = conv(x,
+                         edge_index[i] if isinstance(edge_index, (list, tuple)) else edge_index,
+                         edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
+            if self.use_bn:
+                x_new = self.bns[i](x_new)
+            x_new = F.relu(x_new)
+            x_new = F.dropout(x_new, p=self.dropout, training=self.training)
+            if self.use_residual:
+                x = residual(x, x_new)
+            else:
+                x = x_new
+
+        return x
 
 
 class MyPNAConv(PNAConv):
