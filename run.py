@@ -144,6 +144,11 @@ def run(wandb, args):
                     optimizer, scheduler = get_opt(model, surrogate_model)
                     trainer.clear_stats()
 
+                if hasattr(args, 'reset_upstream') and args.reset_upstream == epoch:
+                    logger.info('Resetting upstream model...')
+                    _, emb_model, _ = get_model(args, device)
+                    optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
+                    trainer.clear_stats()
 
                 trainer.epoch = epoch
                 train_loss, train_metric = trainer.train(train_loader,
