@@ -364,9 +364,13 @@ def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
     train_set, val_set, test_set = dataset[split_idx['train']], dataset[split_idx['val']], dataset[split_idx['test']]
 
     if args.debug:
-        train_set = train_set[:16]
-        val_set = val_set[:16]
-        test_set = test_set[:16]
+        if hasattr(args, 'debug_samples'):
+            debug_samples = args.debug_samples
+        else:
+            debug_samples = 16
+        train_set = train_set[:debug_samples]
+        val_set = val_set[:debug_samples]
+        test_set = test_set[:debug_samples]
 
     return train_set, val_set, test_set, None
 
