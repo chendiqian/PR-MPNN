@@ -276,7 +276,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
 
 def get_ogbg_data(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
+        # AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphToUndirected()])
     transform = get_transform(args)
 
@@ -290,6 +290,7 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
                                       root=datapath,
                                       transform=transform,
                                       pre_transform=pre_transform)
+    dataset.data.y = dataset.data.y.float()
     split_idx = dataset.get_idx_split()
 
     train_idx = split_idx["train"] if not args.debug else split_idx["train"][:16]
