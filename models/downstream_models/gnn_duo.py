@@ -131,14 +131,14 @@ class GNN_Duo(torch.nn.Module):
         if mlp_layers_intragraph == 0:
             self.mlp = lambda x: x
         else:
-            self.mlp = MLP([in_mlp] + [hidden] * mlp_layers_intragraph, dropout=0.)
+            self.mlp = MLP([in_mlp] + [hidden] * mlp_layers_intragraph, dropout=0., activate_last=True)
         if share_weights:
             self.candid_mlps = self.mlp
         else:
             if mlp_layers_intragraph == 0:
                 self.candid_mlps = lambda x: x
             else:
-                self.candid_mlps = torch.nn.ModuleList([MLP([in_mlp] + [hidden] * mlp_layers_intragraph, dropout=0.) for _ in range(num_candidates)])
+                self.candid_mlps = torch.nn.ModuleList([MLP([in_mlp] + [hidden] * mlp_layers_intragraph, dropout=0., activate_last=True) for _ in range(num_candidates)])
 
         # inter-graph pooling
         self.inter_graph_pooling = inter_graph_pooling
