@@ -55,10 +55,10 @@ def naming(args) -> str:
         name = f'ens{args.sample_configs.ensemble}' + name
 
     if hasattr(args.sample_configs, 'sample_k'):
-        name = f'add{args.sample_configs.sample_k}_'
+        name = f'add{args.sample_configs.sample_k}_' + name
 
     if hasattr(args.sample_configs, 'sample_k2'):
-        name = f'del{args.sample_configs.sample_k2}_'
+        name = f'del{args.sample_configs.sample_k2}_' + name
 
 
     return name
