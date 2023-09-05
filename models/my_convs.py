@@ -337,19 +337,26 @@ class GNN_Placeholder(torch.nn.Module):
         pass
 
 
+# https://github.com/snap-stanford/ogb/blob/master/examples/graphproppred/mol/conv.py#L37
 class GCNConv(MessagePassing):
 
-    def __init__(self, in_channels: int, out_channels: int):
+    def __init__(self, in_channels: int, out_channels: int, bond_encoder):
         super(GCNConv, self).__init__(aggr='add')
         self.lin = torch.nn.Linear(in_channels, out_channels)
+        self.bond_encoder = bond_encoder
 
     def reset_parameters(self):
         self.lin.reset_parameters()
 
-    def forward(self, x, edge_index, edge_weight):
+    def forward(self, x, edge_index, edge_attr, edge_weight):
         """"""
         if edge_weight is not None and edge_weight.ndim == 1:
             edge_weight = edge_weight[:, None]
+
+        if edge_attr is not None and self.bond_encoder is not None:
+            edge_embedding = self.bond_encoder(edge_attr)
+        else:
+            edge_embedding = None
 
         row, col = edge_index.detach()
         deg = degree(row, x.shape[0], dtype=torch.float)
@@ -358,18 +365,16 @@ class GCNConv(MessagePassing):
         norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
 
         x = self.lin(x)
-        return self.propagate(edge_index, x=x, norm=norm, edge_weight=edge_weight)
+        return self.propagate(edge_index, x=x, norm=norm, edge_attr=edge_embedding, edge_weight=edge_weight)
 
-    def message(self, x_j, norm, edge_weight):
-        m = norm.view(-1, 1) * x_j
+    def message(self, x_j, norm, edge_attr, edge_weight):
+        m = norm.view(-1, 1) * (torch.relu(x_j + edge_attr) if edge_attr is not None else x_j)
         return m * edge_weight if edge_weight is not None else m
 
 
 class BaseGCN(torch.nn.Module):
     def __init__(self, in_features, num_layers, hidden, out_feature, use_bn, dropout, use_residual, edge_encoder=None):
         super(BaseGCN, self).__init__()
-
-        del edge_encoder
 
         self.use_bn = use_bn
         self.dropout = dropout
@@ -379,7 +384,7 @@ class BaseGCN(torch.nn.Module):
             self.convs = torch.nn.ModuleList()
             self.bns = torch.nn.ModuleList()
         elif num_layers == 1:
-            self.convs = torch.nn.ModuleList([GCNConv(in_features, out_feature)])
+            self.convs = torch.nn.ModuleList([GCNConv(in_features, out_feature, edge_encoder)])
             if use_bn:
                 self.bns = torch.nn.ModuleList([BN(out_feature)])
         else:
@@ -387,18 +392,18 @@ class BaseGCN(torch.nn.Module):
             self.bns = torch.nn.ModuleList()
 
             # first layer
-            self.convs.append(GCNConv(in_features, hidden))
+            self.convs.append(GCNConv(in_features, hidden, edge_encoder))
             if use_bn:
                 self.bns.append(BN(hidden))
 
             # middle layer
             for i in range(num_layers - 2):
-                self.convs.append(GCNConv(hidden, hidden))
+                self.convs.append(GCNConv(hidden, hidden, edge_encoder))
                 if use_bn:
                     self.bns.append(BN(hidden))
 
             # last layer
-            self.convs.append(GCNConv(hidden, out_feature))
+            self.convs.append(GCNConv(hidden, out_feature, edge_encoder))
             if use_bn:
                 self.bns.append(BN(out_feature))
 
@@ -406,11 +411,11 @@ class BaseGCN(torch.nn.Module):
         raise NotImplementedError
 
     def forward(self, x, edge_index, edge_attr, edge_weight=None):
-        del edge_attr
 
         for i, conv in enumerate(self.convs):
             x_new = conv(x,
                          edge_index[i] if isinstance(edge_index, (list, tuple)) else edge_index,
+                         edge_attr[i] if isinstance(edge_attr, (list, tuple)) else edge_attr,
                          edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
             if self.use_bn:
                 x_new = self.bns[i](x_new)

@@ -38,7 +38,7 @@ class GNN_Duo(torch.nn.Module):
         elif base_gnn == 'gine':
             self.gnn = BaseGINE(hidden, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
         elif base_gnn == 'gcn':
-            self.gnn = BaseGCN(hidden, num_layers, hidden, hidden, use_bn, dropout, residual)
+            self.gnn = BaseGCN(hidden, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
         elif base_gnn == 'qm9gine':
             self.encoder = None  # no encoder, qm9 model has one
             graph_pooling, qm9_graph_pooling = None, graph_pooling
@@ -72,7 +72,7 @@ class GNN_Duo(torch.nn.Module):
             elif base_gnn == 'gcn':
                 self.candid_gnns = torch.nn.ModuleList(
                     [BaseGCN(hidden, num_layers, hidden, hidden,
-                              use_bn, dropout, residual)
+                              use_bn, dropout, residual, edge_encoder)
                      for _ in range(num_candidates)]
                 )
             elif base_gnn == 'qm9gine':

@@ -36,7 +36,7 @@ class GNN_Normal(torch.nn.Module):
                                 dropout, residual, deg_hist, edge_encoder)
         elif base_gnn == 'gcn':
             self.gnn = BaseGCN(in_features, num_layers, hidden, hidden, use_bn,
-                                dropout, residual)
+                                dropout, residual, edge_encoder)
         else:
             raise NotImplementedError
 
