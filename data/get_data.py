@@ -26,7 +26,7 @@ from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
 from data.custom_datasets.tudataset import MyTUDataset
 from data.custom_datasets.voc_superpixels import VOCSuperpixels
 from data.custom_datasets.planarsatpairsdataset import PlanarSATPairsDataset
-from data.custom_datasets.symmetries import LimitsOne, LimitsTwo, Triangles, LCC, FourCycles, SkipCircles
+from data.custom_datasets.symmetries import MySymDataset
 from data.utils.datatype_utils import AttributedDataLoader
 from data.utils.plot_utils import circular_tree_layout
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
@@ -52,6 +52,7 @@ DATASET = (PygGraphPropPredDataset,
            ZINC,
            MyTreeDataset,
            MyLeafColorDataset,
+           MySymDataset,
            MyTUDataset,
            PeptidesStructuralDataset,
            PeptidesFunctionalDataset,
@@ -158,44 +159,6 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)
-
-def get_sym_dataset(args: Union[Namespace, ConfigDict]):
-    if 'limits1' in args.dataset.lower():
-        dataset = LimitsOne()
-    elif 'limits2' in args.dataset.lower():
-        dataset = LimitsTwo()
-    elif '4cycles' in args.dataset.lower():
-        dataset = FourCycles()
-    elif 'skipcircles' in args.dataset.lower():
-        dataset = SkipCircles()
-    elif 'lcc' in args.dataset.lower():
-        dataset = LCC()
-    elif 'triangles' in args.dataset.lower():
-        dataset = Triangles()
-    else:
-        raise ValueError(f"Unknown sym dataset: {args.dataset}")
-    
-    degs = []
-
-    for g in dataset.makedata():
-        deg = pyg_degree(g.edge_index[0], g.num_nodes, dtype=torch.long)
-        degs.append(deg.max())
-    
-    print(f'Mean Degree: {torch.stack(degs).float().mean()}')
-    print(f'Max Degree: {torch.stack(degs).max()}')
-    print(f'Min Degree: {torch.stack(degs).min()}')
-    print(f'Number of graphs: {len(dataset.makedata())}')
-    
-    graph_classification = dataset.graph_class
-    if graph_classification:
-        print('Graph Clasification Task')
-    else:
-        print('Node Clasification Task')
-
-    test_set = dataset.makedata()
-    train_set = dataset.makedata()
-
-    return train_set, test_set, test_set, None
 
 def get_data(args: Union[Namespace, ConfigDict], *_args):
     """
@@ -512,6 +475,23 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
 
     return train_set, val_set, test_set, None
 
+
+
+def get_sym_dataset(args: Union[Namespace, ConfigDict]):
+
+    pre_transform = get_pretransform(args, extra_pretransforms=[])
+    transform = get_transform(args)
+
+    data_path = os.path.join(args.data_path, args.dataset)
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    train_set = MySymDataset(data_path, True, 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
+    val_set = MySymDataset(data_path, False, 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
+    test_set = val_set
+
+    return train_set, val_set, test_set, None
 
 def get_vocsuperpixel(args):
     datapath = os.path.join(args.data_path, 'VOCSuperpixels')

@@ -16,6 +16,8 @@ from torch_geometric.utils import degree
 from torch_geometric.utils.convert import from_networkx
 from torch_geometric.nn import GINConv, GINEConv, global_add_pool
 torch.set_printoptions(profile="full")
+from torch_geometric.data import Data, InMemoryDataset
+from torch_geometric.utils import degree as pyg_degree
 
 
 # Synthetic datasets
@@ -117,7 +119,7 @@ class Triangles(SymmetrySet):
                         if torch.logical_and(data.edge_index[0]==nb1, data.edge_index[1]==nb2).any():
                             labels[n] = 1
             generated = labels.count(0) >= 20 and labels.count(1) >= 20
-        data.y = torch.tensor(labels)
+        data.y = torch.tensor(labels).int()
 
         data = self.addports(data)
         data = self.makefeatures(data)
@@ -153,7 +155,7 @@ class LCC(SymmetrySet):
                                 if torch.logical_and(data.edge_index[0]==nb1, data.edge_index[1]==nb2).any():
                                     edges += 1
                         lbls[n] = int(edges/2)
-                    data.y = torch.tensor(lbls)
+                    data.y = torch.tensor(lbls).int()
                     labels.extend(lbls)
                     data = self.addports(data)
                     data = self.makefeatures(data)
@@ -207,7 +209,7 @@ class FourCycles(SymmetrySet):
             data, label = self.gen_graph(p)
             data = self.makefeatures(data)
             data = self.addports(data)
-            data.y = label
+            data.y = int(label)
             if label and len(trues) < size:
                 trues.append(data)
             elif not label and len(falses) < size:
@@ -239,7 +241,68 @@ class SkipCircles(SymmetrySet):
             data = Data(edge_index=edge_index, num_nodes=self.num_nodes)
             data = self.makefeatures(data)
             data = self.addports(data)
-            data.y = torch.tensor(s)
+            data.y = torch.tensor(s).int()
             graphs.append(data)
 
         return graphs        
+
+class MySymDataset(InMemoryDataset):
+    def __init__(self, root, train, seed, dataset, transform=None, pre_transform=None, pre_filter=None):
+        self.seed = seed
+        self.dataset_name = dataset
+        super().__init__(root, transform, pre_transform, pre_filter)
+        idx = 0 if train else 1
+        self.data, self.slices = torch.load(self.processed_paths[idx])
+
+
+    @property
+    def processed_file_names(self):
+        return [f'train_{self.dataset_name}.pt', f'test_{self.dataset_name}.pt']
+
+    def process(self):
+        if 'limits1' in self.dataset_name:
+            dataset = LimitsOne()
+        elif 'limits2' in self.dataset_name:
+            dataset = LimitsTwo()
+        elif '4cycles' in self.dataset_name:
+            dataset = FourCycles()
+        elif 'skipcircles' in self.dataset_name:
+            dataset = SkipCircles()
+        elif 'lcc' in self.dataset_name:
+            dataset = LCC()
+        elif 'triangles' in self.dataset_name:
+            dataset = Triangles()
+        else:
+            raise ValueError(f"Unknown sym dataset: {self.dataset_name}")
+        
+        degs = []
+
+        for g in dataset.makedata():
+            deg = pyg_degree(g.edge_index[0], g.num_nodes, dtype=torch.long)
+            degs.append(deg.max())
+        
+        print(f'Mean Degree: {torch.stack(degs).float().mean()}')
+        print(f'Max Degree: {torch.stack(degs).max()}')
+        print(f'Min Degree: {torch.stack(degs).min()}')
+        print(f'Number of graphs: {len(dataset.makedata())}')
+        
+        graph_classification = dataset.graph_class
+        if graph_classification:
+            print('Graph Clasification Task')
+        else:
+            print('Node Clasification Task')
+
+        test_set = dataset.makedata()
+        train_set = dataset.makedata()
+
+        print('Datasets generated!')
+
+        if self.pre_transform is not None:
+            train_set = [self.pre_transform(data) for data in train_set]
+            test_set = [self.pre_transform(data) for data in test_set]
+
+        data_train, slices_train = self.collate(train_set)
+        data_test, slices_test = self.collate(test_set)
+
+        torch.save((data_train, slices_train), self.processed_paths[0])
+        torch.save((data_test, slices_test), self.processed_paths[1])
