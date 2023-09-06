@@ -3,7 +3,7 @@ from typing import Optional, Union
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import Linear, ReLU, Sequential, BatchNorm1d as BN
+from torch.nn import Linear, ReLU, GELU, Sequential, BatchNorm1d as BN
 from torch_geometric.nn import MessagePassing, PNAConv
 from torch_geometric.typing import Adj, OptTensor
 from torch_geometric.utils import degree
@@ -67,7 +67,7 @@ class BaseGIN(torch.nn.Module):
                 in_features,
                 Sequential(
                     Linear(in_features, hidden),
-                    ReLU(),
+                    GELU(),
                     Linear(hidden, out_feature),
                 ),
             )])
@@ -83,7 +83,7 @@ class BaseGIN(torch.nn.Module):
                     in_features,
                     Sequential(
                         Linear(in_features, hidden),
-                        ReLU(),
+                        GELU(),
                         Linear(hidden, hidden),
                     ),
                 )
@@ -98,7 +98,7 @@ class BaseGIN(torch.nn.Module):
                         hidden,
                         Sequential(
                             Linear(hidden, hidden),
-                            ReLU(),
+                            GELU(),
                             Linear(hidden, hidden),
                         ))
                 )
@@ -111,7 +111,7 @@ class BaseGIN(torch.nn.Module):
                     hidden,
                     Sequential(
                         Linear(hidden, hidden),
-                        ReLU(),
+                        GELU(),
                         Linear(hidden, out_feature),
                     ),
                 )
@@ -131,7 +131,7 @@ class BaseGIN(torch.nn.Module):
                          edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
             if self.use_bn:
                 x_new = self.bns[i](x_new)
-            x_new = F.relu(x_new)
+            x_new = F.gelu(x_new)
             x_new = F.dropout(x_new, p=self.dropout, training=self.training)
             if self.use_residual:
                 x = residual(x, x_new)
@@ -144,14 +144,15 @@ class BaseGIN(torch.nn.Module):
 class GINEConv(MessagePassing):
     def __init__(self, emb_dim: int = 64,
                  mlp: Optional[Union[MLP, torch.nn.Sequential]] = None,
-                 bond_encoder: Optional[Union[MLP, torch.nn.Sequential]] = None):
+                 bond_encoder: Optional[Union[MLP, torch.nn.Sequential]] = None,
+                 dropout: float = 0.):
 
         super(GINEConv, self).__init__(aggr="add")
 
         if mlp is not None:
             self.mlp = mlp
         else:
-            self.mlp = MLP([emb_dim, emb_dim, emb_dim], batch_norm=True, dropout=0.)
+            self.mlp = MLP([emb_dim, emb_dim, emb_dim], batch_norm=True, dropout=dropout)
 
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
 
@@ -172,7 +173,7 @@ class GINEConv(MessagePassing):
         return out
 
     def message(self, x_j, edge_attr, edge_weight):
-        m = torch.relu(x_j + edge_attr) if edge_attr is not None else x_j
+        m = F.gelu(x_j + edge_attr) if edge_attr is not None else x_j
         return m * edge_weight if edge_weight is not None else m
 
     def update(self, aggr_out):
@@ -198,10 +199,11 @@ class BaseGINE(torch.nn.Module):
                 in_features,
                 Sequential(
                     Linear(in_features, hidden),
-                    ReLU(),
+                    GELU(),
                     Linear(hidden, out_feature),
                 ),
                 edge_encoder,
+                dropout
             )])
             if use_bn:
                 self.bns = torch.nn.ModuleList([BN(out_feature)])
@@ -215,10 +217,11 @@ class BaseGINE(torch.nn.Module):
                     in_features,
                     Sequential(
                         Linear(in_features, hidden),
-                        ReLU(),
+                        GELU(),
                         Linear(hidden, hidden),
                     ),
                     edge_encoder,
+                    dropout
                 )
             )
             if use_bn:
@@ -231,10 +234,11 @@ class BaseGINE(torch.nn.Module):
                         hidden,
                         Sequential(
                             Linear(hidden, hidden),
-                            ReLU(),
+                            GELU(),
                             Linear(hidden, hidden),
                         ),
                         edge_encoder,
+                        dropout
                     )
                 )
                 if use_bn:
@@ -246,10 +250,11 @@ class BaseGINE(torch.nn.Module):
                     hidden,
                     Sequential(
                         Linear(hidden, hidden),
-                        ReLU(),
+                        GELU(),
                         Linear(hidden, out_feature),
                     ),
                     edge_encoder,
+                    dropout
                 )
             )
             if use_bn:
@@ -266,7 +271,7 @@ class BaseGINE(torch.nn.Module):
                          edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
             if self.use_bn:
                 x_new = self.bns[i](x_new)
-            x_new = F.relu(x_new)
+            x_new = F.gelu(x_new)
             x_new = F.dropout(x_new, p=self.dropout, training=self.training)
             if self.use_residual:
                 x = residual(x, x_new)
