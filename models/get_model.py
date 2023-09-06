@@ -23,6 +23,8 @@ def get_encoder(args, for_downstream):
         type_encoder = 'linear'
     elif args.dataset.lower().startswith('hetero'):
         type_encoder = 'linear'
+    elif args.dataset.lower().startswith('sym'):
+        type_encoder = 'linear'
     elif args.dataset.lower().startswith('tree'):
         type_encoder = 'bi_embedding'
     elif args.dataset.lower().startswith('leafcolor'):
@@ -69,6 +71,7 @@ def get_encoder(args, for_downstream):
             nn.Linear(edge_hidden, edge_hidden))
     elif args.dataset.lower().startswith('hetero') or \
             args.dataset.lower().startswith('tree') or \
+            args.dataset.lower().startswith('sym') or \
             args.dataset.lower().startswith('leafcolor'):
         edge_encoder = None
     elif args.dataset.lower().startswith('peptides') or \

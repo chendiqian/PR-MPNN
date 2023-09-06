@@ -16,6 +16,13 @@ DATASET_FEATURE_STAT_DICT = {
     'exp': {'node': 2, 'edge': 0, 'num_class': 1},  # bin classification
     'protein': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
 
+    'sym_limits1': {'node': 4, 'edge': 0, 'num_class': 2},
+    'sym_limits2': {'node': 4, 'edge': 0, 'num_class': 2},
+    'sym_triangles': {'node': 1, 'edge': 0, 'num_class': 2},
+    'sym_4cycles': {'node': 1, 'edge': 0, 'num_class': 2},
+    'sym_skipcircles': {'node': 1, 'edge': 0, 'num_class': 10},
+    'sym_lcc': {'node': 1, 'edge': 0, 'num_class': 3},
+
     'peptides-struct': {'node': 9, 'edge': 4, 'num_class': 11},  # regression, but 11 labels
 
     # VOC superpixels:
@@ -65,6 +72,13 @@ MAX_NUM_NODE_DICT = {
     'leafcolor_6': 127,
     'leafcolor_7': 255,
     'leafcolor_8': 511,
+
+    'sym_limits1': 16,
+    'sym_limits2': 16,
+    'sym_triangles': 60,
+    'sym_4cycles': 16,
+    'sym_skipcircles': 41,
+    'sym_lcc': 10,
 }
 
 TASK_TYPE_DICT = {
@@ -95,6 +109,13 @@ TASK_TYPE_DICT = {
     'tree_6': 'acc',
     'tree_7': 'acc',
     'tree_8': 'acc',
+
+    'sym_limits1': 'acc',
+    'sym_limits2': 'acc',
+    'sym_triangles': 'acc',
+    'sym_4cycles': 'acc',
+    'sym_skipcircles': 'acc',
+    'sym_lcc': 'acc',
 
     'leafcolor_2': 'acc',
     'leafcolor_3': 'acc',
@@ -137,6 +158,13 @@ CRITERION_DICT = {
     'leafcolor_6': nn.CrossEntropyLoss(),
     'leafcolor_7': nn.CrossEntropyLoss(),
     'leafcolor_8': nn.CrossEntropyLoss(),
+
+    'sym_limits1': nn.CrossEntropyLoss(),
+    'sym_limits2': nn.CrossEntropyLoss(),
+    'sym_triangles': nn.CrossEntropyLoss(),
+    'sym_4cycles': nn.CrossEntropyLoss(),
+    'sym_skipcircles': nn.CrossEntropyLoss(),
+    'sym_lcc': nn.CrossEntropyLoss(),
 
     'hetero_cornell': nn.CrossEntropyLoss(),
     'hetero_texas': nn.CrossEntropyLoss(),

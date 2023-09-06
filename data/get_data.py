@@ -26,6 +26,7 @@ from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
 from data.custom_datasets.tudataset import MyTUDataset
 from data.custom_datasets.voc_superpixels import VOCSuperpixels
 from data.custom_datasets.planarsatpairsdataset import PlanarSATPairsDataset
+from data.custom_datasets.symmetries import LimitsOne, LimitsTwo, Triangles, LCC, FourCycles, SkipCircles
 from data.utils.datatype_utils import AttributedDataLoader
 from data.utils.plot_utils import circular_tree_layout
 from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
@@ -158,6 +159,43 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)
 
+def get_sym_dataset(args: Union[Namespace, ConfigDict]):
+    if 'limits1' in args.dataset.lower():
+        dataset = LimitsOne()
+    elif 'limits2' in args.dataset.lower():
+        dataset = LimitsTwo()
+    elif '4cycles' in args.dataset.lower():
+        dataset = FourCycles()
+    elif 'skipcircles' in args.dataset.lower():
+        dataset = SkipCircles()
+    elif 'lcc' in args.dataset.lower():
+        dataset = LCC()
+    elif 'triangles' in args.dataset.lower():
+        dataset = Triangles()
+    else:
+        raise ValueError(f"Unknown sym dataset: {args.dataset}")
+    
+    degs = []
+
+    for g in dataset.makedata():
+        deg = pyg_degree(g.edge_index[0], g.num_nodes, dtype=torch.long)
+        degs.append(deg.max())
+    
+    print(f'Mean Degree: {torch.stack(degs).float().mean()}')
+    print(f'Max Degree: {torch.stack(degs).max()}')
+    print(f'Min Degree: {torch.stack(degs).min()}')
+    print(f'Number of graphs: {len(dataset.makedata())}')
+    
+    graph_classification = dataset.graph_class
+    if graph_classification:
+        print('Graph Clasification Task')
+    else:
+        print('Node Clasification Task')
+
+    test_set = dataset.makedata()
+    train_set = dataset.makedata()
+
+    return train_set, test_set, test_set, None
 
 def get_data(args: Union[Namespace, ConfigDict], *_args):
     """
@@ -198,6 +236,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std, qm9_task_id = get_ppgn_qm9(args)
     elif args.dataset.lower() in ['exp', 'cexp']:
         train_set, val_set, test_set, std = get_exp_dataset(args, 10)
+    elif 'sym' in args.dataset.lower():
+        train_set, val_set, test_set, std = get_sym_dataset(args)
     else:
         raise ValueError
 
