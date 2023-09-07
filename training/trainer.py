@@ -102,7 +102,6 @@ class Trainer:
             else:
                 if sample_configs.sample_policy == 'edge_candid':
                     construct_duplicate_data = partial(construct_from_edge_candidate,
-                                                       ensemble=sample_configs.ensemble,
                                                        samplek_dict={
                                                            'add_k': sample_configs.sample_k,
                                                            'del_k': sample_configs.sample_k2 if
@@ -137,7 +136,6 @@ class Trainer:
                     policy = 'global_' + ('directed' if sample_configs.directed else 'undirected')
                     sampler_class.policy = policy
                     construct_duplicate_data = partial(construct_from_attention_mat,
-                                                       ensemble=sample_configs.ensemble,
                                                        sample_policy=policy,
                                                        samplek_dict={
                                                            'add_k': sample_configs.sample_k,

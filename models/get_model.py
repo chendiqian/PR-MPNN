@@ -175,7 +175,6 @@ def get_model(args, device, *_args):
         if args.model.lower().split('_')[1] == 'trans':
             # transformer upstream
             sampler = partial(construct_from_attention_mat,
-                              ensemble=args.sample_configs.ensemble,
                               samplek_dict={'add_k': args.sample_configs.sample_k,
                                             'del_k': args.sample_configs.sample_k2},
                               sample_policy='global_' + (
@@ -234,7 +233,6 @@ def get_model(args, device, *_args):
                 emb_model = torch.nn.ModuleList([model.mlp, model.intermediate_gnns, model.atom_encoder])
         else:
             sampler = partial(construct_from_edge_candidate,
-                              ensemble=args.sample_configs.ensemble,
                               samplek_dict={'add_k': args.sample_configs.sample_k,
                                             'del_k': args.sample_configs.sample_k2},
                               sampler_class=sampler_class,
