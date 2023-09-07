@@ -235,7 +235,7 @@ def run(wandb, args):
 
     if args.early_stop.target == 'train_metric':
         best_metrics = np.array(best_train_metrics)
-    elif args.early_stop.target == 'val_metric':
+    elif args.early_stop.target in ['val_metric', 'val_metric_ensemble']:
         best_metrics = np.array(best_val_metrics)
     else:
         raise NotImplementedError

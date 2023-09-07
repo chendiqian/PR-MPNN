@@ -357,6 +357,8 @@ class Trainer:
                         scheduler.step(train_loss)
                     elif scheduler.lr_target == 'val_metric':
                         scheduler.step(val_metric)
+                    elif scheduler.lr_target == 'val_metric_ensemble':
+                        scheduler.step(val_metric_ensemble)
                     elif scheduler.lr_target == 'val_loss':
                         scheduler.step(val_loss)
                 else:
@@ -368,9 +370,12 @@ class Trainer:
                     scheduler_embd.step()
 
             train_is_better, self.best_train_metric = self.metric_comparator(train_metric, self.best_train_metric)
-            val_is_better, self.best_val_metric = self.metric_comparator(val_metric, self.best_val_metric)
-
-            if self.patience_target == 'val_metric':
+            if scheduler.lr_target == 'val_metric_ensemble':
+                val_is_better, self.best_val_metric = self.metric_comparator(val_metric_ensemble, self.best_val_metric)
+            else:
+                val_is_better, self.best_val_metric = self.metric_comparator(val_metric, self.best_val_metric)
+            
+            if self.patience_target in ['val_metric', 'val_metric_ensemble']:
                 is_better = val_is_better
             elif self.patience_target == 'train_metric':
                 is_better = train_is_better

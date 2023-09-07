@@ -4,7 +4,7 @@ fixed:
 
   use_wandb: True
   wandb_name: "sym_4cycles"
-  wandb_prefix: ""
+  wandb_prefix: "prior1"
 
 
   sample_configs:
@@ -12,10 +12,10 @@ fixed:
     separate: False
     directed: True
     in_place: True
-    sample_k: 5   # edge addition
-    sample_k2: 5   # edge deletion
-    candid_pool: 350
-    ensemble: 10
+    sample_k: 2   # edge addition
+    sample_k2: 2   # edge deletion
+    candid_pool: 1024
+    ensemble: 1
     heuristic: longest_path
     include_original_graph: False
 
@@ -26,8 +26,8 @@ fixed:
     logits_activation: null
     weight_edges: marginals
     marginals_mask: True
-    num_train_ensemble: 10
-    num_val_ensemble: 10
+    num_train_ensemble: 50
+    num_val_ensemble: 50
 
     model: "edge_selector"
 
@@ -41,6 +41,16 @@ fixed:
     reg_embd: 0.
     batchnorm: True
 
+    # auxloss:
+    #   variance: 0.
+    #   l2: 0.
+    #   l2_min: 0.
+    #   kl: 0.
+    #   cos: 0.
+    #   mask_kl: 1.
+    #   mask_cos: 0.
+    #   mask_l2: 0.
+
   optim: "adam"
   model: gin_duo
   hid_size: 16
@@ -50,10 +60,10 @@ fixed:
     decay_rate: 0.5
     mode: 'max'
     patience: 50
-    target: 'val_metric'
+    target: 'val_metric_ensemble'
   early_stop:
     patience: 150
-    target: val_metric
+    target: val_metric_ensemble
   reg: 0.
   num_convlayers: 4
   mlp_layers_intragraph: 1
@@ -64,11 +74,11 @@ fixed:
   bn: True
   residual: True
   batch_size: 64
-  min_epochs: 1000
-  max_epochs: 1000
+  min_epochs: 700
+  max_epochs: 700
   data_path: './datasets'
   debug: False
-  num_runs: 1
+  num_runs: 5
 
   # plot_heatmaps:
   #   batch_id: 0

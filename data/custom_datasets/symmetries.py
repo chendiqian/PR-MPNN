@@ -247,17 +247,21 @@ class SkipCircles(SymmetrySet):
         return graphs        
 
 class MySymDataset(InMemoryDataset):
-    def __init__(self, root, train, seed, dataset, transform=None, pre_transform=None, pre_filter=None):
+    def __init__(self, root, subset, seed, dataset, transform=None, pre_transform=None, pre_filter=None):
         self.seed = seed
         self.dataset_name = dataset
         super().__init__(root, transform, pre_transform, pre_filter)
-        idx = 0 if train else 1
-        self.data, self.slices = torch.load(self.processed_paths[idx])
+        if subset == 'train':
+            self.data, self.slices = torch.load(self.processed_paths[0])
+        elif subset == 'val':
+            self.data, self.slices = torch.load(self.processed_paths[1])
+        elif subset == 'test':
+            self.data, self.slices = torch.load(self.processed_paths[2])
 
 
     @property
     def processed_file_names(self):
-        return [f'train_{self.dataset_name}.pt', f'test_{self.dataset_name}.pt']
+        return [f'train_{self.dataset_name}.pt', f'val_{self.dataset_name}', f'test_{self.dataset_name}.pt']
 
     def process(self):
         if 'limits1' in self.dataset_name:
@@ -292,17 +296,21 @@ class MySymDataset(InMemoryDataset):
         else:
             print('Node Clasification Task')
 
-        test_set = dataset.makedata()
         train_set = dataset.makedata()
+        val_set = dataset.makedata()
+        test_set = dataset.makedata()
 
         print('Datasets generated!')
 
         if self.pre_transform is not None:
             train_set = [self.pre_transform(data) for data in train_set]
+            val_set = [self.pre_transform(data) for data in val_set]
             test_set = [self.pre_transform(data) for data in test_set]
 
         data_train, slices_train = self.collate(train_set)
+        data_val, slices_val = self.collate(val_set)
         data_test, slices_test = self.collate(test_set)
 
         torch.save((data_train, slices_train), self.processed_paths[0])
-        torch.save((data_test, slices_test), self.processed_paths[1])
+        torch.save((data_val, slices_val), self.processed_paths[1])
+        torch.save((data_test, slices_test), self.processed_paths[2])

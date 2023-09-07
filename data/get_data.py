@@ -486,10 +486,10 @@ def get_sym_dataset(args: Union[Namespace, ConfigDict]):
     if extra_path is not None:
         data_path = os.path.join(data_path, extra_path)
 
-    train_set = MySymDataset(data_path, True, 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
-    val_set = MySymDataset(data_path, False, 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
-    test_set = val_set
-
+    train_set = MySymDataset(data_path, 'train', 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
+    val_set = MySymDataset(data_path, 'val', 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
+    test_set = MySymDataset(data_path, 'test', 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
+    
     return train_set, val_set, test_set, None
 
 def get_vocsuperpixel(args):
