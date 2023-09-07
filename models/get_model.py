@@ -176,8 +176,6 @@ def get_model(args, device, *_args):
             # transformer upstream
             sampler = partial(construct_from_attention_mat,
                               ensemble=args.sample_configs.ensemble,
-                              merge_priors=True if hasattr(args.sample_configs, 'merge_priors')
-                                                   and args.sample_configs.merge_priors else False,
                               samplek_dict={'add_k': args.sample_configs.sample_k,
                                             'del_k': args.sample_configs.sample_k2},
                               sample_policy='global_' + (
@@ -193,7 +191,6 @@ def get_model(args, device, *_args):
                               marginals_mask=args.imle_configs.marginals_mask,
                               device=device,
                               include_original_graph=args.sample_configs.include_original_graph,
-                              negative_sample=args.imle_configs.negative_sample,
                               in_place=args.sample_configs.in_place,
                               separate=args.sample_configs.separate,
                               num_layers=None,
@@ -238,8 +235,6 @@ def get_model(args, device, *_args):
         else:
             sampler = partial(construct_from_edge_candidate,
                               ensemble=args.sample_configs.ensemble,
-                              merge_priors=True if hasattr(args.sample_configs, 'merge_priors')
-                                                   and args.sample_configs.merge_priors else False,
                               samplek_dict={'add_k': args.sample_configs.sample_k,
                                             'del_k': args.sample_configs.sample_k2},
                               sampler_class=sampler_class,
@@ -248,7 +243,6 @@ def get_model(args, device, *_args):
                               weight_edges=args.imle_configs.weight_edges,
                               marginals_mask=args.imle_configs.marginals_mask,
                               include_original_graph=args.sample_configs.include_original_graph,
-                              negative_sample=args.imle_configs.negative_sample,
                               separate=args.sample_configs.separate,
                               in_place=args.sample_configs.in_place,
                               directed_sampling=args.sample_configs.directed,
@@ -323,7 +317,7 @@ def get_model(args, device, *_args):
                                     hidden=args.imle_configs.emb_hid_size,
                                     layers=args.imle_configs.tf_layer,
                                     num_heads=args.imle_configs.heads,
-                                    ensemble=args.sample_configs.ensemble * (args.num_convlayers if args.sample_configs.per_layer else 1),
+                                    ensemble=args.sample_configs.ensemble,
                                     act='relu',
                                     dropout=args.imle_configs.dropout,
                                     attn_dropout=args.imle_configs.attn_dropout,
@@ -340,7 +334,7 @@ def get_model(args, device, *_args):
                                      use_deletion_head=True,
                                      directed_sampling=args.sample_configs.directed,
                                      dropout=args.imle_configs.dropout,
-                                     ensemble=args.sample_configs.ensemble * (args.num_convlayers if args.sample_configs.per_layer else 1),
+                                     ensemble=args.sample_configs.ensemble,
                                      use_bn=args.imle_configs.batchnorm,
                                      deg_hist=args.ds_deg if hasattr(args, 'ds_deg') else None,
                                      upstream_model=args.imle_configs.upstream_model if hasattr(

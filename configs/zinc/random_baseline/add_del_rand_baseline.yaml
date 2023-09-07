@@ -7,7 +7,6 @@ fixed:
 
   sample_configs:
     sample_policy: add_del
-    per_layer: False
     separate: False
     directed: False
     in_place: True

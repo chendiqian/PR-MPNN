@@ -57,20 +57,13 @@ class Trainer:
         self.wandb = wandb
         self.use_wandb = use_wandb
 
-        if hasattr(sample_configs, 'merge_priors') and sample_configs.merge_priors:
-            ensemble = 1
-            merge_priors = True
-        else:
-            ensemble = sample_configs.ensemble
-            merge_priors = False
-
         # plot functions
         self.plot = None if plot_graph_args is None else partial(
             plot_rewired_graphs,
             wandb=wandb,
             use_wandb=use_wandb,
             plot_args=plot_graph_args,
-            ensemble=ensemble,
+            ensemble=sample_configs.ensemble,
             num_train_ensemble=imle_configs.num_train_ensemble if imle_configs is not None else 1,
             num_val_ensemble=imle_configs.num_val_ensemble if imle_configs is not None else 1,
             include_original_graph=sample_configs.include_original_graph)
@@ -109,8 +102,7 @@ class Trainer:
             else:
                 if sample_configs.sample_policy == 'edge_candid':
                     construct_duplicate_data = partial(construct_from_edge_candidate,
-                                                       ensemble=ensemble,
-                                                       merge_priors=merge_priors,
+                                                       ensemble=sample_configs.ensemble,
                                                        samplek_dict={
                                                            'add_k': sample_configs.sample_k,
                                                            'del_k': sample_configs.sample_k2 if
@@ -122,7 +114,6 @@ class Trainer:
                                                        weight_edges=imle_configs.weight_edges,
                                                        marginals_mask=imle_configs.marginals_mask,
                                                        include_original_graph=sample_configs.include_original_graph,
-                                                       negative_sample=imle_configs.negative_sample,
                                                        separate=sample_configs.separate,
                                                        in_place=sample_configs.in_place,
                                                        directed_sampling=sample_configs.directed,
@@ -146,8 +137,7 @@ class Trainer:
                     policy = 'global_' + ('directed' if sample_configs.directed else 'undirected')
                     sampler_class.policy = policy
                     construct_duplicate_data = partial(construct_from_attention_mat,
-                                                       ensemble=ensemble,
-                                                       merge_priors=merge_priors,
+                                                       ensemble=sample_configs.ensemble,
                                                        sample_policy=policy,
                                                        samplek_dict={
                                                            'add_k': sample_configs.sample_k,
@@ -162,7 +152,6 @@ class Trainer:
                                                        marginals_mask=imle_configs.marginals_mask,
                                                        device=self.device,
                                                        include_original_graph=sample_configs.include_original_graph,
-                                                       negative_sample=imle_configs.negative_sample,
                                                        in_place=sample_configs.in_place,
                                                        separate=sample_configs.separate,
                                                        num_layers=num_layers,

@@ -33,12 +33,10 @@ class AugmentWithRandomRewiredGraphs:
                  include_original_graph: bool,
                  in_place: bool,
                  ensemble: int,
-                 layers: int,
                  separate: bool,
                  directed: bool):
         super(AugmentWithRandomRewiredGraphs, self).__init__()
         assert in_place
-        assert layers == 1
         self.sample_k_add = sample_k_add
         self.sample_k_del = sample_k_del
         self.include_original_graph = include_original_graph

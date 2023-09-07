@@ -19,7 +19,9 @@ def get_sampler(imle_configs: ConfigDict,
 
     if imle_configs.sampler == 'imle':
         imle_scheduler = IMLEScheme(sample_configs.sample_policy,
-                                    sample_configs.sample_k)
+                                    sample_configs.sample_k,
+                                    imle_configs.num_train_ensemble,
+                                    imle_configs.num_val_ensemble)
 
         @imle( target_distribution=TargetDistribution(alpha=1.0, beta=imle_configs.beta),
                noise_distribution=GumbelDistribution(0., imle_configs.noise_scale, device),
@@ -44,12 +46,12 @@ def get_sampler(imle_configs: ConfigDict,
         sampler_class = imle_scheduler
     elif imle_configs.sampler == 'gumbel':
         gumbel_sampler = GumbelSampler(sample_configs.sample_k,
+                                       imle_configs.num_train_ensemble,
+                                       imle_configs.num_val_ensemble,
                                        tau=imle_configs.tau,
                                        policy=sample_configs.sample_policy)
-        train_forward = partial(gumbel_sampler.forward,
-                                train_ensemble=imle_configs.num_train_ensemble)
-        val_forward = partial(gumbel_sampler.validation,
-                              val_ensemble=imle_configs.num_val_ensemble)
+        train_forward = gumbel_sampler.forward
+        val_forward = gumbel_sampler.validation
         sampler_class = gumbel_sampler
     elif imle_configs.sampler == 'simple':
         simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k,

@@ -9,7 +9,6 @@ fixed:
 
   sample_configs:
     sample_policy: edge_candid
-    per_layer: False
     separate: False
     directed: True
     in_place: True
@@ -17,7 +16,6 @@ fixed:
     sample_k2: 5   # edge deletion
     candid_pool: 350
     ensemble: 10
-    merge_priors: False
     heuristic: longest_path
     include_original_graph: False
 
@@ -28,7 +26,6 @@ fixed:
     logits_activation: null
     weight_edges: marginals
     marginals_mask: True
-    negative_sample: 'full'
     num_train_ensemble: 10
     num_val_ensemble: 10
 

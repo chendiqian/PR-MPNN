@@ -8,7 +8,6 @@ fixed:
 
   sample_configs:
     sample_policy: global
-    per_layer: False
     directed: True
     separate: True
     sample_k: 16
@@ -24,7 +23,6 @@ fixed:
     marginals_mask: True
     num_train_ensemble: 1
     num_val_ensemble: 1
-    negative_sample: "full"
 
     model: "transformer"
     heads: 4   # see GraphGPS https://github.com/rampasek/GraphGPS/blob/main/configs/GPS/zinc-GPS-LapPE%2BRWSE.yaml#L51

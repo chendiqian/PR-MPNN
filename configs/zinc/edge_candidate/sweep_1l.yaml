@@ -29,8 +29,6 @@ parameters:
   # sample configs, shared by random and learnable sampling methods
   sample_configs.sample_policy:
     value: edge_candid
-  sample_configs.per_layer:
-    value: False
   sample_configs.separate:
     value: False
   sample_configs.directed:
@@ -63,8 +61,6 @@ parameters:
     value: simple
   imle_configs.logits_activation:
     value: None
-  imle_configs.negative_sample:
-    value: full
   imle_configs.num_train_ensemble:
     values:
       - 1

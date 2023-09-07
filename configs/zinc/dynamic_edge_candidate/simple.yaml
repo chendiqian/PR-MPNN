@@ -25,7 +25,6 @@ fixed:
     logits_activation: null
     weight_edges: marginals
     marginals_mask: True
-    negative_sample: 'full'
     num_train_ensemble: 1
     num_val_ensemble: 1
 

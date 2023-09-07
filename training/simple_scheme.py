@@ -36,9 +36,8 @@ class EdgeSIMPLEBatched(nn.Module):
         self.train_ensemble = train_ensemble
         self.logits_activation = logits_activation
 
-    def forward(self, scores, times_sampled=None):
-        if times_sampled is None:
-            times_sampled = self.train_ensemble
+    def forward(self, scores, train = True):
+        times_sampled = self.train_ensemble if train else self.val_ensemble
 
         if self.policy == 'global_directed':
             bsz, Nmax, _, ensemble = scores.shape
@@ -138,7 +137,7 @@ class EdgeSIMPLEBatched(nn.Module):
 
         """
         if self.val_ensemble == 1:
-            _, marginals = self.forward(scores, times_sampled=1)
+            _, marginals = self.forward(scores, False)
 
             # do deterministic top-k
             if self.policy == 'global_directed':
@@ -151,4 +150,4 @@ class EdgeSIMPLEBatched(nn.Module):
                 raise NotImplementedError
             return mask[None], marginals
         else:
-            return self.forward(scores, times_sampled=self.val_ensemble)
+            return self.forward(scores, False)

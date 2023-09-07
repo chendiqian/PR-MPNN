@@ -118,7 +118,6 @@ def get_transform(args: Union[Namespace, ConfigDict]):
                                                    include_original_graph=args.sample_configs.include_original_graph,
                                                    in_place=args.sample_configs.in_place,
                                                    ensemble=args.sample_configs.ensemble,
-                                                   layers=1 if not args.sample_configs.per_layer else args.num_convlayers,
                                                    separate=args.sample_configs.separate,
                                                    directed=args.sample_configs.directed,
                                                    )

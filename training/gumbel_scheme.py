@@ -8,15 +8,18 @@ EPSILON = np.finfo(np.float32).tiny
 LARGE_NUMBER = 1.e10
 
 class GumbelSampler(torch.nn.Module):
-    def __init__(self, k, tau=0.1, hard=True, policy=None):
+    def __init__(self, k, train_ensemble, val_ensemble, tau=0.1, hard=True, policy=None):
         super(GumbelSampler, self).__init__()
         self.policy = policy
         self.k = k
         self.hard = hard
         self.tau = tau
         self.adj = None   # for potential usage
+        self.train_ensemble = train_ensemble
+        self.val_ensemble = val_ensemble
 
-    def forward(self, scores, train_ensemble):
+    def forward(self, scores, train = True):
+        repeat_sample = self.train_ensemble if train else self.val_ensemble
         if self.policy == 'global_directed':
             bsz, Nmax, _, ensemble = scores.shape
             local_k = min(self.k, Nmax ** 2 - torch.unique(self.adj[0], return_counts=True)[1].max().item())
@@ -37,7 +40,7 @@ class GumbelSampler(torch.nn.Module):
             raise NotImplementedError
 
         # sample several times with
-        flat_scores = flat_scores.repeat(train_ensemble, 1)
+        flat_scores = flat_scores.repeat(repeat_sample, 1)
 
         m = torch.distributions.gumbel.Gumbel(flat_scores.new_zeros(flat_scores.shape),
                                               flat_scores.new_ones(flat_scores.shape))
@@ -63,21 +66,21 @@ class GumbelSampler(torch.nn.Module):
             res = khot
 
         if self.policy == 'global_directed':
-            new_mask = res.reshape(train_ensemble, bsz, ensemble, Nmax, Nmax).permute((0, 1, 3, 4, 2))
+            new_mask = res.reshape(repeat_sample, bsz, ensemble, Nmax, Nmax).permute((0, 1, 3, 4, 2))
         elif self.policy == 'global_undirected':
-            res = res.reshape(train_ensemble, bsz, ensemble, -1).permute((0, 1, 3, 2))
-            new_mask = scores.new_zeros((train_ensemble,) + scores.shape)
+            res = res.reshape(repeat_sample, bsz, ensemble, -1).permute((0, 1, 3, 2))
+            new_mask = scores.new_zeros((repeat_sample,) + scores.shape)
             new_mask[:, :, triu_idx[0], triu_idx[1], :] = res
             new_mask = new_mask + new_mask.transpose(2, 3)
         elif self.policy == 'edge_candid':
-            new_mask = res.reshape(train_ensemble, bsz, ensemble, Nmax).permute((0, 1, 3, 2))
+            new_mask = res.reshape(repeat_sample, bsz, ensemble, Nmax).permute((0, 1, 3, 2))
         else:
             raise NotImplementedError
         return new_mask, None
 
     @torch.no_grad()
-    def validation(self, scores, val_ensemble):
-        if val_ensemble == 1:
+    def validation(self, scores):
+        if self.val_ensemble == 1:
             if self.policy == 'global_directed':
                 mask = rewire_global_directed(scores, self.k, self.adj)
             elif self.policy == 'global_undirected':
@@ -89,4 +92,4 @@ class GumbelSampler(torch.nn.Module):
 
             return mask[None], None
         else:
-            return self.forward(scores, val_ensemble)
+            return self.forward(scores, False)

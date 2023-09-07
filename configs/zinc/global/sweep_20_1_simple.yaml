@@ -43,11 +43,6 @@ parameters:
     value: simple
   imle_configs.logits_activation:
     value: None
-  imle_configs.negative_sample:
-    values:
-      - full
-      - zero
-    distribution: categorical
   imle_configs.num_train_ensemble:
     value: 1
   imle_configs.num_val_ensemble:
