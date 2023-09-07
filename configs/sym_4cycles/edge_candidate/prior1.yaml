@@ -1,0 +1,89 @@
+fixed:
+  dataset: sym_4cycles
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "sym_4cycles"
+  wandb_prefix: ""
+
+
+  sample_configs:
+    sample_policy: edge_candid
+    per_layer: False
+    separate: False
+    directed: True
+    in_place: True
+    sample_k: 5   # edge addition
+    sample_k2: 5   # edge deletion
+    candid_pool: 350
+    ensemble: 10
+    merge_priors: False
+    heuristic: longest_path
+    include_original_graph: False
+
+  imle_configs:
+    sampler: simple
+    noise_scale: 0.3
+    beta: 10.
+    logits_activation: null
+    weight_edges: marginals
+    marginals_mask: True
+    negative_sample: 'full'
+    num_train_ensemble: 10
+    num_val_ensemble: 10
+
+    model: "edge_selector"
+
+    emb_hid_size: 16
+    emb_optim: "adamw"
+    emb_scheduler: None
+    gnn_layer: 4
+    mlp_layer: 1
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+
+  optim: "adam"
+  model: gin_duo
+  hid_size: 16
+  lr: 1.e-3
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'max'
+    patience: 50
+    target: 'val_metric'
+  early_stop:
+    patience: 150
+    target: val_metric
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 1
+  mlp_layers_intergraph: 1
+  graph_pooling: mean
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 64
+  min_epochs: 1000
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 1
+
+  # plot_heatmaps:
+  #   batch_id: 0
+  #   n_graphs: 5
+  #   plot_every: 50
+
+#  plot_graphs:
+#    batch_id: 0
+#    plot_every: 5
+#    n_graphs: 1
+#    plot_folder: './plots'
+
+#  connectedness:
+#    metric: eigval
+#    every: 10
