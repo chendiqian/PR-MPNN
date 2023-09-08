@@ -105,6 +105,8 @@ class DynamicRewireGNN(torch.nn.Module):
         elif graph_pooling == 'transductive':
             self.pool = lambda x, transductive_mask: x[transductive_mask]
             self.graph_pool_idx = 'transductive_mask'
+        elif graph_pooling == 'node_clf':
+            self.pool = lambda x: x
         elif graph_pooling == 'root':
             self.pool = lambda x, root_mask: x[root_mask]
             self.graph_pool_idx = 'root_mask'

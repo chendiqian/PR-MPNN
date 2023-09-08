@@ -118,6 +118,9 @@ class GNN_Duo(torch.nn.Module):
             self.pool = lambda x, root_mask: x[root_mask]
             self.candid_pool = self.pool
             self.graph_pool_idx = 'root_mask'
+        elif graph_pooling == 'node_clf':
+            self.pool = lambda x, *args: x
+            self.candid_pool = self.pool
         elif graph_pooling == 'set2set':
             self.pool = Set2Set(hidden, processing_steps=6)
             if share_weights:

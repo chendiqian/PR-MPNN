@@ -119,7 +119,7 @@ class Triangles(SymmetrySet):
                         if torch.logical_and(data.edge_index[0]==nb1, data.edge_index[1]==nb2).any():
                             labels[n] = 1
             generated = labels.count(0) >= 20 and labels.count(1) >= 20
-        data.y = torch.tensor(labels).int()
+        data.y = torch.tensor(labels)
 
         data = self.addports(data)
         data = self.makefeatures(data)
@@ -155,7 +155,7 @@ class LCC(SymmetrySet):
                                 if torch.logical_and(data.edge_index[0]==nb1, data.edge_index[1]==nb2).any():
                                     edges += 1
                         lbls[n] = int(edges/2)
-                    data.y = torch.tensor(lbls).int()
+                    data.y = torch.tensor(lbls)
                     labels.extend(lbls)
                     data = self.addports(data)
                     data = self.makefeatures(data)

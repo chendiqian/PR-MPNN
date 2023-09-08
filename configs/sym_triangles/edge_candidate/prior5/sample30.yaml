@@ -68,7 +68,7 @@ fixed:
   num_convlayers: 4
   mlp_layers_intragraph: 1
   mlp_layers_intergraph: 1
-  graph_pooling: mean
+  graph_pooling: node_clf
   inter_graph_pooling: cat
   dropout: 0.
   bn: True
