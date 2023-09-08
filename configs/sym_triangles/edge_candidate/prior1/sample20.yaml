@@ -1,0 +1,96 @@
+fixed:
+  dataset: sym_triangles
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "sym_triangles"
+  wandb_prefix: "p1s20"
+
+
+  sample_configs:
+    sample_policy: edge_candid
+    separate: False
+    directed: True
+    in_place: True
+    sample_k: 3   # edge addition
+    sample_k2: 3   # edge deletion
+    candid_pool: 1024
+    ensemble: 1
+    heuristic: longest_path
+    include_original_graph: False
+
+  imle_configs:
+    sampler: simple
+    noise_scale: 0.3
+    beta: 10.
+    logits_activation: null
+    weight_edges: marginals
+    marginals_mask: True
+    num_train_ensemble: 20
+    num_val_ensemble: 20
+
+    model: "edge_selector"
+
+    emb_hid_size: 16
+    emb_optim: "adamw"
+    emb_scheduler: None
+    gnn_layer: 4
+    mlp_layer: 1
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+
+    # auxloss:
+    #   variance: 0.
+    #   l2: 0.
+    #   l2_min: 0.
+    #   kl: 0.
+    #   cos: 0.
+    #   mask_kl: 1.
+    #   mask_cos: 0.
+    #   mask_l2: 0.
+
+  optim: "adam"
+  model: gin_duo
+  hid_size: 16
+  lr: 1.e-3
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'max'
+    patience: 100
+    target: 'val_metric_ensemble'
+  early_stop:
+    patience: 150
+    target: val_metric_ensemble
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 1
+  mlp_layers_intergraph: 1
+  graph_pooling: mean
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 64
+  min_epochs: 700
+  max_epochs: 700
+  data_path: './datasets'
+  debug: False
+  num_runs: 5
+
+  # plot_heatmaps:
+  #   batch_id: 0
+  #   n_graphs: 5
+  #   plot_every: 50
+
+#  plot_graphs:
+#    batch_id: 0
+#    plot_every: 5
+#    n_graphs: 1
+#    plot_folder: './plots'
+
+#  connectedness:
+#    metric: eigval
+#    every: 10
