@@ -241,7 +241,12 @@ class SkipCircles(SymmetrySet):
             data = Data(edge_index=edge_index, num_nodes=self.num_nodes)
             data = self.makefeatures(data)
             data = self.addports(data)
-            data.y = torch.tensor(s).int()
+
+            # data.x = torch.cat([data.x, data.id.float()], dim=1)
+            # data.x = torch.cat([data.x, torch.randint(0, 100, (data.x.size(0), 1), device=data.x.device) / 100.0], dim=1)
+            data.edge_attr = data.ports.expand(-1, data.x.size(-1))
+
+            data.y = torch.tensor(s)
             graphs.append(data)
 
         return graphs        
@@ -311,6 +316,6 @@ class MySymDataset(InMemoryDataset):
         data_val, slices_val = self.collate(val_set)
         data_test, slices_test = self.collate(test_set)
 
-        torch.save((data_train, slices_train), self.processed_paths[0])
-        torch.save((data_val, slices_val), self.processed_paths[1])
-        torch.save((data_test, slices_test), self.processed_paths[2])
+        # torch.save((data_train, slices_train), self.processed_paths[0])
+        # torch.save((data_val, slices_val), self.processed_paths[1])
+        # torch.save((data_test, slices_test), self.processed_paths[2])

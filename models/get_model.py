@@ -64,14 +64,14 @@ def get_encoder(args, for_downstream):
             type_encoder=type_encoder,
             lap_encoder=lap,
             rw_encoder=rwse)
-    if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary', 'qm9', 'ppgnqm9', 'exp', 'cexp']:
+    if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary', 'qm9', 'ppgnqm9', 'exp', 'cexp', 'sym_skipcircles']:
         edge_encoder = nn.Sequential(
             nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], edge_hidden),
             nn.ReLU(),
             nn.Linear(edge_hidden, edge_hidden))
     elif args.dataset.lower().startswith('hetero') or \
             args.dataset.lower().startswith('tree') or \
-            args.dataset.lower().startswith('sym') or \
+            (args.dataset.lower().startswith('sym') and args.dataset.lower != 'sym_skipcircles') or \
             args.dataset.lower().startswith('leafcolor'):
         edge_encoder = None
     elif args.dataset.lower().startswith('peptides') or \
