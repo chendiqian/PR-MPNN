@@ -316,6 +316,6 @@ class MySymDataset(InMemoryDataset):
         data_val, slices_val = self.collate(val_set)
         data_test, slices_test = self.collate(test_set)
 
-        # torch.save((data_train, slices_train), self.processed_paths[0])
-        # torch.save((data_val, slices_val), self.processed_paths[1])
-        # torch.save((data_test, slices_test), self.processed_paths[2])
+        torch.save((data_train, slices_train), self.processed_paths[0])
+        torch.save((data_val, slices_val), self.processed_paths[1])
+        torch.save((data_test, slices_test), self.processed_paths[2])

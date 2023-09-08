@@ -20,7 +20,7 @@ DATASET_FEATURE_STAT_DICT = {
     'sym_limits2': {'node': 4, 'edge': 0, 'num_class': 2},
     'sym_triangles': {'node': 1, 'edge': 0, 'num_class': 2},
     'sym_4cycles': {'node': 1, 'edge': 0, 'num_class': 2},
-    'sym_skipcircles': {'node': 3, 'edge': 3, 'num_class': 10},
+    'sym_skipcircles': {'node': 1, 'edge': 3, 'num_class': 10},
     'sym_lcc': {'node': 1, 'edge': 0, 'num_class': 3},
 
     'peptides-struct': {'node': 9, 'edge': 4, 'num_class': 11},  # regression, but 11 labels
