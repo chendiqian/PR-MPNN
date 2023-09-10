@@ -25,6 +25,8 @@ DATASET_FEATURE_STAT_DICT = {
 
     'peptides-struct': {'node': 9, 'edge': 4, 'num_class': 11},  # regression, but 11 labels
 
+    'pcqm': {'node': 9, 'edge': 3, 'num_class': 1},  # link pred
+
     # VOC superpixels:
     'edge_wt_region_boundary': {'node': 14, 'edge': 2, 'num_class': 21},
     'peptides-func': {'node': 9, 'edge': 4, 'num_class': 10},  # 10-way classification
@@ -87,6 +89,7 @@ TASK_TYPE_DICT = {
     'alchemy': 'mae',
     'peptides-struct': 'mae',
     'peptides-func': 'ap',
+    'pcqm': 'mrr',
     'ogbg-molesol': 'rmse',
     'ogbg-molbace': 'rocauc',
     'ogbg-molhiv': 'rocauc',
@@ -130,6 +133,7 @@ CRITERION_DICT = {
     'zinc': nn.L1Loss(),
     'zinc_full': nn.L1Loss(),
     'alchemy': nn.L1Loss(),
+    'pcqm': nn.CrossEntropyLoss(),
     'peptides-struct': nn.L1Loss(),
     'peptides-func': nn.BCEWithLogitsLoss(),
     'ogbg-molesol': nn.MSELoss(),
