@@ -20,6 +20,7 @@ from torch_geometric.utils import degree as pyg_degree
 from data.custom_datasets.heterophilic import HeterophilicDataset
 from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
 from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
+from data.custom_datasets.pcqm_contact import PygPCQM4Mv2ContactDataset
 from data.custom_datasets.qm9 import QM9
 from data.custom_datasets.ppgn_qm9 import PPGN_QM9
 from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
@@ -49,6 +50,7 @@ from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewi
 NUM_WORKERS = 0
 
 DATASET = (PygGraphPropPredDataset,
+           PygPCQM4Mv2ContactDataset,
            ZINC,
            MyTreeDataset,
            MyLeafColorDataset,
@@ -375,6 +377,9 @@ def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
         test_set = test_set[:debug_samples]
 
     return train_set, val_set, test_set, None
+
+def get_pcqm(args: Union[Namespace, ConfigDict]):
+    pass
 
 def get_alchemy(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithPlotCoordinates(layout=kamada_kawai_layout)])
