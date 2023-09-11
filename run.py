@@ -206,6 +206,23 @@ def run(wandb, args):
                     if emb_model is not None:
                         torch.save(emb_model.state_dict(),
                                    f'{run_folder}/embd_model_best.pt')
+                        
+                    if hasattr(args.early_stop, 'eval_test_at_best' ) and args.early_stop.eval_test_at_best == True and epoch > 10:
+                        test_loss_inter, test_metric_inter, test_loss_ensemble_inter, test_metric_ensemble_inter, _ = trainer.inference(
+                            test_loader,
+                            emb_model,
+                            model,
+                            test=True)
+                        logger.info(f'test loss inter: {test_loss}')
+                        logger.info(f'test metric inter: {test_metric}')
+                        logger.info(f'test loss ensemble inter: {test_loss_ensemble}')
+                        logger.info(f'test metric ensemble inter: {test_metric_ensemble}')
+
+                        # log to wandb at epoch
+                        wandb.log({'test_loss_inter': test_loss_inter,
+                                   'test_metric_inter': test_metric_inter,
+                                   'test_loss_ensemble_inter': test_loss_ensemble_inter,
+                                   'test_metric_ensemble_inter': test_metric_ensemble_inter}, step=epoch)
 
             # rm cached model
             used_model = os.listdir(run_folder)
