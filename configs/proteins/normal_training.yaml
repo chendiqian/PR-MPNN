@@ -2,8 +2,8 @@ fixed:
   dataset: proteins
   log_path: './logs'
 
-  use_wandb: False
-  wandb_name: "proteins_normal"
+  use_wandb: True
+  wandb_name: "proteins"
 
   sample_configs:
     sample_policy: null
