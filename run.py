@@ -30,8 +30,6 @@ def naming(args) -> str:
     name = f'{args.dataset}_{args.model}_'
     name += f'layer_{args.num_convlayers}_'
 
-    if hasattr(args, 'wandb_prefix'):
-        name = f'{args.wandb_prefix}_' + name
 
     if args.sample_configs.sample_policy is None:
         name += 'normal'
@@ -49,6 +47,12 @@ def naming(args) -> str:
     name += f'ensemble_{args.sample_configs.ensemble}_'
     name += f'policy_{args.sample_configs.sample_policy}_'
 
+    if hasattr(args.sample_configs, 'sample_k'):
+        name = f'add{args.sample_configs.sample_k}' + name
+        
+    if hasattr(args.sample_configs, 'sample_k2'):
+        name = f'del{args.sample_configs.sample_k2}' + name
+
     if hasattr(args.sample_configs, 'candid_pool'):
         name = f'candid{args.sample_configs.candid_pool}_ens{args.sample_configs.ensemble}' + name
     else:
@@ -59,6 +63,9 @@ def naming(args) -> str:
 
     if hasattr(args.sample_configs, 'sample_k2'):
         name = f'del{args.sample_configs.sample_k2}_' + name
+
+    if hasattr(args, 'wandb_prefix'):
+        name = f'{args.wandb_prefix}_' + name
 
 
     return name

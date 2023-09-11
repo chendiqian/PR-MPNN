@@ -13,6 +13,7 @@ from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import DataLoader as PTDataLoader
 from torch_geometric.data import Data
 from torch_geometric.datasets import ZINC
+from torch_geometric.datasets.lrgb import LRGBDataset
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 from torch_geometric.utils import degree as pyg_degree
@@ -49,6 +50,7 @@ from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewi
 NUM_WORKERS = 0
 
 DATASET = (PygGraphPropPredDataset,
+           LRGBDataset,
            ZINC,
            MyTreeDataset,
            MyLeafColorDataset,
@@ -373,6 +375,25 @@ def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
         train_set = train_set[:debug_samples]
         val_set = val_set[:debug_samples]
         test_set = test_set[:debug_samples]
+
+    return train_set, val_set, test_set, None
+
+def get_pcqm(args: Union[Namespace, ConfigDict]):
+    datapath = args.data_path
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        datapath = os.path.join(datapath, extra_path)
+    pre_transform = get_pretransform(args, extra_pretransforms=None)
+    transform = get_transform(args)
+
+    train_set = LRGBDataset(name='PCQM-Contact', root=datapath, split='train', transform=transform, pre_transform=pre_transform)
+    val_set = LRGBDataset(name='PCQM-Contact', root=datapath, split='val', transform=transform, pre_transform=pre_transform)
+    test_set = LRGBDataset(name='PCQM-Contact', root=datapath, split='test', transform=transform, pre_transform=pre_transform)
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
 
     return train_set, val_set, test_set, None
 
