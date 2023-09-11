@@ -220,6 +220,11 @@ class AugmentWithEdgeCandidate(GraphModification):
             x = torch.nn.functional.normalize(x, p=2.0, dim=1).numpy()
             mat = x @ x.T
             mat[np.arange(x.shape[0]), np.arange(x.shape[0])] = 0.
+        elif self.heu == 'l1_similarity_per_node':
+            x = graph.x
+            assert torch.all(torch.unique(x) == torch.tensor([0, 1]))
+            mat = - torch.linalg.norm(x[:, None, :] - x[None], ord=1, dim=2).numpy()
+            mat[np.arange(x.shape[0]), np.arange(x.shape[0])] = -1.e8
         elif self.heu == 'all':
             mat = None
         else:
@@ -237,13 +242,27 @@ class AugmentWithEdgeCandidate(GraphModification):
         multi_hop_idx = np.logical_not(np.in1d(candidate_idx_id, org_edge_index_id))
         candidate_idx = candidate_idx[:, multi_hop_idx]
 
-        if self.heu in ['node_similarity', 'longest_path']:
-            distances = mat[candidate_idx[0], candidate_idx[1]]
-            edge_candidate = candidate_idx[:, np.argsort(distances)[-self.num_candidate:]]
-        elif self.heu == 'all':
-            edge_candidate = candidate_idx
+        if self.heu in ['node_similarity', 'longest_path', 'all']:
+            # globally
+            if self.heu in ['node_similarity', 'longest_path']:
+                distances = mat[candidate_idx[0], candidate_idx[1]]
+                edge_candidate = candidate_idx[:, np.argsort(distances)[-self.num_candidate:]]
+            else:
+                edge_candidate = candidate_idx
+        elif self.heu in ['l1_similarity_per_node']:
+            # per node
+            if self.directed:
+                raise NotImplementedError
+            else:
+                thresh = np.sort(mat, axis=1)[:, -self.num_candidate][:, None]
+                mask = mat >= thresh
+                thresh = np.sort(mat, axis=0)[-self.num_candidate][None]
+                mask = np.logical_or(mat >= thresh, mask)
+                mask = np.logical_or(mask.T, mask)
+
+                edge_candidate = candidate_idx[:, mask[candidate_idx[0], candidate_idx[1]].nonzero()[0]]
         else:
-            raise ValueError
+            raise NotImplementedError
 
         graph.edge_candidate = torch.from_numpy(edge_candidate).T
         graph.num_edge_candidate = edge_candidate.shape[1]
