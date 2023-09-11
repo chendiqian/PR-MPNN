@@ -361,6 +361,8 @@ class Trainer:
                         scheduler.step(val_metric_ensemble)
                     elif scheduler.lr_target == 'val_loss':
                         scheduler.step(val_loss)
+                    elif scheduler.lr_target == 'val_loss_ensemble':
+                        scheduler.step(val_loss_ensemble)
                 else:
                     scheduler.step()
             if scheduler_embd is not None:
