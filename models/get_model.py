@@ -19,7 +19,7 @@ from training.construct import construct_from_edge_candidate, construct_from_att
 
 
 def get_encoder(args, for_downstream):
-    if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary', 'qm9', 'exp', 'cexp']:
+    if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary', 'qm9', 'exp', 'cexp', 'proteins']:
         type_encoder = 'linear'
     elif args.dataset.lower().startswith('hetero'):
         type_encoder = 'linear'
@@ -72,7 +72,8 @@ def get_encoder(args, for_downstream):
     elif args.dataset.lower().startswith('hetero') or \
             args.dataset.lower().startswith('tree') or \
             (args.dataset.lower().startswith('sym') and args.dataset.lower != 'sym_skipcircles') or \
-            args.dataset.lower().startswith('leafcolor'):
+            args.dataset.lower().startswith('leafcolor') or \
+            args.dataset.lower() == 'proteins':
         edge_encoder = None
     elif args.dataset.lower().startswith('peptides') or \
             args.dataset.lower().startswith('ogbg'):

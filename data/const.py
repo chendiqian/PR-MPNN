@@ -7,6 +7,7 @@ DATASET_FEATURE_STAT_DICT = {
     'zinc_full': {'node': 28, 'edge': 3, 'num_class': 1},
     'mutag': {'node': 7, 'edge': 4, 'num_class': 1},  # bin classification
     'alchemy': {'node': 6, 'edge': 4, 'num_class': 12},  # regression, but 12 labels
+    'proteins': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
     'ogbg-molesol': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
     'ogbg-molbace': {'node': 9, 'edge': 3, 'num_class': 1},  # bin classification
     'ogbg-molhiv': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
@@ -14,7 +15,6 @@ DATASET_FEATURE_STAT_DICT = {
     'qm9': {'node': 15, 'edge': 4, 'num_class': 1},  # regression, 13 labels, but we train 1 each split
     'ppgnqm9': {'node': 13, 'edge': 4, 'num_class': 1},  # regression, 13 labels, but we train 1 each split
     'exp': {'node': 2, 'edge': 0, 'num_class': 1},  # bin classification
-    'protein': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
 
     'sym_limits1': {'node': 4, 'edge': 0, 'num_class': 2},
     'sym_limits2': {'node': 4, 'edge': 0, 'num_class': 2},
@@ -87,6 +87,7 @@ TASK_TYPE_DICT = {
     'zinc': 'mae',
     # 'zinc_full': 'regression',
     'alchemy': 'mae',
+    'proteins': 'rocauc',
     'peptides-struct': 'mae',
     'peptides-func': 'ap',
     'pcqm': 'mrr',
@@ -97,7 +98,6 @@ TASK_TYPE_DICT = {
     'qm9': 'mae',
     'ppgnqm9': 'mae',
     'exp': 'acc',
-    'protein': 'acc',
     'hetero_cornell': 'acc',
     'hetero_texas': 'acc',
     'hetero_wisconsin': 'acc',
@@ -133,6 +133,7 @@ CRITERION_DICT = {
     'zinc': nn.L1Loss(),
     'zinc_full': nn.L1Loss(),
     'alchemy': nn.L1Loss(),
+    'proteins': nn.BCEWithLogitsLoss(),
     'pcqm': nn.CrossEntropyLoss(),
     'peptides-struct': nn.L1Loss(),
     'peptides-func': nn.BCEWithLogitsLoss(),
@@ -143,7 +144,6 @@ CRITERION_DICT = {
     'qm9': nn.MSELoss(),
     'ppgnqm9': nn.MSELoss(),
     'exp': nn.BCEWithLogitsLoss(),
-    'protein': nn.BCEWithLogitsLoss(),
 
     'edge_wt_region_boundary': weighted_cross_entropy,
 

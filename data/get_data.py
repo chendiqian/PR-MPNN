@@ -10,9 +10,9 @@ from ml_collections import ConfigDict
 from networkx import kamada_kawai_layout
 from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.model_selection import StratifiedKFold
-from torch.utils.data import DataLoader as PTDataLoader
+from torch.utils.data import random_split, Subset, DataLoader as PTDataLoader
 from torch_geometric.data import Data
-from torch_geometric.datasets import ZINC
+from torch_geometric.datasets import ZINC, TUDataset
 from torch_geometric.datasets.lrgb import LRGBDataset
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
@@ -56,13 +56,15 @@ DATASET = (PygGraphPropPredDataset,
            MyLeafColorDataset,
            MySymDataset,
            MyTUDataset,
+           TUDataset,
            PeptidesStructuralDataset,
            PeptidesFunctionalDataset,
            VOCSuperpixels,
            HeterophilicDataset,
            PlanarSATPairsDataset,
            QM9,
-           PPGN_QM9)
+           PPGN_QM9,
+           Subset)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -180,6 +182,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std = get_zinc(args)
     elif args.dataset.lower() == 'alchemy':
         train_set, val_set, test_set, std = get_alchemy(args)
+    elif args.dataset.lower() == 'proteins':
+        train_set, val_set, test_set, std = get_proteins(args)
     elif args.dataset.lower().startswith('tree'):
         train_set, val_set, test_set, std = get_treedataset(args)
     elif args.dataset.lower().startswith('leafcolor'):
@@ -441,6 +445,40 @@ def get_alchemy(args: Union[Namespace, ConfigDict]):
         test_set = test_set[:16]
 
     return train_set, val_set, test_set, std
+
+
+def get_proteins(args):
+    pre_transform = get_pretransform(args, extra_pretransforms=[
+        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
+        GraphToUndirected(),
+        GraphExpandDim()])
+    transform = get_transform(args)
+
+    data_path = args.data_path
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    dataset = TUDataset(data_path,
+                        name='PROTEINS_full',
+                        transform=transform,
+                        pre_transform=pre_transform)
+
+    dataset.data.y = dataset.data.y.float()
+
+    num_training = int(len(dataset) * 0.8)
+    num_val = int(len(dataset) * 0.1)
+    num_test = len(dataset) - num_val - num_training
+    train_set, val_set, test_set = random_split(dataset,
+                                                [num_training, num_val, num_test],
+                                                generator=torch.Generator().manual_seed(0))
+
+    if args.debug:
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
+
+    return train_set, val_set, test_set, None
 
 
 def get_treedataset(args: Union[Namespace, ConfigDict]):
