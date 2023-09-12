@@ -74,7 +74,9 @@ def get_encoder(args, for_downstream):
             args.dataset.lower().startswith('tree') or \
             (args.dataset.lower().startswith('sym') and args.dataset.lower != 'sym_skipcircles') or \
             args.dataset.lower().startswith('leafcolor') or \
-            args.dataset.lower() == 'proteins':
+            args.dataset.lower() == 'proteins' or \
+            args.dataset.lower() == 'nci1' or  \
+            args.dataset.lower() == 'nci109':
         edge_encoder = None
     elif args.dataset.lower().startswith('peptides') or \
             args.dataset.lower().startswith('ogbg'):
