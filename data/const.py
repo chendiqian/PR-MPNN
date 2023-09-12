@@ -7,7 +7,13 @@ DATASET_FEATURE_STAT_DICT = {
     'zinc_full': {'node': 28, 'edge': 3, 'num_class': 1},
     'mutag': {'node': 7, 'edge': 4, 'num_class': 1},  # bin classification
     'alchemy': {'node': 6, 'edge': 4, 'num_class': 12},  # regression, but 12 labels
+
     'proteins': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
+    'mutag': {'node': 7, 'edge': 4, 'num_class': 1},  # bin classification
+    'ptc_mr': {'node': 18, 'edge': 4, 'num_class': 1},  # bin classification
+    'nci1': {'node': 37, 'edge': 0, 'num_class': 1},  # bin classification
+    'nci109': {'node': 38, 'edge': 0, 'num_class': 1},  # bin classification
+
     'ogbg-molesol': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
     'ogbg-molbace': {'node': 9, 'edge': 3, 'num_class': 1},  # bin classification
     'ogbg-molhiv': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
@@ -88,6 +94,11 @@ TASK_TYPE_DICT = {
     # 'zinc_full': 'regression',
     'alchemy': 'mae',
     'proteins': 'rocauc',
+    'mutag': 'rocauc',
+    'ptc_mr': 'rocauc',
+    'nci1': 'rocauc',
+    'nci109': 'rocauc',
+
     'peptides-struct': 'mae',
     'peptides-func': 'ap',
     'pcqm': 'mrr',
@@ -134,6 +145,11 @@ CRITERION_DICT = {
     'zinc_full': nn.L1Loss(),
     'alchemy': nn.L1Loss(),
     'proteins': nn.BCEWithLogitsLoss(),
+    'mutag': nn.BCEWithLogitsLoss(),
+    'ptc_mr': nn.BCEWithLogitsLoss(),
+    'nci1': nn.BCEWithLogitsLoss(),
+    'nci109': nn.BCEWithLogitsLoss(),
+    
     'pcqm': nn.CrossEntropyLoss(),
     'peptides-struct': nn.L1Loss(),
     'peptides-func': nn.BCEWithLogitsLoss(),

@@ -183,7 +183,15 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     elif args.dataset.lower() == 'alchemy':
         train_set, val_set, test_set, std = get_alchemy(args)
     elif args.dataset.lower() == 'proteins':
-        train_set, val_set, test_set, std = get_proteins(args)
+        train_set, val_set, test_set, std = get_TU(args, name='PROTEINS_full')
+    elif args.dataset.lower() == 'mutag':
+        train_set, val_set, test_set, std = get_TU(args, name='MUTAG')
+    elif args.dataset.lower() == 'ptc_mr':
+        train_set, val_set, test_set, std = get_TU(args, name='PTC_MR')
+    elif args.dataset.lower() == 'nci1':
+        train_set, val_set, test_set, std = get_TU(args, name='NCI1')
+    elif args.dataset.lower() == 'nci109':
+        train_set, val_set, test_set, std = get_TU(args, name='NCI109')
     elif args.dataset.lower().startswith('tree'):
         train_set, val_set, test_set, std = get_treedataset(args)
     elif args.dataset.lower().startswith('leafcolor'):
@@ -447,7 +455,7 @@ def get_alchemy(args: Union[Namespace, ConfigDict]):
     return train_set, val_set, test_set, std
 
 
-def get_proteins(args):
+def get_TU(args, name='PROTEINS_full'):
     pre_transform = get_pretransform(args, extra_pretransforms=[
         AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphToUndirected(),
@@ -460,7 +468,7 @@ def get_proteins(args):
         data_path = os.path.join(data_path, extra_path)
 
     dataset = TUDataset(data_path,
-                        name='PROTEINS_full',
+                        name=name,
                         transform=transform,
                         pre_transform=pre_transform)
 
@@ -469,7 +477,7 @@ def get_proteins(args):
 
     labels = dataset.data.y.tolist()
     dataset.data.y = dataset.data.y.float()
-
+    
     for fold_idx in range(0, 10):
         skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=fold_idx)
 
