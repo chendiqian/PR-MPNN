@@ -1,3 +1,4 @@
+import pdb
 from functools import partial
 from typing import Any, Optional, Union
 
@@ -216,7 +217,11 @@ class Trainer:
                 num_preds = data.y.shape[0]
             return num_preds
         elif type(data) == DuoDataStructure:
-            raise NotImplementedError
+            if task_type == 'graph':
+                num_preds = data.candidates[0].num_graphs
+            else:
+                num_preds = data.y.shape[0]
+            return num_preds
         elif type(data) == BatchOriginalDataStructure:
             if task_type == 'graph':
                 num_preds = data.num_graphs
@@ -230,21 +235,29 @@ class Trainer:
         if isinstance(data, Data):
             return data.npreds
         elif type(data) == DuoDataStructure:
-            raise NotImplementedError
+            return data.candidates[0].npreds
         elif type(data) == BatchOriginalDataStructure:
             return data.batch.npreds
         else:
             raise TypeError(f"Unexpected dtype {type(data)}")
 
     def get_edge_label_index(self, data):
-        # only designed for PCQM-contact
         if isinstance(data, Data):
-            return data.edge_label_index if hasattr(data, 'edge_label_index') else None
+            return data.edge_label_index
         elif type(data) == DuoDataStructure:
-            raise NotImplementedError
+            return data.candidates[0].edge_label_index
         elif type(data) == BatchOriginalDataStructure:
-            return data.batch.edge_label_index if hasattr(data.batch,
-                                                          'edge_label_index') else None
+            return data.batch.edge_label_index
+        else:
+            raise TypeError(f"Unexpected dtype {type(data)}")
+
+    def get_batch_idx(self, data):
+        if isinstance(data, Data):
+            return data.batch
+        elif type(data) == DuoDataStructure:
+            return data.candidates[0].batch
+        elif type(data) == BatchOriginalDataStructure:
+            return data.batch.batch
         else:
             raise TypeError(f"Unexpected dtype {type(data)}")
 
@@ -253,7 +266,7 @@ class Trainer:
         if isinstance(data, Data):
             return data.nnodes
         elif type(data) == DuoDataStructure:
-            raise NotImplementedError
+            return data.candidates[0].nnodes
         elif type(data) == BatchOriginalDataStructure:
             return data.batch.nnodes
         else:
@@ -295,7 +308,6 @@ class Trainer:
 
             node_prediction = model(data)
 
-            assert hasattr(data, 'edge_label_index')
             labeled_prediction = torch.prod(node_prediction[self.get_edge_label_index(data)], dim=0).sum(-1, keepdims=True)
 
             loss = self.criterion(labeled_prediction, data.y)
@@ -314,17 +326,16 @@ class Trainer:
             # B x N x F
             reshaped_pred, _ = to_dense_batch(
                 node_prediction.detach(),
-                batch=batch.batch,
-                max_num_nodes=batch.nnodes.max(),
-                batch_size=batch.num_graphs)
+                batch=self.get_batch_idx(data),
+                max_num_nodes=self.get_nnodes(batch).max())
             all_prediction = torch.einsum('bnf,bmf->bnm', reshaped_pred, reshaped_pred)
 
             metric = get_eval(self.task_type,
                               data.y,
                               all_prediction,
-                              self.get_npreds(batch),
-                              self.get_nnodes(batch),
-                              self.get_edge_label_index(batch))
+                              self.get_npreds(data),
+                              self.get_nnodes(data),
+                              self.get_edge_label_index(data))
 
             train_metrics += metric * batch.num_graphs
             num_graphs += batch.num_graphs
@@ -375,7 +386,6 @@ class Trainer:
 
             node_prediction = model(data)
 
-            assert hasattr(data, 'edge_label_index')
             labeled_prediction = torch.prod(node_prediction[self.get_edge_label_index(data)], dim=0).sum(-1, keepdims=True)
 
             val_losses += self.criterion(labeled_prediction, data.y) * batch.num_graphs
@@ -383,8 +393,8 @@ class Trainer:
             # B x N x F
             reshaped_pred, _ = to_dense_batch(
                 node_prediction.detach(),
-                batch=data.batch,
-                max_num_nodes=batch.nnodes.max())
+                batch=self.get_batch_idx(data),
+                max_num_nodes=self.get_nnodes(batch).max())
             all_prediction = torch.einsum('bnf,bmf->bnm', reshaped_pred, reshaped_pred)
 
             metric = get_eval(self.task_type,
@@ -408,8 +418,8 @@ class Trainer:
             # B x N x F
             reshaped_pred_ensemble, _ = to_dense_batch(
                 pred_ensemble.detach(),
-                batch=batch.batch,
-                max_num_nodes=batch.nnodes.max())
+                batch=self.get_batch_idx(batch),
+                max_num_nodes=self.get_nnodes(batch).max())
             all_prediction_ensemble = torch.einsum('bnf,bmf->bnm', reshaped_pred_ensemble, reshaped_pred_ensemble)
 
             metric = get_eval(self.task_type,
