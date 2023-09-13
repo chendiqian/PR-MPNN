@@ -1,5 +1,4 @@
 import torch
-from torch_geometric.nn import global_mean_pool, global_add_pool, Set2Set, global_max_pool
 
 from models.my_convs import BaseGIN, BaseGINE, BasePNA, BaseGCN
 from models.nn_modules import MLP
@@ -18,8 +17,7 @@ class GNN_Normal(torch.nn.Module):
                  use_bn,
                  dropout,
                  residual,
-                 mlp_layers_intragraph,
-                 graph_pooling='mean'):
+                 mlp_layers_intragraph):
         super(GNN_Normal, self).__init__()
 
         self.encoder = encoder
@@ -40,30 +38,8 @@ class GNN_Normal(torch.nn.Module):
         else:
             raise NotImplementedError
 
-        # intra-graph pooling
-        self.graph_pool_idx = 'batch'
-        self.graph_pooling =graph_pooling
-        if graph_pooling == "sum":
-            self.pool = global_add_pool
-        elif graph_pooling == 'max':
-            self.pool = global_max_pool
-        elif graph_pooling == "mean":
-            self.pool = global_mean_pool
-        elif graph_pooling == 'set2set':
-            self.pool = Set2Set(hidden, processing_steps=6)
-        elif graph_pooling is None:  # node pred
-            self.pool = lambda x, *args: x
-        elif graph_pooling == 'transductive':
-            self.pool = lambda x, transductive_mask: x[transductive_mask]
-            self.graph_pool_idx = 'transductive_mask'
-        elif graph_pooling == 'root':
-            self.pool = lambda x, root_mask: x[root_mask]
-            self.graph_pool_idx = 'root_mask'
-        else:
-            raise NotImplementedError
-
         if mlp_layers_intragraph > 0:
-            self.mlp = MLP([hidden if graph_pooling != 'set2set' else hidden * 2] * mlp_layers_intragraph + [num_classes], dropout=0.)
+            self.mlp = MLP([hidden] * mlp_layers_intragraph + [num_classes], dropout=0.)
         else:
             self.mlp = lambda x: x
 
@@ -75,6 +51,6 @@ class GNN_Normal(torch.nn.Module):
             data.x = self.encoder(data)
 
         h_node = self.gnn(data.x, data.edge_index, data.edge_attr, data.edge_weight)
-        h_graph = self.pool(h_node, getattr(data, self.graph_pool_idx))
-        h_graph = self.mlp(h_graph)
-        return h_graph
+        h_node = self.mlp(h_node)
+
+        return h_node

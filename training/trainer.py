@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from ml_collections import ConfigDict
 from torch_geometric.data import Data
+from torch_geometric.utils import to_dense_batch
 
 from data.get_optimizer import MyPlateau
 from data.get_sampler import get_sampler
@@ -39,7 +40,7 @@ class Trainer:
                  auxloss: ConfigDict,
                  wandb: Optional[Any] = None,
                  use_wandb: bool = False,
-                 connectedness_metric_args: Optional[ConfigDict] = None,):
+                 connectedness_metric_args: Optional[ConfigDict] = None, ):
         super(Trainer, self).__init__()
 
         self.dataset = dataset
@@ -87,7 +88,9 @@ class Trainer:
         else:
             self.connectedness_metric = None
 
-        train_forward, val_forward, sampler_class = get_sampler(imle_configs, sample_configs, self.device)
+        train_forward, val_forward, sampler_class = get_sampler(imle_configs,
+                                                                sample_configs,
+                                                                self.device)
 
         if sample_configs.sample_policy is None:
             # normal training
@@ -123,24 +126,29 @@ class Trainer:
                                                            sample_configs,
                                                            'rewire_layers') else None,
                                                        auxloss_dict=auxloss)
+
                     def func(data, emb_model):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,
                                                                          graphs,
                                                                          emb_model.training,
-                                                                         *emb_model(dat_batch))
+                                                                         *emb_model(
+                                                                             dat_batch))
                         return data, scores, auxloss
+
                     self.construct_duplicate_data = func
                 elif sample_configs.sample_policy == 'global':
                     # learnable way with attention mask
-                    policy = 'global_' + ('directed' if sample_configs.directed else 'undirected')
+                    policy = 'global_' + (
+                        'directed' if sample_configs.directed else 'undirected')
                     sampler_class.policy = policy
                     construct_duplicate_data = partial(construct_from_attention_mat,
                                                        sample_policy=policy,
                                                        samplek_dict={
                                                            'add_k': sample_configs.sample_k,
                                                            'del_k': sample_configs.sample_k2 if
-                                                           hasattr(sample_configs, 'sample_k2') else 0},
+                                                           hasattr(sample_configs,
+                                                                   'sample_k2') else 0},
                                                        directed_sampling=sample_configs.directed,
                                                        auxloss_dict=auxloss,
                                                        sampler_class=sampler_class,
@@ -158,50 +166,96 @@ class Trainer:
                                                            num_layers) if hasattr(
                                                            sample_configs,
                                                            'rewire_layers') else None)
+
                     def func(data, emb_model):
                         dat_batch, graphs = data.batch, data.list
                         data, scores, auxloss = construct_duplicate_data(dat_batch,
                                                                          graphs,
                                                                          emb_model.training,
-                                                                         *emb_model(dat_batch))
+                                                                         *emb_model(
+                                                                             dat_batch))
                         return data, scores, auxloss
+
                     self.construct_duplicate_data = func
                 else:
                     raise ValueError(f'unexpected policy {sample_configs.sample_policy}')
 
-    def check_datatype(self, data, task_type):
+    def check_datatype(self, data):
         if isinstance(data, Data):
-            if task_type == 'graph':
-                num_preds = data.num_graphs
-            elif task_type == 'node':
-                num_preds = data.y.shape[0]
-            else:
-                raise NotImplementedError
-            return data.to(self.device), num_preds
+            return data.to(self.device)
         elif type(data) == DuoDataStructure:
-            # this must be before tuple type check, namedtuple is a subset of tuple
-            if task_type == 'graph':
-                num_preds = data.num_unique_graphs
-            elif task_type == 'node':
-                num_preds = data.y.shape[0] // (data.num_graphs // data.num_unique_graphs)
-            else:
-                raise NotImplementedError
-            return DuoDataStructure(org=data.org.to(self.device) if data.org is not None else None,
-                                    candidates=[g.to(self.device) for g in data.candidates],
-                                    y=data.y.to(self.device),
-                                    num_graphs=data.num_graphs,
-                                    num_unique_graphs=data.num_unique_graphs), num_preds
+            return DuoDataStructure(
+                org=data.org.to(self.device) if data.org is not None else None,
+                candidates=[g.to(self.device) for g in data.candidates],
+                y=data.y.to(self.device),
+                num_graphs=data.num_graphs,
+                num_unique_graphs=data.num_unique_graphs)
         elif type(data) == BatchOriginalDataStructure:
-            if task_type == 'graph':
-                num_preds = data.num_graphs
-            elif task_type == 'node':
-                num_preds = data.y.shape[0]
-            else:
-                raise NotImplementedError
             return BatchOriginalDataStructure(batch=data.batch.to(self.device),
                                               list=[g.to(self.device) for g in data.list],
                                               y=data.y.to(self.device),
-                                              num_graphs=data.num_graphs), num_preds
+                                              num_graphs=data.num_graphs)
+        else:
+            raise TypeError(f"Unexpected dtype {type(data)}")
+
+    def get_num_graphs(self, data):
+        if isinstance(data, Data):
+            return data.num_graphs
+        elif type(data) == DuoDataStructure:
+            return data.num_unique_graphs
+        elif type(data) == BatchOriginalDataStructure:
+            return data.num_graphs
+        else:
+            raise TypeError(f"Unexpected dtype {type(data)}")
+
+    def get_label_shape(self, data, task_type):
+        if isinstance(data, Data):
+            if task_type == 'graph':
+                num_preds = data.num_graphs
+            else:
+                num_preds = data.y.shape[0]
+            return num_preds
+        elif type(data) == DuoDataStructure:
+            raise NotImplementedError
+        elif type(data) == BatchOriginalDataStructure:
+            if task_type == 'graph':
+                num_preds = data.num_graphs
+            else:
+                num_preds = data.y.shape[0]
+            return num_preds
+        else:
+            raise TypeError(f"Unexpected dtype {type(data)}")
+
+    def get_npreds(self, data):
+        if isinstance(data, Data):
+            return data.npreds
+        elif type(data) == DuoDataStructure:
+            raise NotImplementedError
+        elif type(data) == BatchOriginalDataStructure:
+            return data.batch.npreds
+        else:
+            raise TypeError(f"Unexpected dtype {type(data)}")
+
+    def get_edge_label_index(self, data):
+        # only designed for PCQM-contact
+        if isinstance(data, Data):
+            return data.edge_label_index if hasattr(data, 'edge_label_index') else None
+        elif type(data) == DuoDataStructure:
+            raise NotImplementedError
+        elif type(data) == BatchOriginalDataStructure:
+            return data.batch.edge_label_index if hasattr(data.batch,
+                                                          'edge_label_index') else None
+        else:
+            raise TypeError(f"Unexpected dtype {type(data)}")
+
+    def get_nnodes(self, data):
+        # only designed for PCQM-contact
+        if isinstance(data, Data):
+            return data.nnodes
+        elif type(data) == DuoDataStructure:
+            raise NotImplementedError
+        elif type(data) == BatchOriginalDataStructure:
+            return data.batch.nnodes
         else:
             raise TypeError(f"Unexpected dtype {type(data)}")
 
@@ -218,16 +272,15 @@ class Trainer:
 
         model.train()
         train_losses = torch.tensor(0., device=self.device)
-        preds = []
-        labels = []
+        train_metrics = 0.
         num_graphs = 0
 
-        for batch_id, data in enumerate(dataloader.loader):
+        for batch_id, batch in enumerate(dataloader.loader):
             optimizer.zero_grad()
             if optimizer_embd is not None:
                 optimizer_embd.zero_grad()
-            data, _ = self.check_datatype(data, dataloader.task)
-            data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
+            batch = self.check_datatype(batch)
+            data, scores, auxloss = self.construct_duplicate_data(batch, emb_model)
 
             if self.plot is not None:
                 self.plot(data, True, self.epoch, batch_id)
@@ -237,12 +290,16 @@ class Trainer:
             if self.plot_score_and_mask is not None:
                 if scores is not None and isinstance(scores, dict):
                     for k, (score, mask) in scores.items():
-                        self.plot_score_and_mask(score, mask, self.epoch, batch_id, True, prefix=k)
+                        self.plot_score_and_mask(score, mask, self.epoch, batch_id, True,
+                                                 prefix=k)
 
-            pred = model(data)
-            is_labeled = data.y == data.y
-            loss = self.criterion(pred[is_labeled], data.y[is_labeled])
-            train_losses += loss.detach() * data.num_graphs
+            node_prediction = model(data)
+
+            assert hasattr(data, 'edge_label_index')
+            labeled_prediction = torch.prod(node_prediction[self.get_edge_label_index(data)], dim=0).sum(-1, keepdims=True)
+
+            loss = self.criterion(labeled_prediction, data.y)
+            train_losses += loss.detach() * batch.num_graphs
 
             loss = loss + auxloss
 
@@ -250,18 +307,30 @@ class Trainer:
             optimizer.step()
             if optimizer_embd is not None:
                 # torch.nn.utils.clip_grad_value_(emb_model.parameters(), clip_value=1.0)
-                torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=False)
+                torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0,
+                                               error_if_nonfinite=False)
                 optimizer_embd.step()
 
-            num_graphs += data.num_graphs
-            preds.append(pred)
-            labels.append(data.y)
-        train_loss = train_losses.item() / num_graphs
-        self.best_train_loss = min(self.best_train_loss, train_loss)
+            # B x N x F
+            reshaped_pred, _ = to_dense_batch(
+                node_prediction.detach(),
+                batch=batch.batch,
+                max_num_nodes=batch.nnodes.max(),
+                batch_size=batch.num_graphs)
+            all_prediction = torch.einsum('bnf,bmf->bnm', reshaped_pred, reshaped_pred)
 
-        preds = torch.cat(preds, dim=0)
-        labels = torch.cat(labels, dim=0)
-        train_metric = get_eval(self.task_type, labels, preds)
+            metric = get_eval(self.task_type,
+                              data.y,
+                              all_prediction,
+                              self.get_npreds(batch),
+                              self.get_nnodes(batch),
+                              self.get_edge_label_index(batch))
+
+            train_metrics += metric * batch.num_graphs
+            num_graphs += batch.num_graphs
+        train_loss = train_losses.item() / num_graphs
+        train_metric = train_metrics / num_graphs
+        self.best_train_loss = min(self.best_train_loss, train_loss)
 
         return train_loss, train_metric
 
@@ -279,18 +348,19 @@ class Trainer:
             emb_model.eval()
 
         model.eval()
-        preds = []
-        labels = []
 
-        preds_ensemble = []
-        labels_ensemble = []
+        val_losses = torch.tensor(0., device=self.device)
+        val_ensemble_losses = torch.tensor(0., device=self.device)
+        val_metrics = 0.
+        val_ensemble_metrics = 0.
+        num_graphs = 0
+
         connectedness_metrics = []
-
         preds_uncertainty = []
 
-        for batch_id, data in enumerate(dataloader.loader):
-            data, num_preds = self.check_datatype(data, dataloader.task)
-            data, scores, _ = self.construct_duplicate_data(data, emb_model)
+        for batch_id, batch in enumerate(dataloader.loader):
+            batch = self.check_datatype(batch)
+            data, scores, _ = self.construct_duplicate_data(batch, emb_model)
 
             if self.plot is not None:
                 self.plot(data, False, self.epoch, batch_id)
@@ -300,26 +370,56 @@ class Trainer:
             if self.plot_score_and_mask is not None:
                 if scores is not None and isinstance(scores, dict):
                     for k, (score, mask) in scores.items():
-                        self.plot_score_and_mask(score, mask, self.epoch, batch_id, False, prefix=k)
+                        self.plot_score_and_mask(score, mask, self.epoch, batch_id, False,
+                                                 prefix=k)
 
-            pred = model(data)
+            node_prediction = model(data)
 
-            label = data.y
-            label_ensemble = label[:num_preds]
+            assert hasattr(data, 'edge_label_index')
+            labeled_prediction = torch.prod(node_prediction[self.get_edge_label_index(data)], dim=0).sum(-1, keepdims=True)
 
-            pred_ensemble = pred.reshape(*(-1, num_preds) + pred.shape[1:]).transpose(0, 1)
+            val_losses += self.criterion(labeled_prediction, data.y) * batch.num_graphs
 
-            # For classification, we should use something like the entropy of the mean prediction
-            # i.e. we have (B_SZ, N_ENS, N_CLASSES)->(B_SZ, 1, N_CLASSES)->compute entropy over N_CLASSES
+            # B x N x F
+            reshaped_pred, _ = to_dense_batch(
+                node_prediction.detach(),
+                batch=data.batch,
+                max_num_nodes=batch.nnodes.max())
+            all_prediction = torch.einsum('bnf,bmf->bnm', reshaped_pred, reshaped_pred)
+
+            metric = get_eval(self.task_type,
+                              data.y,
+                              all_prediction,
+                              self.get_npreds(data),
+                              self.get_nnodes(data),
+                              self.get_edge_label_index(data))
+
+            val_metrics += metric * data.num_graphs
+            num_graphs += data.num_graphs
+
+            pred_ensemble = node_prediction.reshape(*(-1, self.get_nnodes(batch).sum()) + node_prediction.shape[1:]).transpose(0, 1)
             pred_uncertainty = pred_ensemble.cpu().numpy().std(1)
-            pred_ensemble = pred_ensemble.mean(dim=1)
-
-            dataset_std = 1 if dataloader.std is None else dataloader.std.to(self.device)
-            preds.append(pred * dataset_std)
-            preds_ensemble.append(pred_ensemble * dataset_std)
-            labels.append(label * dataset_std)
-            labels_ensemble.append(label_ensemble * dataset_std)
             preds_uncertainty.append(pred_uncertainty)
+            pred_ensemble = pred_ensemble.mean(dim=1)
+            labeled_prediction_ensemble = torch.prod(pred_ensemble[self.get_edge_label_index(batch)], dim=0).sum(-1, keepdims=True)
+
+            val_ensemble_losses += self.criterion(labeled_prediction_ensemble, batch.y) * data.num_graphs
+
+            # B x N x F
+            reshaped_pred_ensemble, _ = to_dense_batch(
+                pred_ensemble.detach(),
+                batch=batch.batch,
+                max_num_nodes=batch.nnodes.max())
+            all_prediction_ensemble = torch.einsum('bnf,bmf->bnm', reshaped_pred_ensemble, reshaped_pred_ensemble)
+
+            metric = get_eval(self.task_type,
+                              batch.y,
+                              all_prediction_ensemble,
+                              self.get_npreds(batch),
+                              self.get_nnodes(batch),
+                              self.get_edge_label_index(batch))
+
+            val_ensemble_metrics += metric * batch.num_graphs
 
             if not test and self.connectedness_metric is not None and self.epoch % self.connectedness_metric_cnt == 1:
                 if isinstance(data, Data):
@@ -332,19 +432,13 @@ class Trainer:
                     raise TypeError(f'{type(data)} unsupported')
                 connectedness_metrics.append(self.connectedness_metric(data))
 
-        preds = torch.cat(preds, dim=0)
-        labels = torch.cat(labels, dim=0)
-        preds_ensemble = torch.cat(preds_ensemble, dim=0)
-        labels_ensemble = torch.cat(labels_ensemble, dim=0)
         preds_uncertainty = np.concatenate(preds_uncertainty, axis=0)
 
-        is_labeled = labels == labels
-        is_labeled_ens = labels_ensemble == labels_ensemble
-        val_loss = self.criterion(preds[is_labeled], labels[is_labeled]).item()
-        val_loss_ensemble = self.criterion(preds_ensemble[is_labeled_ens], labels_ensemble[is_labeled_ens]).item()
+        val_loss = val_losses.item() / num_graphs
+        val_loss_ensemble = val_ensemble_losses.item() / num_graphs
 
-        val_metric = get_eval(self.task_type, labels, preds)
-        val_metric_ensemble = get_eval(self.task_type, labels_ensemble, preds_ensemble)
+        val_metric = val_metrics / num_graphs
+        val_metric_ensemble = val_ensemble_metrics / num_graphs
 
         early_stop = False
         if not test:
@@ -371,12 +465,15 @@ class Trainer:
                 else:
                     scheduler_embd.step()
 
-            train_is_better, self.best_train_metric = self.metric_comparator(train_metric, self.best_train_metric)
+            train_is_better, self.best_train_metric = self.metric_comparator(train_metric,
+                                                                             self.best_train_metric)
             if scheduler.lr_target == 'val_metric_ensemble':
-                val_is_better, self.best_val_metric = self.metric_comparator(val_metric_ensemble, self.best_val_metric)
+                val_is_better, self.best_val_metric = self.metric_comparator(
+                    val_metric_ensemble, self.best_val_metric)
             else:
-                val_is_better, self.best_val_metric = self.metric_comparator(val_metric, self.best_val_metric)
-            
+                val_is_better, self.best_val_metric = self.metric_comparator(val_metric,
+                                                                             self.best_val_metric)
+
             if self.patience_target in ['val_metric', 'val_metric_ensemble']:
                 is_better = val_is_better
             elif self.patience_target == 'train_metric':
@@ -385,7 +482,7 @@ class Trainer:
                 is_better = val_loss < self.best_val_loss
             else:
                 raise NotImplementedError
-            
+
             self.best_val_loss = min(self.best_val_loss, val_loss)
 
             if is_better:
@@ -402,9 +499,12 @@ class Trainer:
                             "val_metric": val_metric,
                             "val_loss_ensemble": val_loss_ensemble,
                             "val_metric_ensemble": val_metric_ensemble,
-                            "down_lr": scheduler.get_last_lr()[-1] if scheduler is not None else 0.,
-                            "up_lr": scheduler_embd.get_last_lr()[-1] if scheduler_embd is not None else 0.,
-                            "val_preds_uncertainty": self.wandb.Histogram(preds_uncertainty)}
+                            "down_lr": scheduler.get_last_lr()[
+                                -1] if scheduler is not None else 0.,
+                            "up_lr": scheduler_embd.get_last_lr()[
+                                -1] if scheduler_embd is not None else 0.,
+                            "val_preds_uncertainty": self.wandb.Histogram(
+                                preds_uncertainty)}
 
                 if len(connectedness_metrics) > 0:
                     connectedness_metrics_names = connectedness_metrics[0].keys()
@@ -412,7 +512,8 @@ class Trainer:
                         values = []
                         for metric in connectedness_metrics:
                             values.extend(metric[name])
-                        log_dict[f'connectedness_{name}'] = self.wandb.Histogram(np.array(values, dtype=np.float32))
+                        log_dict[f'connectedness_{name}'] = self.wandb.Histogram(
+                            np.array(values, dtype=np.float32))
 
                 self.wandb.log(log_dict)
 
