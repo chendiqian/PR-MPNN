@@ -194,12 +194,6 @@ def run(wandb, args):
                             f'val loss ensemble: {round(val_loss_ensemble, 5)}, '
                             f'val metric ensemble: {round(val_metric_ensemble, 5)}')
 
-                if epoch % 50 == 0:
-                    torch.save(model.state_dict(), f'{run_folder}/model_{epoch}.pt')
-                    if emb_model is not None:
-                        torch.save(emb_model.state_dict(),
-                                   f'{run_folder}/embd_model_{epoch}.pt')
-
                 if trainer.patience == 0:
                     best_epoch = epoch
                     torch.save(model.state_dict(), f'{run_folder}/model_best.pt')
