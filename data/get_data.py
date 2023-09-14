@@ -590,19 +590,17 @@ def get_heterophily(args):
     pre_transforms = get_pretransform(args, extra_pretransforms=[GraphToUndirected()])
     transform = get_transform(args)
 
-    splits = [[HeterophilicDataset(root=datapath,
-                                   name=dataset_name,
-                                   split=split,
-                                   fold=fold,
-                                   transform=transform,
-                                   pre_transform=pre_transforms) for fold in range(10)] for split in ['train', 'val', 'test']]
+    # they use split 0
+    # https://github.com/luis-mueller/probing-graph-transformers/blob/1a86d6f48bc4f8c7189ba5d9fd72e4078110a641/graphgps/config/split_config.py#L16
+    # https://github.com/luis-mueller/probing-graph-transformers/blob/main/graphgps/loader/split_generator.py#L48
+    splits = [HeterophilicDataset(root=datapath,
+                                  name=dataset_name,
+                                  split=split,
+                                  fold=0,
+                                  transform=transform,
+                                  pre_transform=pre_transforms) for split in ['train', 'val', 'test']]
 
     train_set, val_set, test_set = splits
-
-    if args.debug:
-        train_set = train_set[0]
-        val_set = val_set[0]
-        test_set = test_set[0]
 
     return train_set, val_set, test_set, None
 
