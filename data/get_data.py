@@ -12,12 +12,11 @@ from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.model_selection import StratifiedKFold
 from torch.utils.data import random_split, Subset, DataLoader as PTDataLoader
 from torch_geometric.data import Data
-from torch_geometric.datasets import ZINC, TUDataset
+from torch_geometric.datasets import ZINC, TUDataset, WebKB
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 from torch_geometric.utils import degree as pyg_degree
 
-from data.custom_datasets.heterophilic import HeterophilicDataset
 from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
 from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
 from data.custom_datasets.qm9 import QM9
@@ -58,7 +57,7 @@ DATASET = (PygGraphPropPredDataset,
            PeptidesStructuralDataset,
            PeptidesFunctionalDataset,
            VOCSuperpixels,
-           HeterophilicDataset,
+           WebKB,
            PlanarSATPairsDataset,
            QM9,
            PPGN_QM9,
@@ -590,17 +589,30 @@ def get_heterophily(args):
     pre_transforms = get_pretransform(args, extra_pretransforms=[GraphToUndirected()])
     transform = get_transform(args)
 
+    splits = {'train': [], 'val': [], 'test': []}
+
     # they use split 0
     # https://github.com/luis-mueller/probing-graph-transformers/blob/1a86d6f48bc4f8c7189ba5d9fd72e4078110a641/graphgps/config/split_config.py#L16
     # https://github.com/luis-mueller/probing-graph-transformers/blob/main/graphgps/loader/split_generator.py#L48
-    splits = [HeterophilicDataset(root=datapath,
-                                  name=dataset_name,
-                                  split=split,
-                                  fold=0,
-                                  transform=transform,
-                                  pre_transform=pre_transforms) for split in ['train', 'val', 'test']]
+    folds = [0]
+    for split in ['train', 'val', 'test']:
+        for fold in folds:
+            dataset = WebKB(root=datapath,
+                            name=dataset_name,
+                            transform=transform,
+                            pre_transform=pre_transforms)
+            mask = getattr(dataset.data, f'{split}_mask')
+            mask = mask[:, fold]
+            dataset.data.y = dataset.data.y[mask]
+            dataset.data.transductive_mask = mask
 
-    train_set, val_set, test_set = splits
+            splits[split].append(dataset)
+
+    train_set, val_set, test_set = splits['train'], splits['val'], splits['test']
+    if args.debug:
+        train_set = train_set[0]
+        val_set = val_set[0]
+        test_set = test_set[0]
 
     return train_set, val_set, test_set, None
 
