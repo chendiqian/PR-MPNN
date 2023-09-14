@@ -14,17 +14,6 @@ fixed:
 
   imle_configs: null
 
-  rwse:
-    kernel: 20
-    layers: 2
-    dim_pe: 16
-    raw_norm_type: 'BatchNorm'
-  lap:
-    max_freqs: 4
-    dim_pe: 16
-    layers: 2
-    raw_norm_type: null
-
   optim: "adam"
   model: gin_normal
   hid_size: 128
@@ -41,18 +30,18 @@ fixed:
   reg: 0.
   num_convlayers: 2
   mlp_layers_intragraph: 3
-  mlp_layers_intergraph: 2
+#  mlp_layers_intergraph: 2
   graph_pooling: transductive
   inter_graph_pooling: cat
   dropout: 0.
   bn: True
   residual: True
   batch_size: 128
-  min_epochs: 700
+  min_epochs: 200
   max_epochs: 1000
   data_path: './datasets'
   debug: True
-  num_runs: 5
+  num_runs: 1
 
 #  plot_graphs:
 #    batch_id: 0

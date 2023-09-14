@@ -1,8 +1,8 @@
 program: main.py
 method: bayes
 entity: mls-stuttgart
-project: sweep_cornell_normal
-name: sweep_cornell_normal
+project: sweep_cornell_normal_new
+name: sweep_cornell_normal_new
 run_cap: 30
 
 metric:
@@ -20,7 +20,7 @@ parameters:
 
   # debugger mode
   num_runs:
-    value: 1
+    value: 5
   use_wandb:
     value: True
   debug:
@@ -64,16 +64,13 @@ parameters:
       - 2
       - 3
     distribution: categorical
-  mlp_layers_intergraph:
-    values:
-      - 1
-      - 2
-      - 3
-    distribution: categorical
   graph_pooling:
     value: transductive
   dropout:
-    value: 0.
+    values:
+      - 0.
+      - 0.5
+    distribution: categorical
   bn:
     value: True
   residual:
@@ -104,6 +101,6 @@ parameters:
   batch_size:
     value: 128
   min_epochs:
-    value: 300
+    value: 200
   max_epochs:
     value: 1000
