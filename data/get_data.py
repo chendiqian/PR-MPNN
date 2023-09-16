@@ -41,7 +41,7 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPlotCoordinates,
                               AugmentWithSEALSubgraphs,
                               AugmentWith2WLSuperGraph,
-                              IncTransform,
+                              DropEdge,
                               collate_fn_with_origin_list)
 from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewired_batch
 
@@ -104,27 +104,32 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
 
 
 def get_transform(args: Union[Namespace, ConfigDict]):
-    # I-MLE training does not require transform, instead the masks are given by upstream + I-MLE
-    if args.imle_configs is not None:
-        if hasattr(args.imle_configs, 'model') and args.imle_configs.model == '2wl_edge_selector':
-            return IncTransform()
-        else:
-            return None
-    # normal training
-    if args.sample_configs.sample_policy is None:
-        return None
-    elif args.sample_configs.sample_policy == 'add_del':
-        transform = AugmentWithRandomRewiredGraphs(sample_k_add=args.sample_configs.sample_k,
+    transform = []
+
+    # robustness ablation
+    assert not (hasattr(args, 'perturb_add') and hasattr(args, 'perturb_del'))
+    if hasattr(args, 'perturb_del'):
+        directed = args.sample_configs.directed if hasattr(args, 'sample_configs') else False
+        transform.append(DropEdge(args.perturb_del, directed))
+    if hasattr(args, 'perturb_add'):
+        directed = args.sample_configs.directed if hasattr(args, 'sample_configs') else False
+        transform.append(DropEdge(args.perturb_add, directed))
+
+    # uniform random baseline
+    if args.sample_configs.sample_policy == 'add_del':
+        transform.append(AugmentWithRandomRewiredGraphs(sample_k_add=args.sample_configs.sample_k,
                                                    sample_k_del=args.sample_configs.sample_k2,
                                                    include_original_graph=args.sample_configs.include_original_graph,
                                                    in_place=args.sample_configs.in_place,
                                                    ensemble=args.sample_configs.ensemble,
                                                    separate=args.sample_configs.separate,
                                                    directed=args.sample_configs.directed,
-                                                   )
-        return transform
+                                                   ))
+
+    if transform:
+        return Compose(transform)
     else:
-        raise ValueError
+        return None
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):

@@ -10,8 +10,8 @@ from torch_geometric.utils import (is_undirected,
                                    add_remaining_self_loops,
                                    coalesce,
                                    to_networkx,
-                                   subgraph)
-from torch_geometric.transforms import AddRandomWalkPE, AddLaplacianEigenvectorPE
+                                   subgraph,
+                                   dropout_edge)
 from torch_sparse import SparseTensor
 from data.utils.datatype_utils import BatchOriginalDataStructure
 from data.utils.neighbor_utils import batch_get_subgraphs_nodeidx, get_2wl_local_neighbors
@@ -391,6 +391,30 @@ class AugmentWithPlotCoordinates(GraphModification):
         pos = np.vstack([pos[n] for n in range(data.num_nodes)])
         data.nx_layout = torch.from_numpy(pos)
         return data
+
+
+class DropEdge:
+    def __init__(self, p, directed):
+        self.p = p
+        self.directed = directed
+
+    def __call__(self, graph):
+        edge_index, edge_id = dropout_edge(graph.edge_index, p=self.p, force_undirected=not self.directed)
+        if graph.edge_attr is not None:
+            graph.edge_attr = graph.edge_attr[edge_id]
+
+        if hasattr(graph, 'edge_candidate'):
+            mask = torch.ones(graph.edge_index.shape[1], dtype=torch.bool)
+            mask[edge_id] = False
+            removed_edges = graph.edge_index[:, mask]
+            if not self.directed:
+                removed_edges = removed_edges[:, removed_edges[0] < removed_edges[1]]
+            graph.edge_candidate = torch.cat([graph.edge_candidate, removed_edges.t()], dim=0)
+            graph.num_edge_candidate = graph.edge_candidate.shape[0]
+
+        graph.edge_index = edge_index
+        graph.nedges = edge_index.shape[1]
+        return graph
 
 
 class MyData(Data):
