@@ -340,7 +340,7 @@ class Trainer:
             train_metrics += metric * batch.num_graphs
             num_graphs += batch.num_graphs
         train_loss = train_losses.item() / num_graphs
-        train_metric = train_metrics / num_graphs
+        train_metric = train_metrics.item() / num_graphs
         self.best_train_loss = min(self.best_train_loss, train_loss)
 
         return train_loss, train_metric
@@ -447,8 +447,8 @@ class Trainer:
         val_loss = val_losses.item() / num_graphs
         val_loss_ensemble = val_ensemble_losses.item() / num_graphs
 
-        val_metric = val_metrics / num_graphs
-        val_metric_ensemble = val_ensemble_metrics / num_graphs
+        val_metric = val_metrics.item() / num_graphs
+        val_metric_ensemble = val_ensemble_metrics.item() / num_graphs
 
         early_stop = False
         if not test:
