@@ -417,6 +417,13 @@ class DropEdge:
         return graph
 
 
+class AugmentWithDumbAttr(GraphModification):
+    def __call__(self, graph):
+        graph.x = torch.ones(graph.num_nodes, 1, dtype=torch.float)
+        graph.edge_attr = torch.ones(graph.edge_index.shape[1], 1, dtype=torch.float)
+        return graph
+
+
 class MyData(Data):
     def __inc__(self, key, value, *args, **kwargs):
         if 'batch' in key:

@@ -1,4 +1,5 @@
 import os
+import csv
 from argparse import Namespace
 from collections import defaultdict
 from functools import partial
@@ -9,10 +10,10 @@ import torch
 from ml_collections import ConfigDict
 from networkx import kamada_kawai_layout
 from ogb.graphproppred import PygGraphPropPredDataset
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from torch.utils.data import random_split, Subset, DataLoader as PTDataLoader
 from torch_geometric.data import Data
-from torch_geometric.datasets import ZINC, TUDataset, WebKB
+from torch_geometric.datasets import ZINC, TUDataset, WebKB, GNNBenchmarkDataset
 from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 from torch_geometric.utils import degree as pyg_degree
@@ -41,6 +42,7 @@ from .data_preprocess import (GraphExpandDim,
                               AugmentWithPlotCoordinates,
                               AugmentWithSEALSubgraphs,
                               AugmentWith2WLSuperGraph,
+                              AugmentWithDumbAttr,
                               DropEdge,
                               collate_fn_with_origin_list)
 from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewired_batch
@@ -61,7 +63,7 @@ DATASET = (PygGraphPropPredDataset,
            PlanarSATPairsDataset,
            QM9,
            PPGN_QM9,
-           Subset)
+           Subset, GNNBenchmarkDataset)
 
 # sort keys, some pre_transform should be executed first
 PRETRANSFORM_PRIORITY = {
@@ -73,6 +75,7 @@ PRETRANSFORM_PRIORITY = {
     GraphCoalesce: 99,
     AugmentwithNumbers: 0,  # low
     GraphAttrToOneHot: 0,  # low
+    AugmentWithDumbAttr: 1,
     AugmentWithShortedPathDistance: 98,
     AugmentWithEdgeCandidate: 98,
     AugmentWithPPR: 98,
@@ -216,6 +219,8 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std = get_exp_dataset(args, 10)
     elif 'sym' in args.dataset.lower():
         train_set, val_set, test_set, std = get_sym_dataset(args)
+    elif args.dataset.lower() == 'csl':
+        train_set, val_set, test_set, std = get_CSL(args)
     else:
         raise ValueError
 
@@ -487,6 +492,88 @@ def get_TU(args, name='PROTEINS_full'):
         val_splits = val_splits[0]
 
     test_splits = val_splits
+
+    return train_splits, val_splits, test_splits, None
+
+
+def get_CSL(args):
+    pre_transform = get_pretransform(args, extra_pretransforms=[
+        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
+        AugmentWithDumbAttr(),
+    ])
+    transform = get_transform(args)
+
+    data_path = args.data_path
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    dataset = GNNBenchmarkDataset(data_path,
+                                  name='CSL',
+                                  transform=transform,
+                                  pre_transform=pre_transform)
+
+    def get_all_split_idx(dataset):
+        """
+            - Split total number of graphs into 3 (train, val and test) in 3:1:1
+            - Stratified split proportionate to original distribution of data with respect to classes
+            - Using sklearn to perform the split and then save the indexes
+            - Preparing 5 such combinations of indexes split to be used in Graph NNs
+            - As with KFold, each of the 5 fold have unique test set.
+        """
+        root_idx_dir = f'{data_path}/CSL/splits/'
+        if not os.path.exists(root_idx_dir):
+            os.makedirs(root_idx_dir)
+        all_idx = {}
+
+        # If there are no idx files, do the split and store the files
+        if not (os.path.exists(root_idx_dir + dataset.name + '_train.index')):
+            print("[!] Splitting the data into train/val/test ...")
+
+            # Using 5-fold cross val as used in RP-GNN paper
+            k_splits = 5
+
+            cross_val_fold = StratifiedKFold(n_splits=k_splits, shuffle=True)
+            labels = dataset.data.y.squeeze().numpy()
+
+            for indexes in cross_val_fold.split(labels, labels):
+                remain_index, test_index = indexes[0], indexes[1]
+
+                # Gets final 'train' and 'val'
+                train, val, _, __ = train_test_split(remain_index,
+                                                     range(len(remain_index)),
+                                                     test_size=0.25,
+                                                     stratify=labels[remain_index])
+
+                with open(root_idx_dir + dataset.name + '_train.index', 'a+') as f:
+                    f_train_w = csv.writer(f)
+                    f_train_w.writerow(train)
+                with open(root_idx_dir + dataset.name + '_val.index', 'a+') as f:
+                    f_val_w = csv.writer(f)
+                    f_val_w.writerow(val)
+                with open(root_idx_dir + dataset.name + '_test.index', 'a+') as f:
+                    f_test_w = csv.writer(f)
+                    f_test_w.writerow(test_index)
+
+            print("[!] Splitting done!")
+
+        # reading idx from the files
+        for section in ['train', 'val', 'test']:
+            with open(root_idx_dir + dataset.name + '_' + section + '.index', 'r') as f:
+                reader = csv.reader(f)
+                all_idx[section] = [list(map(int, idx)) for idx in reader]
+        return all_idx
+
+    splits = get_all_split_idx(dataset)
+
+    train_splits = [Subset(dataset, splits['train'][i]) for i in range(5)]
+    val_splits = [Subset(dataset, splits['val'][i]) for i in range(5)]
+    test_splits = [Subset(dataset, splits['test'][i]) for i in range(5)]
+
+    if args.debug:
+        train_splits = train_splits[0]
+        val_splits = val_splits[0]
+        test_splits = test_splits[0]
 
     return train_splits, val_splits, test_splits, None
 

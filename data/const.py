@@ -21,6 +21,7 @@ DATASET_FEATURE_STAT_DICT = {
     'qm9': {'node': 15, 'edge': 4, 'num_class': 1},  # regression, 13 labels, but we train 1 each split
     'ppgnqm9': {'node': 13, 'edge': 4, 'num_class': 1},  # regression, 13 labels, but we train 1 each split
     'exp': {'node': 2, 'edge': 0, 'num_class': 1},  # bin classification
+    'csl': {'node': 1, 'edge': 1, 'num_class': 10},
 
     'sym_limits1': {'node': 4, 'edge': 0, 'num_class': 2},
     'sym_limits2': {'node': 4, 'edge': 0, 'num_class': 2},
@@ -98,6 +99,7 @@ TASK_TYPE_DICT = {
     'ptc_mr': 'rocauc',
     'nci1': 'rocauc',
     'nci109': 'rocauc',
+    'csl': 'acc',
 
     'peptides-struct': 'mae',
     'peptides-func': 'ap',
@@ -149,6 +151,7 @@ CRITERION_DICT = {
     'ptc_mr': nn.BCEWithLogitsLoss(),
     'nci1': nn.BCEWithLogitsLoss(),
     'nci109': nn.BCEWithLogitsLoss(),
+    'csl': nn.CrossEntropyLoss(),
     
     'pcqm': nn.CrossEntropyLoss(),
     'peptides-struct': nn.L1Loss(),
