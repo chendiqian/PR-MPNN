@@ -79,6 +79,14 @@ def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> str:
 
 
 def run(wandb, args):
+
+    if hasattr(args, 'max_time'):
+        max_time = args.max_time # in hours
+        start_time = datetime.now()
+        logger.info(f'Start time: {start_time}')
+        logger.info(f'Max time: {max_time} hours')
+        time_finished = False
+
     hparams = naming(args)
 
     if not os.path.isdir(args.log_path):
@@ -121,8 +129,12 @@ def run(wandb, args):
     get_opt = make_get_opt(args)
 
     for _run in range(args.num_runs):
+        if hasattr(args, 'max_time') and time_finished:
+            break
         for _fold, (train_loader, val_loader, test_loader) in enumerate(
                 zip(train_loaders, val_loaders, test_loaders)):
+            if hasattr(args, 'max_time') and time_finished:
+                break
             model, emb_model, surrogate_model = get_model(args, device)
             optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
             optimizer, scheduler = get_opt(model, surrogate_model)
@@ -151,6 +163,14 @@ def run(wandb, args):
             best_epoch = 0
             epoch_timer = SyncMeanTimer()
             for epoch in range(args.max_epochs):
+                # Check if time is up
+                if hasattr(args, 'max_time'):
+                    current_time = datetime.now()
+                    time_elapsed = (current_time - start_time).total_seconds() / 3600
+                    if time_elapsed > max_time:
+                        logger.info(f'Max time reached: {time_elapsed} hours')
+                        time_finished = True
+                        break
 
                 if hasattr(args, 'reset_downstream') and args.reset_downstream == epoch:
                     logger.info('Resetting downstream model...')
