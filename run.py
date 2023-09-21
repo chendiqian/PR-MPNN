@@ -83,8 +83,6 @@ def run(wandb, args):
     if hasattr(args, 'max_time'):
         max_time = args.max_time # in hours
         start_time = datetime.now()
-        logger.info(f'Start time: {start_time}')
-        logger.info(f'Max time: {max_time} hours')
         time_finished = False
 
     hparams = naming(args)
