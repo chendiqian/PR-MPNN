@@ -197,6 +197,10 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std = get_TU(args, name='NCI1')
     elif args.dataset.lower() == 'nci109':
         train_set, val_set, test_set, std = get_TU(args, name='NCI109')
+    elif args.dataset.lower() == 'imdb-m':
+        train_set, val_set, test_set, std = get_TU(args, name='IMDB-MULTI')
+    elif args.dataset.lower() == 'imdb-b':
+        train_set, val_set, test_set, std = get_TU(args, name='IMDB-BINARY')
     elif args.dataset.lower().startswith('tree'):
         train_set, val_set, test_set, std = get_treedataset(args)
     elif args.dataset.lower().startswith('leafcolor'):
@@ -445,10 +449,13 @@ def get_alchemy(args: Union[Namespace, ConfigDict]):
 
 
 def get_TU(args, name='PROTEINS_full'):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
+    ex_pre_transforms = [
         AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphToUndirected(),
-        GraphExpandDim()])
+        GraphExpandDim()]
+    if name.startswith('IMDB'):
+        ex_pre_transforms.append(AugmentWithDumbAttr())
+    pre_transform = get_pretransform(args, extra_pretransforms=ex_pre_transforms)
     transform = get_transform(args)
 
     data_path = args.data_path
