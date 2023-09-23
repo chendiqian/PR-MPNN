@@ -198,7 +198,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     elif args.dataset.lower() == 'nci109':
         train_set, val_set, test_set, std = get_TU(args, name='NCI109')
     elif args.dataset.lower() == 'imdb-m':
-        train_set, val_set, test_set, std = get_TU(args, name='IMDB-MULTI')
+        train_set, val_set, test_set, std = get_imdbm(args)
     elif args.dataset.lower() == 'imdb-b':
         train_set, val_set, test_set, std = get_TU(args, name='IMDB-BINARY')
     elif args.dataset.lower().startswith('tree'):
@@ -449,13 +449,10 @@ def get_alchemy(args: Union[Namespace, ConfigDict]):
 
 
 def get_TU(args, name='PROTEINS_full'):
-    ex_pre_transforms = [
+    pre_transform = get_pretransform(args, extra_pretransforms=[
         AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphToUndirected(),
-        GraphExpandDim()]
-    if name.startswith('IMDB'):
-        ex_pre_transforms.append(AugmentWithDumbAttr())
-    pre_transform = get_pretransform(args, extra_pretransforms=ex_pre_transforms)
+        GraphExpandDim()])
     transform = get_transform(args)
 
     data_path = args.data_path
@@ -477,6 +474,55 @@ def get_TU(args, name='PROTEINS_full'):
     for fold_idx in range(0, 10):
         skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=fold_idx)
 
+
+        idx_list = []
+        for idx in skf.split(np.zeros(len(labels)), labels):
+            idx_list.append(idx)
+        train_idx, test_idx = idx_list[fold_idx]
+
+        train_splits.append(Subset(dataset, train_idx))
+        val_splits.append(Subset(dataset, test_idx))
+
+    ## one split
+    # num_training = int(len(dataset) * 0.8)
+    # num_val = int(len(dataset) * 0.1)
+    # num_test = len(dataset) - num_val - num_training
+    # train_set, val_set, test_set = random_split(dataset,
+    #                                             [num_training, num_val, num_test],
+    #                                             generator=torch.Generator().manual_seed(0))
+
+    if args.debug:
+        train_splits = train_splits[0]
+        val_splits = val_splits[0]
+
+    test_splits = val_splits
+
+    return train_splits, val_splits, test_splits, None
+
+
+def get_imdbm(args):
+    pre_transform = get_pretransform(args, extra_pretransforms=[
+        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
+        AugmentWithDumbAttr()])
+    transform = get_transform(args)
+
+    data_path = args.data_path
+    extra_path = get_additional_path(args)
+    if extra_path is not None:
+        data_path = os.path.join(data_path, extra_path)
+
+    dataset = TUDataset(data_path,
+                        name='IMDB-MULTI',
+                        transform=transform,
+                        pre_transform=pre_transform)
+
+    train_splits = []
+    val_splits = []
+
+    labels = dataset.data.y.tolist()
+
+    for fold_idx in range(0, 10):
+        skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=fold_idx)
 
         idx_list = []
         for idx in skf.split(np.zeros(len(labels)), labels):

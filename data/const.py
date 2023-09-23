@@ -13,7 +13,7 @@ DATASET_FEATURE_STAT_DICT = {
     'ptc_mr': {'node': 18, 'edge': 4, 'num_class': 1},  # bin classification
     'nci1': {'node': 37, 'edge': 0, 'num_class': 1},  # bin classification
     'nci109': {'node': 38, 'edge': 0, 'num_class': 1},  # bin classification
-    'imdb-m': {'node': 1, 'edge': 0, 'num_class': 3},  # classification
+    'imdb-m': {'node': 1, 'edge': 1, 'num_class': 3},  # classification
 
     'ogbg-molesol': {'node': 9, 'edge': 3, 'num_class': 1},  # regression
     'ogbg-molbace': {'node': 9, 'edge': 3, 'num_class': 1},  # bin classification
