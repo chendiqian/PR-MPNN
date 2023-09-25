@@ -7,11 +7,11 @@ fixed:
 
   sample_configs:
     sample_policy: edge_candid
-    directed: True
+    directed: False
     separate: False
     in_place: True
-    sample_k: 150   # edge addition
-    sample_k2: 170   # edge deletion
+    sample_k: 80   # edge addition
+    sample_k2: 50   # edge deletion
     candid_pool: 500
     ensemble: 1
     heuristic: longest_path
@@ -24,8 +24,8 @@ fixed:
     logits_activation: null
     weight_edges: None
     marginals_mask: True
-    num_train_ensemble: 2
-    num_val_ensemble: 5
+    num_train_ensemble: 1
+    num_val_ensemble: 1
 
     model: "edge_selector"
     rwse:
@@ -34,13 +34,13 @@ fixed:
       dim_pe: 32
       raw_norm_type: 'BatchNorm'
 
-    lap:
-      max_freqs: 4
-      dim_pe: 32
-      layers: 2
-      raw_norm_type: null
+#    lap:
+#      max_freqs: 4
+#      dim_pe: 32
+#      layers: 2
+#      raw_norm_type: null
 
-    emb_hid_size: 128
+    emb_hid_size: 256
     emb_optim: "adamw"
     emb_scheduler: None
     gnn_layer: 8
@@ -55,11 +55,11 @@ fixed:
     layers: 2
     dim_pe: 16
     raw_norm_type: 'BatchNorm'
-  lap:
-    max_freqs: 4
-    dim_pe: 16
-    layers: 2
-    raw_norm_type: null
+#  lap:
+#    max_freqs: 4
+#    dim_pe: 16
+#    layers: 2
+#    raw_norm_type: null
 
   optim: "adam"
   model: gine_duo
@@ -72,7 +72,7 @@ fixed:
     patience: 50
     target: 'val_metric'
   early_stop:
-    patience: 200
+    patience: 100
     target: val_metric
   reg: 0.
   num_convlayers: 4
@@ -80,15 +80,15 @@ fixed:
   mlp_layers_intergraph: 2
   graph_pooling: mean
   inter_graph_pooling: cat
-  dropout: 0.
+  dropout: 0.5
   bn: True
   residual: True
-  batch_size: 128
-  min_epochs: 250
-  max_epochs: 1000
+  batch_size: 256
+  min_epochs: 100
+  max_epochs: 400
   data_path: './datasets'
   debug: False
-  num_runs: 3
+  num_runs: 1
 
   # plot_graphs:
   #   batch_id: 0
