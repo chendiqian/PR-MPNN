@@ -1,6 +1,6 @@
 program: main.py
 method: bayes
-entity: mls-stuttgart
+entity: YOUR_WANDB_ENTITY
 project: sweep-1l
 name: sweep-1l
 run_cap: 50

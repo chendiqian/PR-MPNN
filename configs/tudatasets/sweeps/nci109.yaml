@@ -1,6 +1,6 @@
 program: main.py
 method: bayes
-entity: mls-stuttgart
+entity: YOUR_WANDB_ENTITY
 project: nci109-sweep-10fold
 name: nci109-sweep-10fold
 run_cap: 100
