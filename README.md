@@ -1,4 +1,8 @@
-# Unofficial readme to remind myself
+# Probabilistically Rewired Message-Passing Neural Networks
+
+<img src="https://github.com/chendiqian/PR-MPNN/blob/rewire/main-figure.png" alt="drawing" width="800"/>
+<p align="center">
+</p>
 
 ## Environment setup
 simply run `env_install.sh`
