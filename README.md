@@ -55,13 +55,5 @@ We provide rewiring options as following:
 - Gumbel softmax for [subset sampling](https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/DL2/sampling/subsets.html)
 
 ## To replicate experiments
-We provide yaml files under `configs`.
-
-For fixed hyperparams, run e.g. 
-`python main_fixconf.py with configs/zinc/global/topk20_1_random.yaml`
-
-For a sweep, run e.g.
-```
-wandb sweep configs/zinc/global/sweep_20_1_simple.yaml
-wandb agent $ID
-```
+We provide yaml files under `configs`, run e.g. 
+`python run.py with configs/zinc/edge_candidate/best.yaml`
