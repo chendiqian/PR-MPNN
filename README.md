@@ -6,8 +6,7 @@
 
 Reference implementation of our rewiring method as proposed in 
 
-[**Probabilistically Rewired Message-Passing Neural Networks
-**](https://arxiv.org/abs/2310.02156)  
+[Probabilistically Rewired Message-Passing Neural Networks](https://arxiv.org/abs/2310.02156)  
 Chendi Qian*, Andrei Manolache*, Kareem Ahmed, Zhe Zeng, Guy Van den Broeck, Mathias Niepert<sup>†</sup>, Christopher Morris<sup>†</sup>
 
 *These authors contributed equally.  
