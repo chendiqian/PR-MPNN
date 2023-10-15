@@ -1,6 +1,6 @@
 # Probabilistically Rewired Message-Passing Neural Networks
 
-<img src="https://github.com/chendiqian/PR-MPNN/blob/rewire/main-figure.png" alt="drawing" width="800"/>
+<img src="https://github.com/chendiqian/PR-MPNN/blob/main/main-figure.png" alt="drawing" width="800"/>
 <p align="center">
 </p>
 
