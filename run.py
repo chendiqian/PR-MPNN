@@ -2,6 +2,9 @@ import os
 
 import numpy as np
 import torch
+import wandb
+from ml_collections import ConfigDict
+from sacred import Experiment
 
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
 from data.get_data import get_data
@@ -15,58 +18,14 @@ from datetime import datetime
 import logging
 import yaml
 
-
-def get_logger(folder_path: str) -> logging.Logger:
-    logger = logging.getLogger('myapp')
-    hdlr = logging.FileHandler(os.path.join(folder_path, 'training_logs.log'))
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-    hdlr.setFormatter(formatter)
-    logger.addHandler(hdlr)
-    logger.setLevel(logging.INFO)
-    return logger
+ex = Experiment()
 
 
 def naming(args) -> str:
-    name = f'{args.dataset}_{args.model}_'
-    name += f'layer_{args.num_convlayers}_'
-
-
-    if args.sample_configs.sample_policy is None:
-        name += 'normal'
-        return name
-
-    if hasattr(args.sample_configs, 'weight_edges'):
-        name += f'weight_{args.sample_configs.weight_edges}_'
-
-    if args.imle_configs is not None:
-        name += f'sampler_{args.imle_configs.sampler}_'
-        name += f'model_{args.imle_configs.model}_'
-    else:
-        name += 'OnTheFly_'
-
-    name += f'ensemble_{args.sample_configs.ensemble}_'
-    name += f'policy_{args.sample_configs.sample_policy}_'
-
-    if hasattr(args.sample_configs, 'sample_k'):
-        name = f'add{args.sample_configs.sample_k}' + name
-        
-    if hasattr(args.sample_configs, 'sample_k2'):
-        name = f'del{args.sample_configs.sample_k2}' + name
-
-    if hasattr(args.sample_configs, 'candid_pool'):
-        name = f'candid{args.sample_configs.candid_pool}_ens{args.sample_configs.ensemble}' + name
-    else:
-        name = f'ens{args.sample_configs.ensemble}' + name
-
-    if hasattr(args.sample_configs, 'sample_k'):
-        name = f'add{args.sample_configs.sample_k}_' + name
-
-    if hasattr(args.sample_configs, 'sample_k2'):
-        name = f'del{args.sample_configs.sample_k2}_' + name
+    name = f'{args.dataset}_{args.model}'
 
     if hasattr(args, 'wandb_prefix'):
         name = f'{args.wandb_prefix}_' + name
-
 
     return name
 
@@ -77,15 +36,17 @@ def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> str:
     os.mkdir(run_folder)
     return run_folder
 
-
-def run(wandb, args):
-
-    if hasattr(args, 'max_time'):
-        max_time = args.max_time # in hours
-        start_time = datetime.now()
-        time_finished = False
-
+@ex.automain
+def main(fixed):
+    args = ConfigDict(dict(fixed))
     hparams = naming(args)
+    logging.basicConfig(level=logging.DEBUG)
+
+    wandb_name = args.wandb_name if hasattr(args, "wandb_name") else "imle_ablate"
+    wandb.init(project=wandb_name, mode="online" if args.use_wandb else "disabled",
+               config=args.to_dict(),
+               name=hparams,
+               entity="mls-stuttgart")
 
     if not os.path.isdir(args.log_path):
         os.mkdir(args.log_path)
@@ -96,7 +57,6 @@ def run(wandb, args):
     with open(os.path.join(folder_name, 'config.yaml'), 'w') as outfile:
         yaml.dump(args.to_dict(), outfile, default_flow_style=False)
 
-    logger = get_logger(folder_name)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     train_loaders, val_loaders, test_loaders, task_id = get_data(args, device)
 
@@ -127,15 +87,11 @@ def run(wandb, args):
     get_opt = make_get_opt(args)
 
     for _run in range(args.num_runs):
-        if hasattr(args, 'max_time') and time_finished:
-            break
         for _fold, (train_loader, val_loader, test_loader) in enumerate(
                 zip(train_loaders, val_loaders, test_loaders)):
-            if hasattr(args, 'max_time') and time_finished:
-                break
-            model, emb_model, surrogate_model = get_model(args, device)
+            model, emb_model = get_model(args, device)
             optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
-            optimizer, scheduler = get_opt(model, surrogate_model)
+            optimizer, scheduler = get_opt(model)
 
             # count the number of parameters for model and emb_model
             num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -145,50 +101,25 @@ def run(wandb, args):
             else:
                 num_params_emb = 0
                 total_params = num_params
-            #log to wandb
+            # log to wandb
             wandb.run.summary['n_params_downstream'] = num_params
             wandb.run.summary['total_params'] = total_params
             wandb.run.summary['n_params_upstream'] = num_params_emb
 
-            logger.info(f'Number of params: {total_params} (upstream: {num_params_emb}, downstream: {num_params})')
-
-            # wandb.watch(model, log="all", log_freq=10)
-            # if emb_model is not None:
-            #     wandb.watch(emb_model, log="all", log_freq=10)
+            logging.info(f'Number of params: {total_params} (upstream: {num_params_emb}, downstream: {num_params})')
 
             run_folder = prepare_exp(folder_name, _run, _fold)
 
             best_epoch = 0
             epoch_timer = SyncMeanTimer()
             for epoch in range(args.max_epochs):
-                # Check if time is up
-                if hasattr(args, 'max_time'):
-                    current_time = datetime.now()
-                    time_elapsed = (current_time - start_time).total_seconds() / 3600
-                    if time_elapsed > max_time:
-                        logger.info(f'Max time reached: {time_elapsed} hours')
-                        time_finished = True
-                        break
-
-                if hasattr(args, 'reset_downstream') and args.reset_downstream == epoch:
-                    logger.info('Resetting downstream model...')
-                    model, _, _ = get_model(args, device)
-                    optimizer, scheduler = get_opt(model, surrogate_model)
-                    trainer.clear_stats()
-
-                if hasattr(args, 'reset_upstream') and args.reset_upstream == epoch:
-                    logger.info('Resetting upstream model...')
-                    _, emb_model, _ = get_model(args, device)
-                    optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
-                    trainer.clear_stats()
-
                 trainer.epoch = epoch
                 train_loss, train_metric = trainer.train(train_loader,
                                                          emb_model,
                                                          model,
                                                          optimizer_embd,
                                                          optimizer)
-                
+
                 val_loss, val_metric, val_loss_ensemble, val_metric_ensemble, early_stop = trainer.inference(
                     val_loader,
                     emb_model,
@@ -200,10 +131,10 @@ def run(wandb, args):
                     test=False)
 
                 if epoch > args.min_epochs and early_stop:
-                    logger.info('early stopping')
+                    logging.info('early stopping')
                     break
 
-                logger.info(f'epoch: {epoch}, '
+                logging.info(f'epoch: {epoch}, '
                             f'training loss: {round(train_loss, 5)}, '
                             f'val loss: {round(val_loss, 5)}, '
                             f'patience: {trainer.patience}, '
@@ -218,23 +149,6 @@ def run(wandb, args):
                     if emb_model is not None:
                         torch.save(emb_model.state_dict(),
                                    f'{run_folder}/embd_model_best.pt')
-                        
-                    if hasattr(args.early_stop, 'eval_test_at_best' ) and args.early_stop.eval_test_at_best == True and epoch > 10:
-                        test_loss_inter, test_metric_inter, test_loss_ensemble_inter, test_metric_ensemble_inter, _ = trainer.inference(
-                            test_loader,
-                            emb_model,
-                            model,
-                            test=True)
-                        logger.info(f'test loss inter: {test_loss}')
-                        logger.info(f'test metric inter: {test_metric}')
-                        logger.info(f'test loss ensemble inter: {test_loss_ensemble}')
-                        logger.info(f'test metric ensemble inter: {test_metric_ensemble}')
-
-                        # log to wandb at epoch
-                        wandb.log({'test_loss_inter': test_loss_inter,
-                                   'test_metric_inter': test_metric_inter,
-                                   'test_loss_ensemble_inter': test_loss_ensemble_inter,
-                                   'test_metric_ensemble_inter': test_metric_ensemble_inter}, step=epoch)
 
             # rm cached model
             used_model = os.listdir(run_folder)
@@ -247,19 +161,21 @@ def run(wandb, args):
                 torch.save(emb_model.state_dict(), f'{run_folder}/embd_model_final.pt')
             # test inference
             model.load_state_dict(torch.load(f'{run_folder}/model_best.pt'))
-            logger.info(f'loaded best model at epoch {best_epoch}')
+            logging.info(f'loaded best model at epoch {best_epoch}')
             if emb_model is not None:
                 emb_model.load_state_dict(torch.load(f'{run_folder}/embd_model_best.pt'))
 
             start_time = epoch_timer.synctimer()
-            test_loss, test_metric, test_loss_ensemble, test_metric_ensemble, _ = trainer.inference(test_loader, emb_model, model, test=True)
+            test_loss, test_metric, test_loss_ensemble, test_metric_ensemble, _ = trainer.inference(test_loader,
+                                                                                                    emb_model, model,
+                                                                                                    test=True)
             end_time = epoch_timer.synctimer()
-            logger.info(f'Best val loss: {trainer.best_val_loss}')
-            logger.info(f'Best val metric: {trainer.best_val_metric}')
-            logger.info(f'test loss: {test_loss}')
-            logger.info(f'test metric: {test_metric}')
-            logger.info(f'test loss ensemble: {test_loss_ensemble}')
-            logger.info(f'test metric ensemble: {test_metric_ensemble}')
+            logging.info(f'Best val loss: {trainer.best_val_loss}')
+            logging.info(f'Best val metric: {trainer.best_val_metric}')
+            logging.info(f'test loss: {test_loss}')
+            logging.info(f'test metric: {test_metric}')
+            logging.info(f'test loss ensemble: {test_loss_ensemble}')
+            logging.info(f'test metric ensemble: {test_metric_ensemble}')
 
             best_train_metrics[_run].append(trainer.best_train_metric)
             best_val_metrics[_run].append(trainer.best_val_metric)
@@ -311,7 +227,8 @@ def run(wandb, args):
             t = tasks[id]
             results[f'{t}_best_metrics_stats'] = f'mean: {best_metrics_mean[i]}, std: {best_metrics_std[i]}'
             results[f'{t}_test_metrics_stats'] = f'mean: {test_metrics_mean[i]}, std: {test_metrics_std[i]}'
-            results[f'{t}_test_metrics_ensemble_stats'] = f'mean: {test_metrics_ensemble_mean[i]}, std: {test_metrics_ensemble_std[i]}'
+            results[
+                f'{t}_test_metrics_ensemble_stats'] = f'mean: {test_metrics_ensemble_mean[i]}, std: {test_metrics_ensemble_std[i]}'
 
             wandb.run.summary[f'{t}_final_metric'] = best_metrics_mean[i]
             wandb.run.summary[f'{t}_final_metric_std'] = best_metrics_std[i]

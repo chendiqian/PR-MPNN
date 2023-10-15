@@ -34,14 +34,9 @@ from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
                               AugmentwithNumbers,
                               GraphAttrToOneHot,
-                              GraphAddRemainSelfLoop, GraphAddSkipConnection,
-                              GraphRedirect,
-                              AugmentWithShortedPathDistance,
+                              GraphAddRemainSelfLoop,
                               AugmentWithEdgeCandidate,
-                              AugmentWithPPR,
                               AugmentWithPlotCoordinates,
-                              AugmentWithSEALSubgraphs,
-                              AugmentWith2WLSuperGraph,
                               AugmentWithDumbAttr,
                               DropEdge,
                               collate_fn_with_origin_list)
@@ -69,21 +64,15 @@ DATASET = (PygGraphPropPredDataset,
 PRETRANSFORM_PRIORITY = {
     GraphExpandDim: 0,  # low
     GraphAddRemainSelfLoop: 100,  # highest
-    GraphAddSkipConnection: 100,
-    GraphRedirect: 100,
     GraphToUndirected: 99,  # high
     GraphCoalesce: 99,
     AugmentwithNumbers: 0,  # low
     GraphAttrToOneHot: 0,  # low
     AugmentWithDumbAttr: 1,
-    AugmentWithShortedPathDistance: 98,
     AugmentWithEdgeCandidate: 98,
-    AugmentWithPPR: 98,
     AddRandomWalkPE: 98,
     AddLaplacianEigenvectorPE: 98,
     AugmentWithPlotCoordinates: 98,
-    AugmentWithSEALSubgraphs: -1,  # this must be the last, it returns a list of graphs. PLUS: this does not work due to OOM
-    AugmentWith2WLSuperGraph: -1,
 }
 
 
@@ -93,16 +82,10 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
         heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
         directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
         extra_path += f'EdgeCandidates_{heu}_{"dir" if directed else "undir"}_{args.sample_configs.candid_pool}_'
-    if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
-        extra_path += 'SPDaug_'
-    if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
-        extra_path += 'PPRaug_'
     if hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse'):
         extra_path += 'rwse_'
     if hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap'):
         extra_path += 'lap_'
-    if hasattr(args.imle_configs, 'model') and args.imle_configs.model == '2wl_edge_selector':
-        extra_path += '2wl_'
     return extra_path if len(extra_path) else None
 
 
@@ -140,12 +123,6 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
     if extra_pretransforms is not None:
         pretransform = pretransform + extra_pretransforms
 
-    if hasattr(args.imle_configs, 'emb_spd') and args.imle_configs.emb_spd:
-        pretransform.append(AugmentWithShortedPathDistance(MAX_NUM_NODE_DICT[args.dataset.lower()]))
-
-    if hasattr(args.imle_configs, 'emb_ppr') and args.imle_configs.emb_ppr:
-        pretransform.append(AugmentWithPPR(MAX_NUM_NODE_DICT[args.dataset.lower()]))
-
     if hasattr(args.imle_configs, 'rwse'):
         pretransform.append(AddRandomWalkPE(args.imle_configs.rwse.kernel, 'pestat_RWSE'))
     elif hasattr(args, 'rwse'):
@@ -161,9 +138,6 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
         heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
         directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
         pretransform.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
-
-    if hasattr(args.imle_configs, 'model') and args.imle_configs.model == '2wl_edge_selector':
-        pretransform.append(AugmentWith2WLSuperGraph())
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)

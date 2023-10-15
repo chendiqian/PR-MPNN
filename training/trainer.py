@@ -16,8 +16,7 @@ from data.utils.datatype_utils import (AttributedDataLoader,
                                        BatchOriginalDataStructure)
 from data.utils.plot_utils import plot_score, plot_rewired_graphs, plot_score_and_mask
 from data.utils.args_utils import process_idx
-from training.construct import (construct_from_edge_candidate,
-                                construct_from_attention_mat)
+from training.construct import construct_from_edge_candidate
 
 LARGE_NUMBER = 1.e10
 
@@ -87,87 +86,44 @@ class Trainer:
         else:
             self.connectedness_metric = None
 
-        train_forward, val_forward, sampler_class = get_sampler(imle_configs, sample_configs, self.device)
+        self.construct_duplicate_data = lambda x, *args: (x, None, 0.)
+        if imle_configs is not None:
+            if sample_configs.sample_policy == 'edge_candid':
+                train_forward, val_forward, sampler_class = get_sampler(imle_configs, sample_configs, self.device)
+                construct_duplicate_data = partial(construct_from_edge_candidate,
+                                                   samplek_dict={
+                                                       'add_k': sample_configs.sample_k,
+                                                       'del_k': sample_configs.sample_k2 if
+                                                       hasattr(sample_configs,
+                                                               'sample_k2') else 0},
+                                                   sampler_class=sampler_class,
+                                                   train_forward=train_forward,
+                                                   val_forward=val_forward,
+                                                   weight_edges=imle_configs.weight_edges,
+                                                   marginals_mask=imle_configs.marginals_mask,
+                                                   include_original_graph=sample_configs.include_original_graph,
+                                                   separate=sample_configs.separate,
+                                                   in_place=sample_configs.in_place,
+                                                   directed_sampling=sample_configs.directed,
+                                                   num_layers=num_layers,
+                                                   rewire_layers=process_idx(
+                                                       sample_configs.rewire_layers,
+                                                       num_layers) if hasattr(
+                                                       sample_configs,
+                                                       'rewire_layers') else None,
+                                                   auxloss_dict=auxloss)
 
-        if sample_configs.sample_policy is None:
-            # normal training
-            self.construct_duplicate_data = lambda x, *args: (x, None, 0.)
-        elif imle_configs is None:
-            # random sampling
-            self.construct_duplicate_data = lambda x, *args: (x, None, 0.)
-        elif imle_configs is not None:
-            if imle_configs.model is None:
-                # an exception, in this case we merge the sampling into the downstream model
-                self.construct_duplicate_data = lambda x, *args: (x, None, 0.)
+                def func(data, emb_model):
+                    dat_batch, graphs = data.batch, data.list
+                    data, scores, auxloss = construct_duplicate_data(dat_batch,
+                                                                     graphs,
+                                                                     emb_model.training,
+                                                                     *emb_model(dat_batch))
+                    return data, scores, auxloss
+
+                self.construct_duplicate_data = func
             else:
-                if sample_configs.sample_policy == 'edge_candid':
-                    construct_duplicate_data = partial(construct_from_edge_candidate,
-                                                       samplek_dict={
-                                                           'add_k': sample_configs.sample_k,
-                                                           'del_k': sample_configs.sample_k2 if
-                                                           hasattr(sample_configs,
-                                                                   'sample_k2') else 0},
-                                                       sampler_class=sampler_class,
-                                                       train_forward=train_forward,
-                                                       val_forward=val_forward,
-                                                       weight_edges=imle_configs.weight_edges,
-                                                       marginals_mask=imle_configs.marginals_mask,
-                                                       include_original_graph=sample_configs.include_original_graph,
-                                                       separate=sample_configs.separate,
-                                                       in_place=sample_configs.in_place,
-                                                       directed_sampling=sample_configs.directed,
-                                                       num_layers=num_layers,
-                                                       rewire_layers=process_idx(
-                                                           sample_configs.rewire_layers,
-                                                           num_layers) if hasattr(
-                                                           sample_configs,
-                                                           'rewire_layers') else None,
-                                                       auxloss_dict=auxloss)
-                    def func(data, emb_model):
-                        dat_batch, graphs = data.batch, data.list
-                        data, scores, auxloss = construct_duplicate_data(dat_batch,
-                                                                         graphs,
-                                                                         emb_model.training,
-                                                                         *emb_model(dat_batch))
-                        return data, scores, auxloss
-                    self.construct_duplicate_data = func
-                elif sample_configs.sample_policy == 'global':
-                    # learnable way with attention mask
-                    policy = 'global_' + ('directed' if sample_configs.directed else 'undirected')
-                    sampler_class.policy = policy
-                    construct_duplicate_data = partial(construct_from_attention_mat,
-                                                       sample_policy=policy,
-                                                       samplek_dict={
-                                                           'add_k': sample_configs.sample_k,
-                                                           'del_k': sample_configs.sample_k2 if
-                                                           hasattr(sample_configs, 'sample_k2') else 0},
-                                                       directed_sampling=sample_configs.directed,
-                                                       auxloss_dict=auxloss,
-                                                       sampler_class=sampler_class,
-                                                       train_forward=train_forward,
-                                                       val_forward=val_forward,
-                                                       weight_edges=imle_configs.weight_edges,
-                                                       marginals_mask=imle_configs.marginals_mask,
-                                                       device=self.device,
-                                                       include_original_graph=sample_configs.include_original_graph,
-                                                       in_place=sample_configs.in_place,
-                                                       separate=sample_configs.separate,
-                                                       num_layers=num_layers,
-                                                       rewire_layers=process_idx(
-                                                           sample_configs.rewire_layers,
-                                                           num_layers) if hasattr(
-                                                           sample_configs,
-                                                           'rewire_layers') else None)
-                    def func(data, emb_model):
-                        dat_batch, graphs = data.batch, data.list
-                        data, scores, auxloss = construct_duplicate_data(dat_batch,
-                                                                         graphs,
-                                                                         emb_model.training,
-                                                                         *emb_model(dat_batch))
-                        return data, scores, auxloss
-                    self.construct_duplicate_data = func
-                else:
-                    raise ValueError(f'unexpected policy {sample_configs.sample_policy}')
+                raise ValueError(f'unexpected policy {sample_configs.sample_policy}')
 
     def check_datatype(self, data, task_type):
         if isinstance(data, Data):

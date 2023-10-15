@@ -1,5 +1,3 @@
-from functools import partial
-
 import torch
 from ml_collections import ConfigDict
 
