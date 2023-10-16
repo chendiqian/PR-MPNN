@@ -38,7 +38,43 @@ pip install gdown
 ```
 
 ## Datasets
-TBA
+We empirically evaluate our rewiring method on multiple datasets.
+
+### Real-world datasets
+TUDatasets: [PyG class](https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.TUDataset.html?highlight=tudatasets), [paper](https://arxiv.org/pdf/2007.08663.pdf)
+- ZINC
+- Alchemy
+- MUTAG
+- PRC_MR
+- PROTEINS
+- NCI1
+- NCI109
+- IMDB-B
+- IMDB-M
+
+OGB: [website](https://ogb.stanford.edu/), [paper](https://arxiv.org/abs/2005.00687)
+- ogbg-molhiv
+
+WebKB: [PyG class](https://pytorch-geometric.readthedocs.io/en/latest/generated/torch_geometric.datasets.WebKB.html?highlight=webkb)
+- Cornell
+- Texas
+- Wisconsin
+
+LRGB: [code](https://github.com/vijaydwivedi75/lrgb), [paper](https://arxiv.org/abs/2206.08164)
+- peptides-func
+- peptides-struct
+
+QM9 used in [DRew](https://github.com/BenGutteridge/DRew) and [SP-MPNN](https://github.com/radoslav11/SP-MPNN). Note there are different versions of QM9, e.g., [PPGN](https://github.com/hadarser/ProvablyPowerfulGraphNetworks)
+
+### Synthetic datasets
+
+EXP: [code](https://github.com/ralphabb/GNN-RNI), [paper](https://arxiv.org/pdf/2010.01179.pdf)
+
+CSL: [code](https://github.com/PurdueMINDS/RelationalPooling), [paper](https://proceedings.mlr.press/v97/murphy19a/murphy19a.pdf)
+
+Trees-NeighborsMatch: [code](https://github.com/tech-srl/bottleneck/), [paper](https://arxiv.org/abs/2006.05205)
+
+Trees-LeafColor: Our own :star: :star: :star:
 
 ## Rewire options
 We provide rewiring options as following:
