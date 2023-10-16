@@ -1,0 +1,44 @@
+fixed:
+  dataset: peptides-func
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "peptides-func"
+  wandb_prefix: "peptides_normal_2layer"
+
+  sample_configs:
+    sample_policy: null
+    sample_k: null
+    ensemble: 0
+    include_original_graph: True
+
+  imle_configs: null
+
+  optim: "adam"
+  model: gine_normal
+  hid_size: 256
+  lr: 1.e-3
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'max'
+    patience: 50
+    target: 'val_metric'
+  early_stop:
+    patience: 200
+    target: val_metric
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 3
+  #  mlp_layers_intergraph: 0
+  graph_pooling: mean
+  #  inter_graph_pooling: null
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 128
+  min_epochs: 250
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 3
