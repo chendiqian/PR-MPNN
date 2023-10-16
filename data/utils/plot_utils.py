@@ -11,7 +11,7 @@ from ml_collections import ConfigDict
 from torch_geometric.utils import to_networkx, to_undirected
 
 from data.utils.datatype_utils import DuoDataStructure
-from data.utils.neighbor_utils import get_khop_neighbors
+from data.utils.neighbor_utils import get_khop_neighbors, edgeindex2neighbordict
 
 
 @torch.no_grad()
@@ -254,7 +254,9 @@ def circular_tree_layout(graph: nx.DiGraph):
     edge_index = to_undirected(edge_index, num_nodes=len(graph.nodes))
     edge_index = edge_index[:, edge_index[0] < edge_index[1]].cpu().numpy()
 
-    khop_neighbors, _ = get_khop_neighbors(0, edge_index, 10000)  # basically all neighbors
+    neighbordict = edgeindex2neighbordict(edge_index, len(graph.nodes))
+    khop_neighbors, _ = get_khop_neighbors(0, neighbordict, 10000)  # basically all neighbors
+
     layout = dict()
 
     def generate_dots(num_dots, r):

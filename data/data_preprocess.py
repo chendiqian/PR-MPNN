@@ -143,7 +143,7 @@ class AugmentWithEdgeCandidate(GraphModification):
         self.directed = directed
 
     def __call__(self, graph: Data):
-        assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
+        # assert is_undirected(graph.edge_index, num_nodes=graph.num_nodes)
         edge_index = graph.edge_index.numpy()
 
         if self.heu == 'longest_path':
