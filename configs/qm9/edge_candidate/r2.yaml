@@ -1,0 +1,67 @@
+fixed:
+  dataset: qm9
+  log_path: './logs'
+
+  use_wandb: False
+  wandb_name: "best_edge_candid"
+
+  sample_configs:
+    sample_policy: edge_candid
+    separate: False
+    directed: False
+    in_place: True
+    sample_k: 80   # edge addition
+    sample_k2: 5   # edge deletion
+    candid_pool: 350
+    ensemble: 2
+    heuristic: longest_path
+    include_original_graph: True
+
+  imle_configs:
+    sampler: simple
+    logits_activation: null
+    weight_edges: marginals
+    marginals_mask: True
+    num_train_ensemble: 5
+    num_val_ensemble: 5
+
+    model: "edge_selector"
+    emb_hid_size: 64
+    emb_optim: "adamw"
+    emb_scheduler: None
+    gnn_layer: 8
+    mlp_layer: 4
+    dropout: 0.2
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+
+  task_id: 5
+  optim: "adam"
+  model: qm9gine_duo
+  hid_size: 256
+  lr: 1.e-3
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'min'
+    patience: 150
+    target: 'val_metric'
+  early_stop:
+    patience: 200
+    target: val_metric
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 0
+  mlp_layers_intergraph: 2
+  graph_pooling: max
+  inter_graph_pooling: cat
+  dropout: 0.5
+  bn: True  # placeholder
+  residual: True  # placeholder
+  batch_size: 64
+  min_epochs: 400
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 1
