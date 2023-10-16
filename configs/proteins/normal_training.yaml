@@ -1,0 +1,44 @@
+fixed:
+  dataset: proteins
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_name: "proteins"
+
+  sample_configs:
+    sample_policy: null
+    sample_k: null
+    ensemble: 0   # config just for plots
+    include_original_graph: True   # config just for plots
+
+  imle_configs: null
+
+  # down stream model
+  model: gin_normal
+  hid_size: 32
+  lr: 1.e-3
+  optim: adam
+  lr_decay:
+    scheduler: plateau
+    mode: max
+    decay_rate: 0.5
+    patience: 50
+    target: val_metric
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 3
+#  mlp_layers_intergraph: 0
+  graph_pooling: mean
+#  inter_graph_pooling: null
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 128
+  min_epochs: 300
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 1
