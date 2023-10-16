@@ -16,13 +16,15 @@ Chendi Qian*, Andrei Manolache*, Kareem Ahmed, Zhe Zeng, Guy Van den Broeck, Mat
 ```
 conda create -y -n prmpnn python=3.10
 conda activate prmpnn
-conda install pytorch pytorch-cuda=11.8 -c pytorch -c nvidia
 
-pip install torch_geometric
-pip install https://data.pyg.org/whl/torch-2.1.0%2Bcu118/torch_scatter-2.1.2%2Bpt21cu118-cp310-cp310-linux_x86_64.whl
-pip install https://data.pyg.org/whl/torch-2.1.0%2Bcu118/torch_sparse-0.6.18%2Bpt21cu118-cp310-cp310-linux_x86_64.whl
+conda install pytorch  pytorch-cuda=11.7 -c pytorch-nightly -c nvidia
+conda install openbabel fsspec rdkit -c conda-forge
+pip install cmake
+pip install --verbose git+https://github.com/pyg-team/pyg-lib.git
+pip install --verbose torch_scatter
+pip install --verbose torch_sparse
+pip install --verbose torch_geometric
 
-conda install -y openbabel fsspec rdkit -c conda-forge
 pip install ogb
 pip install ml-collections
 pip install numba
