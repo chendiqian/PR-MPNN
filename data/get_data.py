@@ -11,7 +11,7 @@ from ml_collections import ConfigDict
 from networkx import kamada_kawai_layout
 from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from torch.utils.data import random_split, Subset, DataLoader as PTDataLoader
+from torch.utils.data import Subset, DataLoader as PTDataLoader
 from torch_geometric.data import Data
 from torch_geometric.datasets import ZINC, TUDataset, WebKB, GNNBenchmarkDataset
 from torch_geometric.loader import DataLoader as PyGDataLoader
@@ -21,15 +21,13 @@ from torch_geometric.utils import degree as pyg_degree
 from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
 from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
 from data.custom_datasets.qm9 import QM9
-from data.custom_datasets.ppgn_qm9 import PPGN_QM9
 from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
 from data.custom_datasets.tudataset import MyTUDataset
-from data.custom_datasets.voc_superpixels import VOCSuperpixels
 from data.custom_datasets.planarsatpairsdataset import PlanarSATPairsDataset
 from data.custom_datasets.symmetries import MySymDataset
 from data.utils.datatype_utils import AttributedDataLoader
 from data.utils.plot_utils import circular_tree_layout
-from .const import DATASET_FEATURE_STAT_DICT, MAX_NUM_NODE_DICT
+from .const import DATASET_FEATURE_STAT_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
                               AugmentwithNumbers,
@@ -53,11 +51,9 @@ DATASET = (PygGraphPropPredDataset,
            TUDataset,
            PeptidesStructuralDataset,
            PeptidesFunctionalDataset,
-           VOCSuperpixels,
            WebKB,
            PlanarSATPairsDataset,
            QM9,
-           PPGN_QM9,
            Subset, GNNBenchmarkDataset)
 
 # sort keys, some pre_transform should be executed first
@@ -181,9 +177,6 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std = get_leafcolordataset(args)
     elif args.dataset.lower().startswith('peptides-struct'):
         train_set, val_set, test_set, std = get_peptides(args, set='struct')
-    elif args.dataset.lower() == 'edge_wt_region_boundary':
-        train_set, val_set, test_set, std = get_vocsuperpixel(args)
-        task = 'node'
     elif args.dataset.lower().startswith('hetero'):
         train_set, val_set, test_set, std = get_heterophily(args)
         task = 'node'
@@ -191,8 +184,6 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std = get_peptides(args, set='func')
     elif args.dataset.lower() == 'qm9':
         train_set, val_set, test_set, std, qm9_task_id = get_qm9(args)
-    elif args.dataset.lower() == 'ppgnqm9':
-        train_set, val_set, test_set, std, qm9_task_id = get_ppgn_qm9(args)
     elif args.dataset.lower() in ['exp', 'cexp']:
         train_set, val_set, test_set, std = get_exp_dataset(args, 10)
     elif 'sym' in args.dataset.lower():
@@ -726,28 +717,6 @@ def get_sym_dataset(args: Union[Namespace, ConfigDict]):
     
     return train_set, val_set, test_set, None
 
-def get_vocsuperpixel(args):
-    datapath = os.path.join(args.data_path, 'VOCSuperpixels')
-    extra_path = get_additional_path(args)
-    if extra_path is not None:
-        datapath = os.path.join(datapath, extra_path)
-    pre_transform = get_pretransform(args, extra_pretransforms=None)
-    transform = get_transform(args)
-
-    splits = [VOCSuperpixels(root=datapath,
-                             name=args.dataset.lower(),
-                             split=sp,
-                             transform=transform,
-                             pre_transform=pre_transform) for sp in ['train', 'val', 'test']]
-
-    train_set, val_set, test_set = splits
-
-    if args.debug:
-        train_set = train_set[:16]
-        val_set = val_set[:16]
-        test_set = test_set[:16]
-
-    return train_set, val_set, test_set, None
 
 def get_heterophily(args):
     dataset_name = args.dataset.lower().split('_')[1]
@@ -860,74 +829,6 @@ def get_qm9(args: Union[Namespace, ConfigDict]):
     std = 1. / torch.tensor(norm_const, dtype=torch.float)
 
     return train_set, val_set, test_set, [std[i] for i in task_id], task_id
-
-
-def get_ppgn_qm9(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
-        GraphCoalesce()])
-    transform = get_transform(args)
-
-    data_path = os.path.join(args.data_path, 'PPGN_QM9')
-    extra_path = get_additional_path(args)
-    if extra_path is not None:
-        data_path = os.path.join(data_path, extra_path)
-
-    if hasattr(args, 'task_id'):
-        if isinstance(args.task_id, int):
-            assert 0 <= args.task_id <= 11
-            task_id = [args.task_id]
-        else:
-            raise TypeError
-    else:
-        task_id = list(range(12))
-
-    dataset_lists = defaultdict(list)
-
-    # https://github.com/hadarser/ProvablyPowerfulGraphNetworks_torch/blob/master/data_loader/data_generator.py#L31
-    train_set_y = PPGN_QM9(root=data_path,
-                         split='train',
-                         transform=transform,
-                         pre_transform=pre_transform).data.y
-    train_mean = train_set_y.mean(dim=0, keepdim=True)
-    train_std = train_set_y.std(dim=0, keepdim=True)
-
-    for split in ['train', 'valid', 'test']:
-
-        dataset = PPGN_QM9(data_path,
-                          split=split,
-                          transform=transform,
-                          pre_transform=pre_transform)
-
-        dataset.data.y = (dataset.data.y - train_mean) / train_std
-        dataset.data.x = dataset.data.x.long()
-
-        for i in task_id:
-            new_data = Data()
-            for k, v in dataset._data._store.items():
-                if k != 'y':
-                    setattr(new_data, k, v)
-                else:
-                    setattr(new_data, k, v[:, i:i + 1])
-
-            d = PPGN_QM9(data_path,
-                    split=split,
-                    return_data=False,
-                    transform=transform,
-                    pre_transform=pre_transform)
-            d.data = new_data
-            dataset_lists[split].append(d)
-
-    train_set = dataset_lists['train']
-    val_set = dataset_lists['valid']
-    test_set = dataset_lists['test']
-
-    if args.debug:
-        train_set = [t[:16] for t in train_set]
-        val_set = [t[:16] for t in val_set]
-        test_set = [t[:16] for t in test_set]
-
-    return train_set, val_set, test_set, [train_std.squeeze()[i] for i in task_id], task_id
 
 
 def get_exp_dataset(args, num_fold=10):
