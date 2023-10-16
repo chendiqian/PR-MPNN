@@ -1,0 +1,71 @@
+fixed:
+  dataset: hetero_wisconsin
+  log_path: './logs'
+
+  use_wandb: False
+  wandb_name: "TEST_DEBUG_HETERO"
+
+  sample_configs:
+    sample_policy: edge_candid
+    separate: False
+    directed: False
+    in_place: True
+    sample_k: 1268
+    sample_k2: 518
+    candid_pool: 20
+    heuristic: l1_similarity_per_node
+    ensemble: 3
+    include_original_graph: False
+
+  imle_configs:
+    sampler: simple
+    logits_activation: 'None'
+    weight_edges: marginals
+    marginals_mask: True
+    num_train_ensemble: 5
+    num_val_ensemble: 5
+
+    model: "edge_selector"
+
+    emb_hid_size: 79
+    emb_optim: "adamw"
+    emb_scheduler: null
+    gnn_layer: 2
+    mlp_layer: 4
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+
+  optim: "adam"
+  model: gin_duo
+  hid_size: 192
+  lr: 1.e-3
+  lr_decay:
+    scheduler: plateau
+    mode: max
+    decay_rate: 0.5
+    patience: 50
+    target: val_metric
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 3
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 2
+  graph_pooling: transductive
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 128
+  min_epochs: 300
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 1
+#
+#  connectedness:
+#    metric: node_homophily
+#    every: 50
