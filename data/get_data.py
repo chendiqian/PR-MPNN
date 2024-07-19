@@ -26,7 +26,6 @@ from data.custom_datasets.tudataset import MyTUDataset
 from data.custom_datasets.planarsatpairsdataset import PlanarSATPairsDataset
 from data.custom_datasets.symmetries import MySymDataset
 from data.utils.datatype_utils import AttributedDataLoader
-from data.utils.plot_utils import circular_tree_layout
 from .const import DATASET_FEATURE_STAT_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
@@ -34,7 +33,6 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop,
                               AugmentWithEdgeCandidate,
-                              AugmentWithPlotCoordinates,
                               AugmentWithDumbAttr,
                               DropEdge,
                               collate_fn_with_origin_list)
@@ -68,7 +66,6 @@ PRETRANSFORM_PRIORITY = {
     AugmentWithEdgeCandidate: 98,
     AddRandomWalkPE: 98,
     AddLaplacianEigenvectorPE: 98,
-    AugmentWithPlotCoordinates: 98,
 }
 
 
@@ -298,7 +295,6 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
 
 def get_zinc(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphAddRemainSelfLoop(),
         GraphToUndirected(),
         GraphExpandDim(),
@@ -368,7 +364,7 @@ def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
 
 
 def get_alchemy(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithPlotCoordinates(layout=kamada_kawai_layout)])
+    pre_transform = get_pretransform(args)
     transform = get_transform(args)
 
     data_path = args.data_path
@@ -415,7 +411,6 @@ def get_alchemy(args: Union[Namespace, ConfigDict]):
 
 def get_TU(args, name='PROTEINS_full'):
     pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphToUndirected(),
         GraphExpandDim()])
     transform = get_transform(args)
@@ -466,9 +461,7 @@ def get_TU(args, name='PROTEINS_full'):
 
 
 def get_imdbm(args):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
-        AugmentWithDumbAttr()])
+    pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithDumbAttr()])
     transform = get_transform(args)
 
     data_path = args.data_path
@@ -516,7 +509,6 @@ def get_imdbm(args):
 
 def get_imdbb(args):
     pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         AugmentWithDumbAttr(),
         GraphExpandDim()])
     transform = get_transform(args)
@@ -567,7 +559,6 @@ def get_imdbb(args):
 
 def get_CSL(args):
     pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         AugmentWithDumbAttr(),
     ])
     transform = get_transform(args)
@@ -651,7 +642,7 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), AugmentWithPlotCoordinates(layout=circular_tree_layout)])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
     # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphRedirect(depth)])
     transform = get_transform(args)
 
@@ -678,7 +669,7 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), AugmentWithPlotCoordinates(layout=circular_tree_layout)])
+    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
     transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
@@ -758,7 +749,6 @@ def get_heterophily(args):
 
 def get_qm9(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphCoalesce()])
     transform = get_transform(args)
 
@@ -836,8 +826,6 @@ def get_exp_dataset(args, num_fold=10):
     extra_path = extra_path if extra_path is not None else 'normal'
     pre_transform = get_pretransform(args, extra_pretransforms=[GraphToUndirected(),
                                                                 GraphExpandDim(),
-                                                                AugmentWithPlotCoordinates(
-                                                                    layout=kamada_kawai_layout),
                                                                 GraphAttrToOneHot(
                                                                     DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                                                                     0)])

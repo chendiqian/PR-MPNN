@@ -31,7 +31,6 @@ pip install numba
 pip install sacred
 pip install PyYAML
 pip install wandb
-pip install matplotlib
 pip install seaborn
 pip install GraphRicciCurvature
 pip install gdown

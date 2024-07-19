@@ -212,7 +212,6 @@ def construct_from_edge_candidate(dat_batch: Data,
     assert in_place
 
     auxloss = 0.
-    plot_scores = dict()
 
     VE = sampler_class.train_ensemble if train else sampler_class.val_ensemble
     E = addition_logits.shape[-1]
@@ -267,8 +266,6 @@ def construct_from_edge_candidate(dat_batch: Data,
                 # targeted at node mask
                 auxloss = auxloss + batch_kl_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.batch_kl, )
 
-        plot_scores['add'] = (output_logits.detach().clone(), node_mask.detach().clone())
-
         sampled_edge_weights = get_weighted_mask(weight_edges,
                                                  node_mask,
                                                  marginals,
@@ -302,7 +299,6 @@ def construct_from_edge_candidate(dat_batch: Data,
                                                    auxloss,
                                                    auxloss_dict if train else None,
                                                    deletion_logits.device)
-        plot_scores['del'] = return_logits
     else:
         del_edge_weight = None
 
@@ -354,7 +350,7 @@ def construct_from_edge_candidate(dat_batch: Data,
                                      y=rewired_batch.y,
                                      num_graphs=rewired_batch.num_graphs,
                                      num_unique_graphs=len(graphs))
-        return new_batch, plot_scores, auxloss
+        return new_batch, None, auxloss
     else:
         # for the graph adding with rewired edges in-place
         if add_edge_weight is not None:
@@ -417,4 +413,4 @@ def construct_from_edge_candidate(dat_batch: Data,
                                      y=dumb_repeat_batch.y,
                                      num_graphs=dumb_repeat_batch.num_graphs,
                                      num_unique_graphs=len(graphs))
-        return new_batch, plot_scores, auxloss
+        return new_batch, None, auxloss

@@ -82,18 +82,3 @@ fixed:
   data_path: './datasets'
   debug: False
   num_runs: 5
-
-  # plot_heatmaps:
-  #   batch_id: 0
-  #   n_graphs: 5
-  #   plot_every: 50
-
-#  plot_graphs:
-#    batch_id: 0
-#    plot_every: 5
-#    n_graphs: 1
-#    plot_folder: './plots'
-
-#  connectedness:
-#    metric: eigval
-#    every: 10

@@ -14,7 +14,6 @@ from data.utils.datatype_utils import (AttributedDataLoader,
                                        IsBetter,
                                        DuoDataStructure,
                                        BatchOriginalDataStructure)
-from data.utils.plot_utils import plot_score, plot_rewired_graphs, plot_score_and_mask
 from data.utils.args_utils import process_idx
 from training.construct import construct_from_edge_candidate
 
@@ -32,9 +31,6 @@ class Trainer:
                  num_layers: int,
                  imle_configs: ConfigDict,
                  sample_configs: ConfigDict,
-                 plot_graph_args: ConfigDict,
-                 plot_scores_args: ConfigDict,
-                 plot_heatmap_args: ConfigDict,
                  auxloss: ConfigDict,
                  wandb: Optional[Any] = None,
                  use_wandb: bool = False,
@@ -55,29 +51,6 @@ class Trainer:
 
         self.wandb = wandb
         self.use_wandb = use_wandb
-
-        # plot functions
-        self.plot = None if plot_graph_args is None else partial(
-            plot_rewired_graphs,
-            wandb=wandb,
-            use_wandb=use_wandb,
-            plot_args=plot_graph_args,
-            ensemble=sample_configs.ensemble,
-            num_train_ensemble=imle_configs.num_train_ensemble if imle_configs is not None else 1,
-            num_val_ensemble=imle_configs.num_val_ensemble if imle_configs is not None else 1,
-            include_original_graph=sample_configs.include_original_graph)
-
-        self.plot_score = None if plot_scores_args is None else partial(
-            plot_score,
-            plot_args=plot_scores_args,
-            wandb=wandb,
-            use_wandb=use_wandb)
-
-        self.plot_score_and_mask = None if plot_heatmap_args is None else partial(
-            plot_score_and_mask,
-            plot_args=plot_heatmap_args,
-            wandb=wandb,
-            use_wandb=use_wandb)
 
         if connectedness_metric_args is not None:
             self.connectedness_metric = partial(get_connectedness_metric,
@@ -185,16 +158,6 @@ class Trainer:
             data, _ = self.check_datatype(data, dataloader.task)
             data, scores, auxloss = self.construct_duplicate_data(data, emb_model)
 
-            if self.plot is not None:
-                self.plot(data, True, self.epoch, batch_id)
-            if self.plot_score is not None:
-                if scores is not None and isinstance(scores, torch.Tensor):
-                    self.plot_score(scores, self.epoch, batch_id, train=True)
-            if self.plot_score_and_mask is not None:
-                if scores is not None and isinstance(scores, dict):
-                    for k, (score, mask) in scores.items():
-                        self.plot_score_and_mask(score, mask, self.epoch, batch_id, True, prefix=k)
-
             pred = model(data)
             is_labeled = data.y == data.y
             loss = self.criterion(pred[is_labeled], data.y[is_labeled])
@@ -247,16 +210,6 @@ class Trainer:
         for batch_id, data in enumerate(dataloader.loader):
             data, num_preds = self.check_datatype(data, dataloader.task)
             data, scores, _ = self.construct_duplicate_data(data, emb_model)
-
-            if self.plot is not None:
-                self.plot(data, False, self.epoch, batch_id)
-            if self.plot_score is not None:
-                if scores is not None and isinstance(scores, torch.Tensor):
-                    self.plot_score(scores, self.epoch, batch_id, train=False)
-            if self.plot_score_and_mask is not None:
-                if scores is not None and isinstance(scores, dict):
-                    for k, (score, mask) in scores.items():
-                        self.plot_score_and_mask(score, mask, self.epoch, batch_id, False, prefix=k)
 
             pred = model(data)
 

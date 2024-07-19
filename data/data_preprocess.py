@@ -210,22 +210,6 @@ class AugmentWithEdgeCandidate(GraphModification):
         return graph
 
 
-class AugmentWithPlotCoordinates(GraphModification):
-    """
-    for networkx plots, save the positions of the original graphs
-    """
-    def __init__(self, layout):
-        super(AugmentWithPlotCoordinates, self).__init__()
-        self.layout = layout
-
-    def __call__(self, data: Data):
-        nx_graph = to_networkx(data)
-        pos = self.layout(nx_graph)  # return a dict
-        pos = np.vstack([pos[n] for n in range(data.num_nodes)])
-        data.nx_layout = torch.from_numpy(pos)
-        return data
-
-
 class DropEdge:
     def __init__(self, p, directed):
         self.p = p

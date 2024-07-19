@@ -2,19 +2,12 @@
 
 # This implementation is based on https://github.com/weihua916/powerful-gnns and https://github.com/chrsmrrs/k-gnn/tree/master/examples
 # Datasets are implemented based on the description in the corresonding papers (see the paper for references)
-import argparse
 import numpy as np
 import networkx as nx
-import time
-import random
-import matplotlib.pyplot as plt
 import torch
-from torch import nn
-import torch.nn.functional as F
-from torch_geometric.data import DataLoader, Data
 from torch_geometric.utils import degree
 from torch_geometric.utils.convert import from_networkx
-from torch_geometric.nn import GINConv, GINEConv, global_add_pool
+
 torch.set_printoptions(profile="full")
 from torch_geometric.data import Data, InMemoryDataset
 from torch_geometric.utils import degree as pyg_degree
