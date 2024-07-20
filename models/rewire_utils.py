@@ -77,3 +77,23 @@ def sparsify_edge_weight(data, edge_weight, train):
         data._inc_dict['edge_attr'] = data._inc_dict['edge_weight']
 
     return data
+
+
+def sparsify_edge_weight_simplified(data, train):
+    """
+    a trick to sparsify the training weights
+
+    Args:
+        data: graph Batch data
+        train: whether to mask out the 0 entries in the mask or not, if True, keep them for grad
+
+    Returns:
+        (sparsified) graph Batch data
+    """
+    if not train:
+        nonzero_idx = data.edge_weight.nonzero().reshape(-1)
+        data.edge_index = data.edge_index[:, nonzero_idx]
+        data.edge_weight = data.edge_weight[nonzero_idx]
+        if data.edge_attr is not None:
+            data.edge_attr = data.edge_attr[nonzero_idx]
+    return data

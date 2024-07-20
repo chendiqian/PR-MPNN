@@ -49,5 +49,5 @@ fixed:
   min_epochs: 400
   max_epochs: 1000
   data_path: './datasets'
-  debug: False
+  debug: True
   num_runs: 1

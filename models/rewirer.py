@@ -48,16 +48,11 @@ class GraphRewirer(torch.nn.Module):
 
         edge_ptr = dat_batch._slice_dict['edge_index'].to(device)
         nedges = edge_ptr[1:] - edge_ptr[:-1]
-        dat_batch.nedges = nedges
 
         # number of sampling from EACH ensemble
         VE = self.train_ensemble if self.training else self.val_ensemble
         # number of ensemble given by upstream model
         E = addition_logits.shape[-1]
-
-        edge_ptr = dat_batch._slice_dict['edge_index'].to(device)
-        nedges = edge_ptr[1:] - edge_ptr[:-1]
-        dat_batch.nedges = nedges
 
         add_edge_weight, add_edge_index, auxloss1 = self.add_edge(dat_batch, addition_logits, edge_candidate_idx)
         del_edge_weight, auxloss2 = self.del_edge(dat_batch, deletion_logits, nedges)
