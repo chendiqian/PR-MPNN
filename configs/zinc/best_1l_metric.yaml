@@ -27,11 +27,11 @@ fixed:
     mlp_layer: 4
     batchnorm: True
 
-  rwse:
-    kernel: 20
-    layers: 2
-    dim_pe: 16
-    raw_norm_type: 'BatchNorm'
+#  rwse:
+#    kernel: 20
+#    layers: 2
+#    dim_pe: 16
+#    raw_norm_type: 'BatchNorm'
   lap:
     max_freqs: 4
     dim_pe: 16
@@ -60,5 +60,5 @@ fixed:
   min_epochs: 400
   max_epochs: 1000
   data_path: './datasets'
-  debug: False
+  debug: True
   num_runs: 3

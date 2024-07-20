@@ -1,6 +1,5 @@
 from torch import nn
 
-from data.utils.tensor_utils import weighted_cross_entropy
 
 DATASET_FEATURE_STAT_DICT = {
     'zinc': {'node': 21, 'edge': 4, 'num_class': 1},  # regression
@@ -35,8 +34,6 @@ DATASET_FEATURE_STAT_DICT = {
 
     'pcqm': {'node': 9, 'edge': 3, 'num_class': 1},  # link pred
 
-    # VOC superpixels:
-    'edge_wt_region_boundary': {'node': 14, 'edge': 2, 'num_class': 21},
     'peptides-func': {'node': 9, 'edge': 4, 'num_class': 10},  # 10-way classification
 
     'tree_2': {'node': 4, 'edge': 0, 'num_class': 4},
@@ -93,7 +90,6 @@ MAX_NUM_NODE_DICT = {
 
 TASK_TYPE_DICT = {
     'zinc': 'mae',
-    # 'zinc_full': 'regression',
     'alchemy': 'mae',
     'proteins': 'acc',
     'mutag': 'acc',
@@ -117,9 +113,6 @@ TASK_TYPE_DICT = {
     'hetero_cornell': 'acc',
     'hetero_texas': 'acc',
     'hetero_wisconsin': 'acc',
-
-    # VOC superpixels
-    'edge_wt_region_boundary': 'f1_macro',
 
     'tree_2': 'acc',
     'tree_3': 'acc',
@@ -158,7 +151,6 @@ CRITERION_DICT = {
     'imdb-b': nn.BCEWithLogitsLoss(),
     'csl': nn.CrossEntropyLoss(),
 
-    'pcqm': nn.CrossEntropyLoss(),
     'peptides-struct': nn.L1Loss(),
     'peptides-func': nn.BCEWithLogitsLoss(),
     'ogbg-molesol': nn.MSELoss(),
@@ -168,8 +160,6 @@ CRITERION_DICT = {
     'qm9': nn.MSELoss(),
     'ppgnqm9': nn.MSELoss(),
     'exp': nn.BCEWithLogitsLoss(),
-
-    'edge_wt_region_boundary': weighted_cross_entropy,
 
     'tree_2': nn.CrossEntropyLoss(),
     'tree_3': nn.CrossEntropyLoss(),
@@ -202,7 +192,6 @@ CRITERION_DICT = {
 TYPE_ENCODER = {
     'zinc': 'linear',
     'alchemy': 'linear',
-    'edge_wt_region_boundary': 'linear',
     'qm9': 'linear',
     'exp': 'linear',
     'cexp': 'linear',

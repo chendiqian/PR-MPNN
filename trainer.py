@@ -1,9 +1,32 @@
-from typing import Any, Union
+from typing import Any, Union, Optional, Tuple
 
 import torch
-
 from data.metrics import get_eval
-from data.utils.datatype_utils import AttributedDataLoader, IsBetter
+from torch_geometric.loader import DataLoader
+
+
+class IsBetter:
+    """
+    A comparator for different metrics, to unify >= and <=
+
+    """
+    def __init__(self, task_type):
+        self.task_type = task_type
+
+    def __call__(self, val1: float, val2: Optional[float]) -> Tuple[bool, float]:
+        if val2 is None:
+            return True, val1
+
+        if self.task_type in ['regression', 'rmse', 'mae']:
+            better = val1 < val2
+            the_better = val1 if better else val2
+            return better, the_better
+        elif self.task_type in ['rocauc', 'acc', 'f1_macro', 'ap']:
+            better = val1 > val2
+            the_better = val1 if better else val2
+            return better, the_better
+        else:
+            raise ValueError
 
 
 class Trainer:
@@ -26,7 +49,7 @@ class Trainer:
         self.clear_stats()
 
     def train(self,
-              dataloader: AttributedDataLoader,
+              dataloader: DataLoader,
               model,
               optimizer):
         model.train()
@@ -35,14 +58,16 @@ class Trainer:
         labels = []
         num_graphs = 0
 
-        for data in dataloader.loader:
+        for data in dataloader:
             optimizer.zero_grad()
             data = data.to(self.device)
             pred, new_data, auxloss = model(data)
+            label = new_data[0].y
+            ngraphs = new_data[0].num_graphs
 
-            is_labeled = new_data.y == new_data.y
-            loss = self.criterion(pred[is_labeled], new_data.y[is_labeled])
-            train_losses += loss.detach() * new_data.num_graphs
+            is_labeled = label == label
+            loss = self.criterion(pred[is_labeled], label[is_labeled])
+            train_losses += loss.detach() * ngraphs
 
             loss = loss + auxloss
 
@@ -50,9 +75,9 @@ class Trainer:
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
             optimizer.step()
 
-            num_graphs += new_data.num_graphs
+            num_graphs += ngraphs
             preds.append(pred)
-            labels.append(new_data.y)
+            labels.append(label)
         train_loss = train_losses.item() / num_graphs
         self.best_train_loss = min(self.best_train_loss, train_loss)
 
@@ -64,19 +89,19 @@ class Trainer:
 
     @torch.no_grad()
     def inference(self,
-                  dataloader: AttributedDataLoader,
+                  dataloader: DataLoader,
                   model,
+                  dataset_std: float,
                   scheduler: Any = None,
                   test: bool = False):
         model.eval()
         preds = []
         labels = []
 
-        for data in dataloader.loader:
+        for data in dataloader:
             data = data.to(self.device)
             pred, new_data, _ = model(data)
-            label = new_data.y
-            dataset_std = 1 if dataloader.std is None else dataloader.std.to(self.device)
+            label = new_data[0].y
             preds.append(pred * dataset_std)
             labels.append(label * dataset_std)
 

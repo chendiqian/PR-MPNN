@@ -18,11 +18,9 @@ from data.custom_datasets.qm9 import QM9
 from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
 from data.custom_datasets.planarsatpairsdataset import PlanarSATPairsDataset
 from data.custom_datasets.symmetries import MySymDataset
-from data.utils.datatype_utils import AttributedDataLoader
 from .const import DATASET_FEATURE_STAT_DICT
 from .data_preprocess import (GraphExpandDim,
                               GraphToUndirected, GraphCoalesce,
-                              AugmentwithNumbers,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop,
                               AugmentWithEdgeCandidate,
@@ -47,7 +45,6 @@ PRETRANSFORM_PRIORITY = {
     GraphAddRemainSelfLoop: 100,  # highest
     GraphToUndirected: 99,  # high
     GraphCoalesce: 99,
-    AugmentwithNumbers: 0,  # low
     GraphAttrToOneHot: 0,  # low
     AugmentWithDumbAttr: 1,
     AugmentWithEdgeCandidate: 98,
@@ -68,24 +65,26 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
     return extra_path if len(extra_path) else None
 
 
-def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):
-    pretransform = [AugmentwithNumbers()]
-    if extra_pretransforms is not None:
-        pretransform = pretransform + extra_pretransforms
+def get_pretransform(args: Union[Namespace, ConfigDict], pretransforms: Optional[List] = None):
+    if pretransforms is None:
+        pretransforms = []
 
     if hasattr(args, 'rwse'):
-        pretransform.append(AddRandomWalkPE(args.rwse.kernel, 'pestat_RWSE'))
+        pretransforms.append(AddRandomWalkPE(args.rwse.kernel, 'pestat_RWSE'))
 
     if hasattr(args, 'lap'):
-        pretransform.append(AddLaplacianEigenvectorPE(args.lap.max_freqs, 'EigVecs', is_undirected=True))
+        pretransforms.append(AddLaplacianEigenvectorPE(args.lap.max_freqs, 'EigVecs', is_undirected=True))
 
     # add edge candidates
     heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
     directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
-    pretransform.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
+    pretransforms.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
 
-    pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
-    return Compose(pretransform)
+    if pretransforms:
+        pretransforms = sorted(pretransforms, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
+        return Compose(pretransforms)
+    else:
+        return None
 
 
 def get_data(args: Union[Namespace, ConfigDict], *_args):
@@ -127,45 +126,31 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
                          num_workers=NUM_WORKERS)
 
     if isinstance(train_set, list):
-        train_loaders = [AttributedDataLoader(
-            loader=dataloader(t),
-            std=std) for i, t in enumerate(train_set)]
+        train_loaders = [dataloader(t) for t in train_set]
     elif isinstance(train_set, DATASET):
-        train_loaders = [AttributedDataLoader(
-            loader=dataloader(train_set),
-            std=std)]
+        train_loaders = [dataloader(train_set)]
     else:
         raise TypeError
 
     if isinstance(val_set, list):
-        val_loaders = [AttributedDataLoader(
-            loader=dataloader(t),
-            std=std) for i, t in enumerate(val_set)]
+        val_loaders = [dataloader(t) for t in val_set]
     elif isinstance(val_set, DATASET):
-        val_loaders = [AttributedDataLoader(
-            loader=dataloader(val_set),
-            std=std)]
+        val_loaders = [dataloader(val_set)]
     else:
         raise TypeError
 
     if isinstance(test_set, list):
-        test_loaders = [AttributedDataLoader(
-            loader=dataloader(t),
-            std=std) for i, t in enumerate(test_set)]
+        test_loaders = [dataloader(t) for t in test_set]
     elif isinstance(test_set, DATASET):
-        test_loaders = [AttributedDataLoader(
-            loader=dataloader(test_set),
-            std=std)]
+        test_loaders = [dataloader(test_set)]
     else:
         raise TypeError
 
-    return train_loaders, val_loaders, test_loaders
+    return train_loaders, val_loaders, test_loaders, std if std is not None else 1.
 
 
 def get_ogbg_data(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
-        # AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
-        GraphToUndirected()])
+    pre_transform = get_pretransform(args, pretransforms=[GraphToUndirected()])
 
     # if there are specific pretransforms, create individual folders for the dataset
     datapath = args.data_path
@@ -192,7 +177,7 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
 
 
 def get_zinc(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
+    pre_transform = get_pretransform(args, pretransforms=[
         GraphAddRemainSelfLoop(),
         GraphToUndirected(),
         GraphExpandDim(),
@@ -235,7 +220,7 @@ def get_peptides(args: Union[Namespace, ConfigDict]):
     extra_path = get_additional_path(args)
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
-    pre_transform = get_pretransform(args, extra_pretransforms=None)
+    pre_transform = get_pretransform(args)
 
     train_set = LRGBDataset(root=datapath, name=args.dataset.lower(), split='train', pre_transform=pre_transform)
     val_set = LRGBDataset(root=datapath, name=args.dataset.lower(), split='val', pre_transform=pre_transform)
@@ -250,9 +235,7 @@ def get_peptides(args: Union[Namespace, ConfigDict]):
 
 
 def get_CSL(args):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithDumbAttr(),
-    ])
+    pre_transform = get_pretransform(args, pretransforms=[AugmentWithDumbAttr()])
 
     data_path = args.data_path
     extra_path = get_additional_path(args)
@@ -333,7 +316,7 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
+    pre_transform = get_pretransform(args, pretransforms=[GraphCoalesce()])
 
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
@@ -359,7 +342,7 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
+    pre_transform = get_pretransform(args, pretransforms=[GraphCoalesce()])
 
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
@@ -382,7 +365,7 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
 
 def get_sym_dataset(args: Union[Namespace, ConfigDict]):
 
-    pre_transform = get_pretransform(args, extra_pretransforms=[])
+    pre_transform = get_pretransform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
@@ -403,7 +386,7 @@ def get_heterophily(args):
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
 
-    pre_transforms = get_pretransform(args, extra_pretransforms=[GraphToUndirected()])
+    pre_transforms = get_pretransform(args, pretransforms=[GraphToUndirected()])
 
     splits = {'train': [], 'val': [], 'test': []}
 
@@ -434,8 +417,7 @@ def get_heterophily(args):
 
 
 def get_qm9(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
-        GraphCoalesce()])
+    pre_transform = get_pretransform(args, pretransforms=[GraphCoalesce()])
 
     data_path = os.path.join(args.data_path, 'QM9')
     extra_path = get_additional_path(args)
@@ -489,9 +471,9 @@ def get_qm9(args: Union[Namespace, ConfigDict]):
 def get_exp_dataset(args, num_fold=10):
     extra_path = get_additional_path(args)
     extra_path = extra_path if extra_path is not None else 'normal'
-    pre_transform = get_pretransform(args, extra_pretransforms=[GraphToUndirected(),
-                                                                GraphExpandDim(),
-                                                                GraphAttrToOneHot(
+    pre_transform = get_pretransform(args, pretransforms=[GraphToUndirected(),
+                                                          GraphExpandDim(),
+                                                          GraphAttrToOneHot(
                                                                     DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                                                                     0)])
 

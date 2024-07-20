@@ -124,14 +124,6 @@ class GraphCoalesce(GraphModification):
         return new_data
 
 
-class AugmentwithNumbers(GraphModification):
-
-    def __call__(self, graph: Data):
-        graph.nnodes = graph.num_nodes
-        graph.nedges = graph.num_edges
-        return graph
-
-
 class AugmentWithEdgeCandidate(GraphModification):
     def __init__(self, heuristic, num_candidate, directed):
         super(AugmentWithEdgeCandidate, self).__init__()

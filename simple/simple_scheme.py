@@ -19,32 +19,21 @@ def select_from_edge_candidates(scores: torch.Tensor, k: int):
 
 
 class EdgeSIMPLEBatched(nn.Module):
-    def __init__(self,
-                 k,
-                 device,
-                 val_ensemble=1,
-                 train_ensemble=1):
+    def __init__(self):
         super(EdgeSIMPLEBatched, self).__init__()
-        self.k = k
-        self.device = device
         self.layer_configs = dict()
-        self.adj = None  # for potential usage
-        assert val_ensemble > 0 and train_ensemble > 0
-        self.val_ensemble = val_ensemble
-        self.train_ensemble = train_ensemble
 
-    def forward(self, scores, train = True):
-        times_sampled = self.train_ensemble if train else self.val_ensemble
+    def forward(self, scores, k, times_sampled):
         bsz, Nmax, ensemble = scores.shape
         flat_scores = scores.permute((0, 2, 1)).reshape(bsz * ensemble, Nmax)
         target_size = Nmax
-        local_k = min(self.k, Nmax)
+        local_k = min(k, Nmax)
         N = 2 ** math.ceil(math.log2(target_size))
 
         if (N, local_k) in self.layer_configs:
             layer = self.layer_configs[(N, local_k)]
         else:
-            layer = Layer(N, local_k, self.device)
+            layer = Layer(N, local_k, scores.device)
             self.layer_configs[(N, local_k)] = layer
 
         # padding
@@ -74,22 +63,24 @@ class EdgeSIMPLEBatched(nn.Module):
         return new_mask, new_marginals
 
     @torch.no_grad()
-    def validation(self, scores):
+    def validation(self, scores, k, times_sampled):
         """
         during the inference we need to margin-out the stochasticity
         thus we do top-k once or sample multiple times
 
         Args:
             scores: shape B x N x N x E
+            k: int, sample k
+            times_sampled: int, sample times from each ensemble
 
         Returns:
             mask: shape B x N x N x (E x VE)
 
         """
-        if self.val_ensemble == 1:
-            _, marginals = self.forward(scores, False)
+        if times_sampled == 1:
+            _, marginals = self.forward(scores, k, 1)
             # do deterministic top-k
-            mask = select_from_edge_candidates(scores, self.k)
+            mask = select_from_edge_candidates(scores, k)
             return mask[None], marginals
         else:
-            return self.forward(scores, False)
+            return self.forward(scores, k, times_sampled)

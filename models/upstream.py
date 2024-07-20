@@ -43,7 +43,7 @@ class EdgeSelector(torch.nn.Module):
         x = self.atom_encoder(data)
         x = self.gnn(x, data.edge_index, data.edge_attr)
 
-        edge_rel = torch.hstack([torch.zeros(1, dtype=torch.long, device=x.device), torch.cumsum(data.nnodes, dim=0)[:-1]])
+        edge_rel = data._slice_dict['x'].to(x.device)[:-1]
         edge_candidate_idx = data.edge_candidate + edge_rel.repeat_interleave(data.num_edge_candidate)[:, None]
         edge_candidates = torch.hstack([x[edge_candidate_idx[:, 0]], x[edge_candidate_idx[:, 1]]])
         select_edge_candidates = self.projector1(edge_candidates)

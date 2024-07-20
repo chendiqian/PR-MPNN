@@ -1,13 +1,12 @@
 import torch.nn as nn
+
 from data.const import DATASET_FEATURE_STAT_DICT, TYPE_ENCODER
 from models.downstream import GNN_Duo
-from models.my_encoder import FeatureEncoder, BondEncoder, QM9FeatureEncoder
-from models.upstream import EdgeSelector
 from models.hybrid_model import HybridModel
-
-from models.construct import construct_from_edge_candidate
+from models.my_encoder import FeatureEncoder, BondEncoder, QM9FeatureEncoder
+from models.rewirer import GraphRewirer
+from models.upstream import EdgeSelector
 from simple.simple_scheme import EdgeSIMPLEBatched
-from functools import partial
 
 
 def get_encoder(args, hidden):
@@ -53,14 +52,16 @@ def get_encoder(args, hidden):
     return encoder, edge_encoder
 
 
-def get_model(args, device, *_args):
+def get_model(args, *_args):
     # downstream model
     encoder, edge_encoder = get_encoder(args, args.hid_size)
     model = GNN_Duo(encoder,
                     edge_encoder,
                     args.model.lower(),
                     include_org=args.sample_configs.include_original_graph,
-                    num_candidates=2 if args.sample_configs.separate and args.sample_configs.sample_k2 > 0 else 1,
+                    num_candidates=2 if args.sample_configs.separate and
+                                        args.sample_configs.sample_k > 0 and
+                                        args.sample_configs.sample_k2 > 0 else 1,
                     num_layers=args.num_convlayers,
                     hidden=args.hid_size,
                     num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
@@ -88,26 +89,16 @@ def get_model(args, device, *_args):
                              use_bn=args.imle_configs.batchnorm)
 
     # rewiring process
-    simple_sampler = EdgeSIMPLEBatched(args.sample_configs.sample_k,
-                                       device,
-                                       val_ensemble=args.imle_configs.num_val_ensemble,
-                                       train_ensemble=args.imle_configs.num_train_ensemble)
-    train_forward = simple_sampler
-    val_forward = simple_sampler.validation
-
-    rewiring = partial(construct_from_edge_candidate,
-                       samplek_dict={
-                           'add_k': args.sample_configs.sample_k,
-                           'del_k': args.sample_configs.sample_k2},
-                       sampler_class=simple_sampler,
-                       train_forward=train_forward,
-                       val_forward=val_forward,
-                       include_original_graph=args.sample_configs.include_original_graph,
-                       separate=args.sample_configs.separate,
-                       directed_sampling=args.sample_configs.directed,
-                       auxloss_dict=args.imle_configs.auxloss
-                       if hasattr(args.imle_configs, 'auxloss') else None)
+    simple_sampler = EdgeSIMPLEBatched()
+    rewiring = GraphRewirer(args.sample_configs.sample_k,
+                            args.sample_configs.sample_k2,
+                            args.imle_configs.num_train_ensemble,
+                            args.imle_configs.num_val_ensemble,
+                            simple_sampler,
+                            args.sample_configs.separate,
+                            args.sample_configs.directed,
+                            args.imle_configs.auxloss
+                            if hasattr(args.imle_configs, 'auxloss') else None)
 
     hybrid_model = HybridModel(emb_model, model, rewiring)
-
-    return hybrid_model.to(device)
+    return hybrid_model

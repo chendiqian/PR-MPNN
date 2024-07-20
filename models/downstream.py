@@ -1,9 +1,8 @@
+from typing import List
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, global_max_pool, MLP
-
+from torch_geometric.data import Data
 from models.my_convs import BaseGIN, BaseGINE, QM9_Net
-
-from data.utils.datatype_utils import DuoDataStructure
 
 
 class GNN_Duo(torch.nn.Module):
@@ -118,28 +117,28 @@ class GNN_Duo(torch.nn.Module):
         else:
             raise NotImplementedError
 
-    def forward(self, data: DuoDataStructure):
-        org = data.org
-        candidates = data.candidates
-
+    def forward(self, original_data: Data, rewired_data: List[Data]):
         if self.encoder is not None:
-            if org is not None:
-                org.x = self.encoder(org)
-            for c in candidates:
+            if original_data is not None:
+                original_data.x = self.encoder(original_data)
+            for c in rewired_data:
                 c.x = self.encoder(c)
 
-        if org is not None:
+        if original_data is not None:
             if self.base_gnn.startswith('qm9'):
-                h_node_org = self.gnn(org)
+                h_node_org = self.gnn(original_data)
             else:
-                h_node_org = self.gnn(org.x, org.edge_index, org.edge_attr, org.edge_weight)
-            h_graph_org = self.pool(h_node_org, getattr(org, self.graph_pool_idx))
+                h_node_org = self.gnn(original_data.x,
+                                      original_data.edge_index,
+                                      original_data.edge_attr,
+                                      original_data.edge_weight)
+            h_graph_org = self.pool(h_node_org, getattr(original_data, self.graph_pool_idx))
             h_graph_org = self.mlp(h_graph_org)
         else:
             h_graph_org = None
 
         h_graphs = []
-        for i, c in enumerate(candidates):
+        for i, c in enumerate(rewired_data):
             gnn = self.candid_gnns[i] if isinstance(self.candid_gnns, torch.nn.ModuleList) else self.candid_gnns
             if self.base_gnn.startswith('qm9'):
                 h_node = gnn(c)
