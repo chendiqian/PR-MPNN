@@ -5,7 +5,6 @@ from models.downstream import GNN_Duo
 from models.hybrid_model import HybridModel
 from models.my_encoder import FeatureEncoder, BondEncoder, QM9FeatureEncoder
 from models.rewirer import GraphRewirer
-from models.rewirer_simplified import SimplifiedGraphRewirer
 from models.upstream import EdgeSelector
 from simple.simple_scheme import EdgeSIMPLEBatched
 
@@ -95,15 +94,15 @@ def get_model(args, *_args):
     # we recommend using `SimplifiedGraphRewirer` for its efficiency
     # if there is customized required, e.g., need to un-collate the rewired batch
     # into graphs for plots, you need to use GraphRewirer
-    rewiring = SimplifiedGraphRewirer(args.sample_configs.sample_k,
-                                      args.sample_configs.sample_k2,
-                                      args.imle_configs.num_train_ensemble,
-                                      args.imle_configs.num_val_ensemble,
-                                      simple_sampler,
-                                      args.sample_configs.separate,
-                                      args.sample_configs.directed,
-                                      args.imle_configs.auxloss
-                                      if hasattr(args.imle_configs, 'auxloss') else None)
+    rewiring = GraphRewirer(args.sample_configs.sample_k,
+                            args.sample_configs.sample_k2,
+                            args.imle_configs.num_train_ensemble,
+                            args.imle_configs.num_val_ensemble,
+                            simple_sampler,
+                            args.sample_configs.separate,
+                            args.sample_configs.directed,
+                            args.imle_configs.auxloss
+                            if hasattr(args.imle_configs, 'auxloss') else None)
 
     hybrid_model = HybridModel(emb_model, model, rewiring)
     return hybrid_model

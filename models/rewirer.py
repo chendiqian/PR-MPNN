@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import torch
 from ml_collections import ConfigDict
@@ -8,7 +8,8 @@ from torch_scatter import scatter
 
 from models.rewire_utils import (non_merge_coalesce,
                                  batch_repeat_edge_index,
-                                 sparsify_edge_weight)
+                                 sparsify_edge_weight,
+                                 sparsify_edge_weight_simplified)
 from models.aux_loss import get_auxloss
 from simple.simple_scheme import EdgeSIMPLEBatched
 
@@ -24,7 +25,14 @@ class GraphRewirer(torch.nn.Module):
                  sampler: EdgeSIMPLEBatched,
                  separate: bool = False,
                  directed_sampling: bool = False,
-                 auxloss_dict: ConfigDict = None):
+                 auxloss_dict: ConfigDict = None,
+                 data_list_compatible: bool = False):
+        """
+        Especially, data_list_compatible is an important option
+        We recommend False by default for efficiency
+        However, if you wish to de-collate the data batch into separate graphs
+        You need to deal with _inc_dict and _slice_dict properly, and set it True
+        """
         super(GraphRewirer, self).__init__()
         assert del_k > 0 or add_k > 0
 
@@ -36,6 +44,7 @@ class GraphRewirer(torch.nn.Module):
         self.separate = separate
         self.directed_sampling = directed_sampling
         self.auxloss_dict = auxloss_dict
+        self.data_list_compatible = data_list_compatible
 
     def forward(self,
                 dat_batch: Data,
@@ -67,8 +76,9 @@ class GraphRewirer(torch.nn.Module):
                 add_edge_index,
                 del_edge_weight,
                 add_edge_weight,
-                nedges.repeat(E * VE),
-                (dat_batch.num_edge_candidate * (2 if not self.directed_sampling else 1)).repeat(E * VE))
+                nedges.repeat(E * VE) if self.data_list_compatible else None,
+                (dat_batch.num_edge_candidate * (2 if not self.directed_sampling else 1)).repeat(E * VE)
+                if self.data_list_compatible else None)
             rewired_batch = [rewired_batch]  # return as a list
         else:
             if add_edge_weight is not None:
@@ -76,8 +86,9 @@ class GraphRewirer(torch.nn.Module):
                     dumb_repeat_batch,
                     add_edge_index,
                     add_edge_weight,
-                    nedges.repeat(E * VE),
-                    (dat_batch.num_edge_candidate * (2 if not self.directed_sampling else 1)).repeat(E * VE))
+                    nedges.repeat(E * VE) if self.data_list_compatible else None,
+                    (dat_batch.num_edge_candidate * (2 if not self.directed_sampling else 1)).repeat(E * VE)
+                    if self.data_list_compatible else None)
                 rewired_batch = [rewired_add_batch]
             else:
                 rewired_batch = []
@@ -196,8 +207,8 @@ class GraphRewirer(torch.nn.Module):
                       add_edge_index: torch.LongTensor,
                       del_edge_weight: torch.FloatTensor,
                       add_edge_weight: torch.FloatTensor,
-                      original_num_edges: torch.LongTensor,
-                      new_num_edges: torch.LongTensor):
+                      original_num_edges: Optional[torch.LongTensor],
+                      new_num_edges: Optional[torch.LongTensor]):
         merged_edge_index = torch.cat([rewired_batch.edge_index, add_edge_index], dim=1)
         merged_edge_weight = torch.cat([del_edge_weight, add_edge_weight], dim=-1)
         if rewired_batch.edge_attr is not None:
@@ -207,28 +218,34 @@ class GraphRewirer(torch.nn.Module):
         else:
             merged_edge_attr = None
 
-        # pyg coalesce force to merge duplicate edges, which is in conflict with our _slice_dict calculation
-        merged_edge_index, merged_edge_attr, merged_edge_weight = non_merge_coalesce(
-            edge_index=merged_edge_index,
-            edge_attr=merged_edge_attr,
-            edge_weight=merged_edge_weight,
-            num_nodes=rewired_batch.num_nodes)
-        rewired_batch.edge_index = merged_edge_index
-        rewired_batch.edge_attr = merged_edge_attr
+        if self.data_list_compatible:
+            # pyg coalesce force to merge duplicate edges, which is in conflict with our _slice_dict calculation
+            merged_edge_index, merged_edge_attr, merged_edge_weight = non_merge_coalesce(
+                edge_index=merged_edge_index,
+                edge_attr=merged_edge_attr,
+                edge_weight=merged_edge_weight,
+                num_nodes=rewired_batch.num_nodes)
+            rewired_batch.edge_index = merged_edge_index
+            rewired_batch.edge_attr = merged_edge_attr
 
-        # inc dict
-        rewired_batch._slice_dict['edge_index'] = torch.hstack([add_edge_index.new_zeros(1),
-                                                                (original_num_edges + new_num_edges).cumsum(dim=0)])
+            # inc dict
+            rewired_batch._slice_dict['edge_index'] = torch.hstack([add_edge_index.new_zeros(1),
+                                                                    (original_num_edges + new_num_edges).cumsum(dim=0)])
 
-        rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, self.training)
+            rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, self.training)
+        else:
+            rewired_batch.edge_index = merged_edge_index
+            rewired_batch.edge_attr = merged_edge_attr
+            rewired_batch.edge_weight = merged_edge_weight
+            rewired_batch = sparsify_edge_weight_simplified(rewired_batch, self.training)
         return rewired_batch
 
     def merge_add(self,
                   rewired_batch: Batch,
                   add_edge_index: torch.LongTensor,
                   add_edge_weight: torch.FloatTensor,
-                  original_num_edges: torch.LongTensor,
-                  new_num_edges: torch.LongTensor):
+                  original_num_edges: Optional[torch.LongTensor],
+                  new_num_edges: Optional[torch.LongTensor]):
         dumb_repeat_edge_index = rewired_batch.edge_index
         merged_edge_index = torch.cat([dumb_repeat_edge_index, add_edge_index], dim=1)
         merged_edge_weight = torch.cat(
@@ -241,21 +258,27 @@ class GraphRewirer(torch.nn.Module):
         else:
             merged_edge_attr = None
 
-        # pyg coalesce force to merge duplicate edges, which is in conflict with our _slice_dict calculation
-        merged_edge_index, merged_edge_attr, merged_edge_weight = non_merge_coalesce(
-            edge_index=merged_edge_index,
-            edge_attr=merged_edge_attr,
-            edge_weight=merged_edge_weight,
-            num_nodes=rewired_batch.num_nodes)
-        rewired_batch.edge_index = merged_edge_index
-        rewired_batch.edge_attr = merged_edge_attr
+        if self.data_list_compatible:
+            # pyg coalesce force to merge duplicate edges, which is in conflict with our _slice_dict calculation
+            merged_edge_index, merged_edge_attr, merged_edge_weight = non_merge_coalesce(
+                edge_index=merged_edge_index,
+                edge_attr=merged_edge_attr,
+                edge_weight=merged_edge_weight,
+                num_nodes=rewired_batch.num_nodes)
+            rewired_batch.edge_index = merged_edge_index
+            rewired_batch.edge_attr = merged_edge_attr
 
-        # inc dict
-        rewired_batch._slice_dict['edge_index'] = torch.hstack([add_edge_index.new_zeros(1),
-                                                                (original_num_edges + new_num_edges).cumsum(
-                                                                    dim=0)])
-        add_rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, self.training)
-        return add_rewired_batch
+            # inc dict
+            rewired_batch._slice_dict['edge_index'] = torch.hstack([add_edge_index.new_zeros(1),
+                                                                    (original_num_edges + new_num_edges).cumsum(
+                                                                        dim=0)])
+            rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, self.training)
+        else:
+            rewired_batch.edge_index = merged_edge_index
+            rewired_batch.edge_attr = merged_edge_attr
+            rewired_batch.edge_weight = merged_edge_weight
+            rewired_batch = sparsify_edge_weight_simplified(rewired_batch, self.training)
+        return rewired_batch
 
     def merge_del(self,
                   new_graphs: List[Data],
@@ -264,5 +287,10 @@ class GraphRewirer(torch.nn.Module):
         # also we normally add edges, so it is already modified
         # so we batch a new batch
         del_rewired_batch = Batch.from_data_list(new_graphs)
-        del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, self.training)
+
+        if self.data_list_compatible:
+            del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, self.training)
+        else:
+            del_rewired_batch.edge_weight = del_edge_weight
+            del_rewired_batch = sparsify_edge_weight_simplified(del_rewired_batch, self.training)
         return del_rewired_batch
