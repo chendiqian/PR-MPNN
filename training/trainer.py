@@ -1,17 +1,15 @@
 from functools import partial
-from typing import Any, Optional, Union
+from typing import Any, Union
 
-import numpy as np
 import torch
 from ml_collections import ConfigDict
 
 from data.get_optimizer import MyPlateau
 from data.metrics import get_eval
-from data.utils.datatype_utils import (AttributedDataLoader,
-                                       IsBetter,
-                                       BatchOriginalDataStructure)
+from data.utils.datatype_utils import AttributedDataLoader, IsBetter
 from training.construct import construct_from_edge_candidate
 from simple.simple_scheme import EdgeSIMPLEBatched
+from torch_geometric.data import Batch
 
 LARGE_NUMBER = 1.e10
 
@@ -62,23 +60,14 @@ class Trainer:
                                            auxloss_dict=auxloss)
 
         def func(data, emb_model):
-            dat_batch, graphs = data.batch, data.list
-            data, auxloss = construct_duplicate_data(dat_batch,
+            graphs = Batch.to_data_list(data)
+            data, auxloss = construct_duplicate_data(data,
                                                              graphs,
                                                              emb_model.training,
-                                                             *emb_model(dat_batch))
+                                                             *emb_model(data))
             return data, auxloss
 
         self.construct_duplicate_data = func
-
-    def to_device(self, data):
-        if type(data) == BatchOriginalDataStructure:
-            return BatchOriginalDataStructure(batch=data.batch.to(self.device),
-                                              list=[g.to(self.device) for g in data.list],
-                                              y=data.y.to(self.device),
-                                              num_graphs=data.num_graphs)
-        else:
-            raise TypeError(f"Unexpected dtype {type(data)}")
 
     def train(self,
               dataloader: AttributedDataLoader,
@@ -101,7 +90,7 @@ class Trainer:
             optimizer.zero_grad()
             if optimizer_embd is not None:
                 optimizer_embd.zero_grad()
-            data = self.to_device(data)
+            data = data.to(self.device)
             data, auxloss = self.construct_duplicate_data(data, emb_model)
 
             pred = model(data)
@@ -145,8 +134,8 @@ class Trainer:
         preds = []
         labels = []
 
-        for batch_id, data in enumerate(dataloader.loader):
-            data = self.to_device(data)
+        for data in dataloader.loader:
+            data = data.to(self.device)
             data, _ = self.construct_duplicate_data(data, emb_model)
             pred = model(data)
             label = data.y

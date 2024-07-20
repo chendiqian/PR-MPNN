@@ -9,9 +9,10 @@ import torch
 from ml_collections import ConfigDict
 from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from torch.utils.data import Subset, DataLoader as PTDataLoader
+from torch.utils.data import Subset
 from torch_geometric.datasets import ZINC, TUDataset, WebKB, GNNBenchmarkDataset
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
+from torch_geometric.loader import DataLoader
 
 from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
 from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
@@ -28,8 +29,7 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAttrToOneHot,
                               GraphAddRemainSelfLoop,
                               AugmentWithEdgeCandidate,
-                              AugmentWithDumbAttr,
-                              collate_fn_with_origin_list)
+                              AugmentWithDumbAttr)
 
 NUM_WORKERS = 0
 
@@ -66,7 +66,7 @@ def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
     heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
     directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
-    extra_path += f'EdgeCandidates_{heu}_{"dir" if directed else "undir"}_{args.sample_configs.candid_pool}_'
+    extra_path += f'heu_{heu}_{"dir" if directed else "undir"}_{args.sample_configs.candid_pool}_'
     if hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse'):
         extra_path += 'rwse_'
     if hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap'):
@@ -108,7 +108,6 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     if not os.path.isdir(args.data_path):
         os.mkdir(args.data_path)
 
-    task = 'graph'
     if 'ogbg' in args.dataset.lower():
         train_set, val_set, test_set, std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
@@ -137,7 +136,6 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std = get_peptides(args, set='struct')
     elif args.dataset.lower().startswith('hetero'):
         train_set, val_set, test_set, std = get_heterophily(args)
-        task = 'node'
     elif args.dataset.lower().startswith('peptides-func'):
         train_set, val_set, test_set, std = get_peptides(args, set='func')
     elif args.dataset.lower() == 'qm9':
@@ -151,48 +149,41 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     else:
         raise ValueError
 
-    dataloader = partial(PTDataLoader,
+    dataloader = partial(DataLoader,
                          batch_size=args.batch_size,
                          shuffle=not args.debug,
-                         num_workers=NUM_WORKERS,
-                         collate_fn=collate_fn_with_origin_list)
+                         num_workers=NUM_WORKERS)
 
     if isinstance(train_set, list):
         train_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            std=std,
-            task=task) for i, t in enumerate(train_set)]
+            std=std) for i, t in enumerate(train_set)]
     elif isinstance(train_set, DATASET):
         train_loaders = [AttributedDataLoader(
             loader=dataloader(train_set),
-            std=std,
-            task=task)]
+            std=std)]
     else:
         raise TypeError
 
     if isinstance(val_set, list):
         val_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            std=std,
-            task=task) for i, t in enumerate(val_set)]
+            std=std) for i, t in enumerate(val_set)]
     elif isinstance(val_set, DATASET):
         val_loaders = [AttributedDataLoader(
             loader=dataloader(val_set),
-            std=std,
-            task=task)]
+            std=std)]
     else:
         raise TypeError
 
     if isinstance(test_set, list):
         test_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            std=std,
-            task=task) for i, t in enumerate(test_set)]
+            std=std) for i, t in enumerate(test_set)]
     elif isinstance(test_set, DATASET):
         test_loaders = [AttributedDataLoader(
             loader=dataloader(test_set),
-            std=std,
-            task=task)]
+            std=std)]
     else:
         raise TypeError
 

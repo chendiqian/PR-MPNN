@@ -22,13 +22,6 @@ class EdgeSelector(torch.nn.Module):
                  use_bn=False):
         super(EdgeSelector, self).__init__()
 
-        if isinstance(mlp_layer, int):
-            self.use_bilinear = False
-        elif isinstance(mlp_layer, str) and mlp_layer == 'bilinear':
-            self.use_bilinear = True
-        else:
-            raise ValueError(f'{mlp_layer} not supported as mlp_layer arg')
-
         if gnn_layer == 0:
             self.gnn = GNN_Placeholder()
         else:
@@ -36,16 +29,14 @@ class EdgeSelector(torch.nn.Module):
             in_dim = hid_size
 
         self.atom_encoder = encoder
-        self.projector1 = torch.nn.Bilinear(in_dim, in_dim, ensemble, bias=True) if self.use_bilinear \
-            else MLP([in_dim * 2] + [hid_size] * (mlp_layer - 1) + [ensemble],
-                     batch_norm=use_bn, dropout=dropout)
+        self.projector1 = MLP([in_dim * 2] + [hid_size] * (mlp_layer - 1) + [ensemble],
+                              batch_norm=use_bn, dropout=dropout)
 
         self.use_deletion_head = use_deletion_head
-        self.directed_sampling =directed_sampling
+        self.directed_sampling = directed_sampling
         if use_deletion_head:
-            self.projector2 = torch.nn.Bilinear(in_dim, in_dim, ensemble, bias=True) if self.use_bilinear \
-                else MLP([in_dim * 2] + [hid_size] * (mlp_layer - 1) + [ensemble],
-                         batch_norm=use_bn, dropout=dropout)
+            self.projector2 = MLP([in_dim * 2] + [hid_size] * (mlp_layer - 1) + [ensemble],
+                                  batch_norm=use_bn, dropout=dropout)
 
     def forward(self, data: Union[Data, Batch]):
         assert hasattr(data, 'edge_candidate') and hasattr(data, 'num_edge_candidate')
@@ -54,20 +45,14 @@ class EdgeSelector(torch.nn.Module):
 
         edge_rel = torch.hstack([torch.zeros(1, dtype=torch.long, device=x.device), torch.cumsum(data.nnodes, dim=0)[:-1]])
         edge_candidate_idx = data.edge_candidate + edge_rel.repeat_interleave(data.num_edge_candidate)[:, None]
-        if self.use_bilinear:
-            select_edge_candidates = self.projector1(x[edge_candidate_idx[:, 0]], x[edge_candidate_idx[:, 1]])
-        else:
-            edge_candidates = torch.hstack([x[edge_candidate_idx[:, 0]], x[edge_candidate_idx[:, 1]]])
-            select_edge_candidates = self.projector1(edge_candidates)
+        edge_candidates = torch.hstack([x[edge_candidate_idx[:, 0]], x[edge_candidate_idx[:, 1]]])
+        select_edge_candidates = self.projector1(edge_candidates)
         if self.use_deletion_head:
             edge_index = data.edge_index
             if not self.directed_sampling:
                 edge_index = edge_index[:, edge_index[0] <= edge_index[1]]  # self loops included
-            if self.use_bilinear:
-                delete_edge_candidates = self.projector2(x[edge_index[0]], x[edge_index[1]])
-            else:
-                cur_edges = torch.hstack([x[edge_index[0]], x[edge_index[1]]])
-                delete_edge_candidates = self.projector2(cur_edges)
+            cur_edges = torch.hstack([x[edge_index[0]], x[edge_index[1]]])
+            delete_edge_candidates = self.projector2(cur_edges)
         else:
             delete_edge_candidates = None
 

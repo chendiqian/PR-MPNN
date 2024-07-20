@@ -8,7 +8,6 @@ AttributedDataLoader = namedtuple(
     'AttributedDataLoader', [
         'loader',
         'std',
-        'task',
     ])
 
 DuoDataStructure = namedtuple(
@@ -18,16 +17,6 @@ DuoDataStructure = namedtuple(
         'y',
         'num_graphs',
         'num_unique_graphs',
-    ],
-)
-
-
-BatchOriginalDataStructure = namedtuple(
-    'DuoDataStructure', [
-        'batch',
-        'list',
-        'y',
-        'num_graphs',
     ],
 )
 

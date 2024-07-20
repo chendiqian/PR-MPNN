@@ -1,10 +1,8 @@
 from typing import Optional, Union
 
 import torch
-import torch.nn.functional as F
-from torch.nn import Linear, GELU, Sequential, BatchNorm1d as BN
-from torch_geometric.nn import MessagePassing, MLP
-from torch_geometric.utils import degree
+from torch.nn import Linear, GELU, Sequential, BatchNorm1d as BN, BatchNorm1d, ReLU, ModuleList, functional as F
+from torch_geometric.nn import MessagePassing, MLP, global_add_pool, global_max_pool, global_mean_pool
 
 from .my_encoder import BondEncoder
 
@@ -275,33 +273,71 @@ class GNN_Placeholder(torch.nn.Module):
         return x
 
 
-# https://github.com/snap-stanford/ogb/blob/master/examples/graphproppred/mol/conv.py#L37
-class GCNConv(MessagePassing):
+class QM9_Net(torch.nn.Module):
+    def __init__(
+        self,
+        encoder,
+        gnn_type,
+        edge_encoder,
+        num_classes,
+        emb_sizes,
+        num_layers,
+        drpt_prob=0.5,
+        graph_pooling="max",
+    ):
+        super(QM9_Net, self).__init__()
+        self.drpt_prob = drpt_prob
+        self.graph_pooling = graph_pooling
 
-    def __init__(self, in_channels: int, out_channels: int, bond_encoder):
-        super(GCNConv, self).__init__(aggr='add')
-        self.lin = torch.nn.Linear(in_channels, out_channels)
-        self.bond_encoder = bond_encoder
+        self.initial_mlp = encoder
+        self.initial_linear = Linear(emb_sizes, num_classes)
 
-    def forward(self, x, edge_index, edge_attr, edge_weight):
-        """"""
-        if edge_weight is not None and edge_weight.ndim == 1:
-            edge_weight = edge_weight[:, None]
+        gnn_layers = []
+        linears = []
+        # mlps = []
+        for i in range(num_layers):
+            if gnn_type in ['gin', 'gine']:
+                mlp = Sequential(
+                        Linear(emb_sizes, emb_sizes),
+                        BatchNorm1d(emb_sizes),
+                        ReLU(),
+                        Linear(emb_sizes, emb_sizes),
+                        BatchNorm1d(emb_sizes),
+                        ReLU(),
+                )
+            # mlps.append(mlp)
+                if gnn_type == 'gin':
+                    gnn_layer = GINConv(emb_sizes, mlp)
+                else:
+                    gnn_layer = GINEConv(emb_sizes, mlp, edge_encoder)
+            else:
+                raise NotImplementedError
+            gnn_layers.append(gnn_layer)
+            linears.append(Linear(emb_sizes, num_classes))
 
-        if edge_attr is not None and self.bond_encoder is not None:
-            edge_embedding = self.bond_encoder(edge_attr)
-        else:
-            edge_embedding = None
+        self.gnn_modules = ModuleList(gnn_layers)
+        self.linear_modules = ModuleList(linears)
 
-        row, col = edge_index.detach()
-        deg = degree(row, x.shape[0], dtype=torch.float)
-        deg_inv_sqrt = deg.pow(-0.5)
-        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+        if graph_pooling == "sum":
+            self.pooling = global_add_pool
+        elif graph_pooling == 'max':
+            self.pooling = global_max_pool
+        elif graph_pooling == "mean":
+            self.pooling = global_mean_pool
 
-        x = self.lin(x)
-        return self.propagate(edge_index, x=x, norm=norm, edge_attr=edge_embedding, edge_weight=edge_weight)
+    def forward(self, data):
+        x_feat = self.initial_mlp(data)  # Otherwise by an MLP
+        out = F.dropout(
+            self.pooling(self.initial_linear(x_feat), data.batch), p=self.drpt_prob
+        )
 
-    def message(self, x_j, norm, edge_attr, edge_weight):
-        m = norm.view(-1, 1) * (torch.relu(x_j + edge_attr) if edge_attr is not None else x_j)
-        return m * edge_weight if edge_weight is not None else m
+        for gin_layer, linear_layer in zip(self.gnn_modules, self.linear_modules):
+            x_feat = gin_layer(x_feat, data.edge_index, data.edge_attr, data.edge_weight)
+
+            out += F.dropout(
+                linear_layer(self.pooling(x_feat, data.batch)),
+                p=self.drpt_prob,
+                training=self.training,
+            )
+
+        return out

@@ -1,8 +1,7 @@
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, global_max_pool, MLP
 
-from models.my_convs import BaseGIN, BaseGINE
-from models.downstream_models.qm9_gnn import QM9_Net
+from models.my_convs import BaseGIN, BaseGINE, QM9_Net
 
 from data.utils.datatype_utils import DuoDataStructure
 

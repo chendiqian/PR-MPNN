@@ -9,7 +9,6 @@ from torch_geometric.utils import (is_undirected,
                                    to_undirected,
                                    add_remaining_self_loops,
                                    coalesce)
-from data.utils.datatype_utils import BatchOriginalDataStructure
 
 
 class GraphModification:
@@ -213,11 +212,3 @@ class AugmentWithDumbAttr(GraphModification):
         graph.x = torch.ones(graph.num_nodes, 1, dtype=torch.float)
         graph.edge_attr = torch.ones(graph.edge_index.shape[1], 1, dtype=torch.float)
         return graph
-
-
-def collate_fn_with_origin_list(graphs: List[Data]):
-    batch = Batch.from_data_list(graphs)
-    return BatchOriginalDataStructure(batch=batch,
-                                      list=graphs,
-                                      y=batch.y,
-                                      num_graphs=len(graphs))

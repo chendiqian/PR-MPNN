@@ -9,7 +9,6 @@ DATASET_FEATURE_STAT_DICT = {
     'alchemy': {'node': 6, 'edge': 4, 'num_class': 12},  # regression, but 12 labels
 
     'proteins': {'node': 3, 'edge': 0, 'num_class': 1},  # bin classification
-    'mutag': {'node': 7, 'edge': 4, 'num_class': 1},  # bin classification
     'ptc_mr': {'node': 18, 'edge': 4, 'num_class': 1},  # bin classification
     'nci1': {'node': 37, 'edge': 0, 'num_class': 1},  # bin classification
     'nci109': {'node': 38, 'edge': 0, 'num_class': 1},  # bin classification
@@ -158,7 +157,7 @@ CRITERION_DICT = {
     'imdb-m': nn.CrossEntropyLoss(),
     'imdb-b': nn.BCEWithLogitsLoss(),
     'csl': nn.CrossEntropyLoss(),
-    
+
     'pcqm': nn.CrossEntropyLoss(),
     'peptides-struct': nn.L1Loss(),
     'peptides-func': nn.BCEWithLogitsLoss(),
@@ -198,4 +197,55 @@ CRITERION_DICT = {
     'hetero_cornell': nn.CrossEntropyLoss(),
     'hetero_texas': nn.CrossEntropyLoss(),
     'hetero_wisconsin': nn.CrossEntropyLoss(),
+}
+
+TYPE_ENCODER = {
+    'zinc': 'linear',
+    'alchemy': 'linear',
+    'edge_wt_region_boundary': 'linear',
+    'qm9': 'linear',
+    'exp': 'linear',
+    'cexp': 'linear',
+    'proteins': 'linear',
+    'mutag': 'linear',
+    'ptc_mr': 'linear',
+    'nci1': 'linear',
+    'nci109': 'linear',
+    'csl': 'linear',
+    'imdb-m': 'linear',
+    'imdb-b': 'linear',
+
+    'hetero_cornell': 'linear',
+    'hetero_texas': 'linear',
+    'hetero_wisconsin': 'linear',
+
+    'sym_limits1': 'linear',
+    'sym_limits2': 'linear',
+    'sym_triangles': 'linear',
+    'sym_4cycles': 'linear',
+    'sym_skipcircles': 'linear',
+    'sym_lcc': 'linear',
+
+    'tree_2': 'bi_embedding',
+    'tree_3': 'bi_embedding',
+    'tree_4': 'bi_embedding',
+    'tree_5': 'bi_embedding',
+    'tree_6': 'bi_embedding',
+    'tree_7': 'bi_embedding',
+    'tree_8': 'bi_embedding',
+
+    'leafcolor_2': 'bi_embedding_cat',
+    'leafcolor_3': 'bi_embedding_cat',
+    'leafcolor_4': 'bi_embedding_cat',
+    'leafcolor_5': 'bi_embedding_cat',
+    'leafcolor_6': 'bi_embedding_cat',
+    'leafcolor_7': 'bi_embedding_cat',
+    'leafcolor_8': 'bi_embedding_cat',
+
+    'peptides-struct': 'atomencoder',
+    'peptides-func': 'atomencoder',
+    'ogbg-molesol': 'atomencoder',
+    'ogbg-molbace': 'atomencoder',
+    'ogbg-molhiv': 'atomencoder',
+    'ogbg-moltox21': 'atomencoder',
 }

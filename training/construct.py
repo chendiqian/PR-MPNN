@@ -1,8 +1,5 @@
-import copy
-
 from typing import List, Callable, Dict, Any
 
-from math import ceil
 import torch
 from ml_collections import ConfigDict
 from torch_geometric.data import Batch, Data
@@ -120,8 +117,7 @@ def construct_from_edge_candidate(dat_batch: Data,
                                   include_original_graph: bool,
                                   separate: bool = False,
                                   directed_sampling: bool = False,
-                                  auxloss_dict: ConfigDict = None,
-                                  sample_ratio: float = 1.0):
+                                  auxloss_dict: ConfigDict = None):
     """
     A super lengthy, cpmplicated and coupled function
     should find time to clean and comment it
@@ -132,22 +128,17 @@ def construct_from_edge_candidate(dat_batch: Data,
     B = len(dat_batch.nnodes)
     N = dat_batch.num_edge_candidate.max().item()
 
-    new_samplek_dict = copy.deepcopy(samplek_dict)
-
     # # ==================update del and add k for dynamic gnn=====================
     # Needed for strange behaviour in which samplek_dict remains modified after calling
     # the function, even if the old values are restored
 
-    if sample_ratio != 1.0:
-        new_samplek_dict['del_k'] = ceil(new_samplek_dict['del_k'] * sample_ratio)
-        new_samplek_dict['add_k'] = ceil(new_samplek_dict['add_k'] * sample_ratio)
-
-    assert new_samplek_dict['del_k'] > 0 or new_samplek_dict['add_k'] > 0
+    assert samplek_dict['del_k'] > 0 or samplek_dict['add_k'] > 0
 
     # ===============================edge addition======================================
     # (B x Nmax x E) (B x Nmax)
 
-    if new_samplek_dict['add_k'] > 0:
+    auxloss = 0.
+    if samplek_dict['add_k'] > 0:
         output_logits, real_node_mask = to_dense_batch(addition_logits,
                                                        torch.arange(len(dat_batch.nnodes),
                                                                     device=addition_logits.device).repeat_interleave(
@@ -158,10 +149,10 @@ def construct_from_edge_candidate(dat_batch: Data,
         logits = output_logits - padding_bias
 
         # (#sampled, B, Nmax, E), (B, Nmax, E)
-        sampler_class.k = new_samplek_dict['add_k']
+        sampler_class.k = samplek_dict['add_k']
         node_mask, marginals = train_forward(logits) if train else val_forward(logits)
-
-        auxloss = get_auxloss(auxloss_dict, output_logits, node_mask) if train else 0.
+        if train:
+            auxloss = get_auxloss(auxloss_dict, output_logits, node_mask)
 
         sampled_edge_weights = torch.stack([marginals] * VE, dim=0)
         if not train:
@@ -183,12 +174,12 @@ def construct_from_edge_candidate(dat_batch: Data,
         add_edge_index = None
 
     # =============================edge deletion===================================
-    if new_samplek_dict['del_k'] > 0:
+    if samplek_dict['del_k'] > 0:
         del_edge_weight, return_logits, auxloss = sample4deletion(dat_batch,
                                                    deletion_logits,
                                                    train_forward if train else val_forward,
                                                    sampler_class,
-                                                   new_samplek_dict,
+                                                   samplek_dict,
                                                    directed_sampling,
                                                    auxloss,
                                                    auxloss_dict if train else None,
@@ -199,8 +190,6 @@ def construct_from_edge_candidate(dat_batch: Data,
     new_graphs = graphs * (E * VE)
     dumb_repeat_batch = Batch.from_data_list(new_graphs)
     dumb_repeat_edge_index = dumb_repeat_batch.edge_index
-    dumb_repeat_edge_slice = dumb_repeat_batch._slice_dict['edge_index'].to(dumb_repeat_edge_index.device)
-    dumb_repeat_edge_attr = dumb_repeat_batch.edge_attr if dumb_repeat_batch.edge_attr is not None else None
 
     # del and add are modified on the same (ensembling) graph
     if not separate and del_edge_weight is not None and add_edge_weight is not None:
