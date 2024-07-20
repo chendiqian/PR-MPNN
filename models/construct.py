@@ -9,7 +9,7 @@ from torch_scatter import scatter
 from data.utils.datatype_utils import (DuoDataStructure)
 from data.utils.tensor_utils import (non_merge_coalesce,
                                      batch_repeat_edge_index)
-from training.aux_loss import get_auxloss
+from models.aux_loss import get_auxloss
 
 LARGE_NUMBER = 1.e10
 

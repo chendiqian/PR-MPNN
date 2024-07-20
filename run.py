@@ -12,7 +12,7 @@ from data.const import TASK_TYPE_DICT, CRITERION_DICT
 from data.get_data import get_data
 from data.utils.datatype_utils import SyncMeanTimer
 from models.get_model import get_model
-from training.trainer import Trainer
+from trainer import Trainer
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 

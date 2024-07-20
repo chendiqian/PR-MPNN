@@ -5,7 +5,7 @@ from models.my_encoder import FeatureEncoder, BondEncoder, QM9FeatureEncoder
 from models.upstream import EdgeSelector
 from models.hybrid_model import HybridModel
 
-from training.construct import construct_from_edge_candidate
+from models.construct import construct_from_edge_candidate
 from simple.simple_scheme import EdgeSIMPLEBatched
 from functools import partial
 
