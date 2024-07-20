@@ -1,0 +1,62 @@
+fixed:
+  dataset: hetero_cornell
+  log_path: './logs'
+
+  use_wandb: False
+  wandb_project: "experiment"
+  wandb_name: "name"
+
+  sample_configs:
+    separate: False
+    directed: False
+    sample_k: 1940
+    sample_k2: 474
+    candid_pool: 20
+    heuristic: l1_similarity_per_node
+    ensemble: 5
+    include_original_graph: False
+
+  imle_configs:
+    num_train_ensemble: 1
+    num_val_ensemble: 1
+
+    model: "edge_selector"
+
+    emb_hid_size: 178
+    emb_optim: "adamw"
+    emb_scheduler: null
+    gnn_layer: 4
+    mlp_layer: 3
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+
+  optim: "adam"
+  model: gin_duo
+  hid_size: 192
+  lr: 1.e-3
+  lr_decay:
+    scheduler: plateau
+    mode: max
+    decay_rate: 0.5
+    patience: 50
+    target: val_metric
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 3
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 2
+  graph_pooling: transductive
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 128
+  min_epochs: 300
+  max_epochs: 1000
+  data_path: './datasets'
+  debug: False
+  num_runs: 1

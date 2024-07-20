@@ -1,22 +1,17 @@
 import os
 import csv
 from argparse import Namespace
-from collections import defaultdict
 from functools import partial
 from typing import Union, List, Optional
 
 import numpy as np
 import torch
 from ml_collections import ConfigDict
-from networkx import kamada_kawai_layout
 from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from torch.utils.data import Subset, DataLoader as PTDataLoader
-from torch_geometric.data import Data
 from torch_geometric.datasets import ZINC, TUDataset, WebKB, GNNBenchmarkDataset
-from torch_geometric.loader import DataLoader as PyGDataLoader
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
-from torch_geometric.utils import degree as pyg_degree
 
 from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
 from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
@@ -34,9 +29,7 @@ from .data_preprocess import (GraphExpandDim,
                               GraphAddRemainSelfLoop,
                               AugmentWithEdgeCandidate,
                               AugmentWithDumbAttr,
-                              DropEdge,
                               collate_fn_with_origin_list)
-from .random_baseline import AugmentWithRandomRewiredGraphs, collate_random_rewired_batch
 
 NUM_WORKERS = 0
 
@@ -71,44 +64,14 @@ PRETRANSFORM_PRIORITY = {
 
 def get_additional_path(args: Union[Namespace, ConfigDict]):
     extra_path = ''
-    if args.sample_configs.sample_policy == 'edge_candid':
-        heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
-        directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
-        extra_path += f'EdgeCandidates_{heu}_{"dir" if directed else "undir"}_{args.sample_configs.candid_pool}_'
+    heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
+    directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
+    extra_path += f'EdgeCandidates_{heu}_{"dir" if directed else "undir"}_{args.sample_configs.candid_pool}_'
     if hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse'):
         extra_path += 'rwse_'
     if hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap'):
         extra_path += 'lap_'
     return extra_path if len(extra_path) else None
-
-
-def get_transform(args: Union[Namespace, ConfigDict]):
-    transform = []
-
-    # robustness ablation
-    assert not (hasattr(args, 'perturb_add') and hasattr(args, 'perturb_del'))
-    if hasattr(args, 'perturb_del'):
-        directed = args.sample_configs.directed if hasattr(args, 'sample_configs') else False
-        transform.append(DropEdge(args.perturb_del, directed))
-    if hasattr(args, 'perturb_add'):
-        directed = args.sample_configs.directed if hasattr(args, 'sample_configs') else False
-        transform.append(DropEdge(args.perturb_add, directed))
-
-    # uniform random baseline
-    if args.sample_configs.sample_policy == 'add_del':
-        transform.append(AugmentWithRandomRewiredGraphs(sample_k_add=args.sample_configs.sample_k,
-                                                   sample_k_del=args.sample_configs.sample_k2,
-                                                   include_original_graph=args.sample_configs.include_original_graph,
-                                                   in_place=args.sample_configs.in_place,
-                                                   ensemble=args.sample_configs.ensemble,
-                                                   separate=args.sample_configs.separate,
-                                                   directed=args.sample_configs.directed,
-                                                   ))
-
-    if transform:
-        return Compose(transform)
-    else:
-        return None
 
 
 def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Optional[List] = None):
@@ -126,14 +89,14 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
     elif hasattr(args, 'lap'):
         pretransform.append(AddLaplacianEigenvectorPE(args.lap.max_freqs, 'EigVecs', is_undirected=True))
 
-    # add edge candidates or bidirectional
-    if args.sample_configs.sample_policy == 'edge_candid':
-        heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
-        directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
-        pretransform.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
+    # add edge candidates
+    heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
+    directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
+    pretransform.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
 
     pretransform = sorted(pretransform, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)
     return Compose(pretransform)
+
 
 def get_data(args: Union[Namespace, ConfigDict], *_args):
     """
@@ -146,8 +109,6 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         os.mkdir(args.data_path)
 
     task = 'graph'
-    qm9_task_id = None
-    separate_std = 'qm9' in args.dataset.lower()
     if 'ogbg' in args.dataset.lower():
         train_set, val_set, test_set, std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
@@ -180,7 +141,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     elif args.dataset.lower().startswith('peptides-func'):
         train_set, val_set, test_set, std = get_peptides(args, set='func')
     elif args.dataset.lower() == 'qm9':
-        train_set, val_set, test_set, std, qm9_task_id = get_qm9(args)
+        train_set, val_set, test_set, std = get_qm9(args)
     elif args.dataset.lower() in ['exp', 'cexp']:
         train_set, val_set, test_set, std = get_exp_dataset(args, 10)
     elif 'sym' in args.dataset.lower():
@@ -190,41 +151,16 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     else:
         raise ValueError
 
-    # calculate degree stats for PNA model
-    if 'pna' in args.model.lower():
-        target_dataset = train_set[0] if isinstance(train_set, list) else train_set
-        degs = torch.cat([pyg_degree(g.edge_index[1],
-                                     num_nodes=g.num_nodes,
-                                     dtype=torch.long) for g in target_dataset], dim=0)
-        args.ds_deg = torch.bincount(degs)
-
-    if args.imle_configs is not None:
-        # collator that returns a batch and a list
-        dataloader = partial(PTDataLoader,
-                             batch_size=args.batch_size,
-                             shuffle=not args.debug,
-                             num_workers=NUM_WORKERS,
-                             collate_fn=collate_fn_with_origin_list)
-    elif args.sample_configs.sample_policy is not None:
-        # collator for sampled graphs
-        dataloader = partial(PTDataLoader,
-                             batch_size=args.batch_size,
-                             shuffle=not args.debug,
-                             num_workers=NUM_WORKERS,
-                             collate_fn=partial(collate_random_rewired_batch,
-                                                include_org=args.sample_configs.include_original_graph)
-                             )
-    else:
-        # PyG removes the collate function passed in
-        dataloader = partial(PyGDataLoader,
-                             batch_size=args.batch_size,
-                             shuffle=not args.debug,
-                             num_workers=NUM_WORKERS)
+    dataloader = partial(PTDataLoader,
+                         batch_size=args.batch_size,
+                         shuffle=not args.debug,
+                         num_workers=NUM_WORKERS,
+                         collate_fn=collate_fn_with_origin_list)
 
     if isinstance(train_set, list):
         train_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            std=std if not separate_std else std[i],
+            std=std,
             task=task) for i, t in enumerate(train_set)]
     elif isinstance(train_set, DATASET):
         train_loaders = [AttributedDataLoader(
@@ -237,7 +173,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     if isinstance(val_set, list):
         val_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            std=std if not separate_std else std[i],
+            std=std,
             task=task) for i, t in enumerate(val_set)]
     elif isinstance(val_set, DATASET):
         val_loaders = [AttributedDataLoader(
@@ -250,7 +186,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     if isinstance(test_set, list):
         test_loaders = [AttributedDataLoader(
             loader=dataloader(t),
-            std=std if not separate_std else std[i],
+            std=std,
             task=task) for i, t in enumerate(test_set)]
     elif isinstance(test_set, DATASET):
         test_loaders = [AttributedDataLoader(
@@ -260,14 +196,13 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     else:
         raise TypeError
 
-    return train_loaders, val_loaders, test_loaders, qm9_task_id
+    return train_loaders, val_loaders, test_loaders
 
 
 def get_ogbg_data(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[
         # AugmentWithPlotCoordinates(layout=kamada_kawai_layout),
         GraphToUndirected()])
-    transform = get_transform(args)
 
     # if there are specific pretransforms, create individual folders for the dataset
     datapath = args.data_path
@@ -277,7 +212,7 @@ def get_ogbg_data(args: Union[Namespace, ConfigDict]):
 
     dataset = PygGraphPropPredDataset(name=args.dataset,
                                       root=datapath,
-                                      transform=transform,
+                                      transform=None,
                                       pre_transform=pre_transform)
     dataset.data.y = dataset.data.y.float()
     split_idx = dataset.get_idx_split()
@@ -300,7 +235,6 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
         GraphExpandDim(),
         GraphAttrToOneHot(DATASET_FEATURE_STAT_DICT['zinc']['node'],
                           DATASET_FEATURE_STAT_DICT['zinc']['edge'])])
-    transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, 'ZINC')
     extra_path = get_additional_path(args)
@@ -310,19 +244,19 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
     train_set = ZINC(data_path,
                      split='train',
                      subset=True,
-                     transform=transform,
+                     transform=None,
                      pre_transform=pre_transform)
 
     val_set = ZINC(data_path,
                    split='val',
                    subset=True,
-                   transform=transform,
+                   transform=None,
                    pre_transform=pre_transform)
 
     test_set = ZINC(data_path,
                     split='test',
                     subset=True,
-                    transform=transform,
+                    transform=None,
                     pre_transform=pre_transform)
 
     if args.debug:
@@ -338,12 +272,11 @@ def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
     pre_transform = get_pretransform(args, extra_pretransforms=None)
-    transform = get_transform(args)
 
     if set == 'struct':
-        dataset = PeptidesStructuralDataset(root=datapath, transform=transform, pre_transform=pre_transform)
+        dataset = PeptidesStructuralDataset(root=datapath, transform=None, pre_transform=pre_transform)
     elif set == 'func':
-        dataset = PeptidesFunctionalDataset(root=datapath, transform=transform, pre_transform=pre_transform)
+        dataset = PeptidesFunctionalDataset(root=datapath, transform=None, pre_transform=pre_transform)
     else:
         raise ValueError(f"Unknown peptides set: {set}")
 
@@ -365,7 +298,6 @@ def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
 
 def get_alchemy(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args)
-    transform = get_transform(args)
 
     data_path = args.data_path
     extra_path = get_additional_path(args)
@@ -390,7 +322,7 @@ def get_alchemy(args: Union[Namespace, ConfigDict]):
     dataset = MyTUDataset(data_path,
                           name="alchemy_full",
                           index=indices_train + indices_val + indices_test,
-                          transform=transform,
+                          transform=None,
                           pre_transform=pre_transform)
 
     mean = dataset.data.y.mean(dim=0, keepdim=True)
@@ -413,7 +345,6 @@ def get_TU(args, name='PROTEINS_full'):
     pre_transform = get_pretransform(args, extra_pretransforms=[
         GraphToUndirected(),
         GraphExpandDim()])
-    transform = get_transform(args)
 
     data_path = args.data_path
     extra_path = get_additional_path(args)
@@ -422,7 +353,7 @@ def get_TU(args, name='PROTEINS_full'):
 
     dataset = TUDataset(data_path,
                         name=name,
-                        transform=transform,
+                        transform=None,
                         pre_transform=pre_transform)
 
     train_splits = []
@@ -443,14 +374,6 @@ def get_TU(args, name='PROTEINS_full'):
         train_splits.append(Subset(dataset, train_idx))
         val_splits.append(Subset(dataset, test_idx))
 
-    ## one split
-    # num_training = int(len(dataset) * 0.8)
-    # num_val = int(len(dataset) * 0.1)
-    # num_test = len(dataset) - num_val - num_training
-    # train_set, val_set, test_set = random_split(dataset,
-    #                                             [num_training, num_val, num_test],
-    #                                             generator=torch.Generator().manual_seed(0))
-
     if args.debug:
         train_splits = train_splits[0]
         val_splits = val_splits[0]
@@ -462,7 +385,6 @@ def get_TU(args, name='PROTEINS_full'):
 
 def get_imdbm(args):
     pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithDumbAttr()])
-    transform = get_transform(args)
 
     data_path = args.data_path
     extra_path = get_additional_path(args)
@@ -471,7 +393,7 @@ def get_imdbm(args):
 
     dataset = TUDataset(data_path,
                         name='IMDB-MULTI',
-                        transform=transform,
+                        transform=None,
                         pre_transform=pre_transform)
 
     train_splits = []
@@ -490,14 +412,6 @@ def get_imdbm(args):
         train_splits.append(Subset(dataset, train_idx))
         val_splits.append(Subset(dataset, test_idx))
 
-    ## one split
-    # num_training = int(len(dataset) * 0.8)
-    # num_val = int(len(dataset) * 0.1)
-    # num_test = len(dataset) - num_val - num_training
-    # train_set, val_set, test_set = random_split(dataset,
-    #                                             [num_training, num_val, num_test],
-    #                                             generator=torch.Generator().manual_seed(0))
-
     if args.debug:
         train_splits = train_splits[0]
         val_splits = val_splits[0]
@@ -511,7 +425,6 @@ def get_imdbb(args):
     pre_transform = get_pretransform(args, extra_pretransforms=[
         AugmentWithDumbAttr(),
         GraphExpandDim()])
-    transform = get_transform(args)
 
     data_path = args.data_path
     extra_path = get_additional_path(args)
@@ -520,7 +433,7 @@ def get_imdbb(args):
 
     dataset = TUDataset(data_path,
                         name='IMDB-BINARY',
-                        transform=transform,
+                        transform=None,
                         pre_transform=pre_transform)
 
     train_splits = []
@@ -540,14 +453,6 @@ def get_imdbb(args):
         train_splits.append(Subset(dataset, train_idx))
         val_splits.append(Subset(dataset, test_idx))
 
-    ## one split
-    # num_training = int(len(dataset) * 0.8)
-    # num_val = int(len(dataset) * 0.1)
-    # num_test = len(dataset) - num_val - num_training
-    # train_set, val_set, test_set = random_split(dataset,
-    #                                             [num_training, num_val, num_test],
-    #                                             generator=torch.Generator().manual_seed(0))
-
     if args.debug:
         train_splits = train_splits[0]
         val_splits = val_splits[0]
@@ -561,7 +466,6 @@ def get_CSL(args):
     pre_transform = get_pretransform(args, extra_pretransforms=[
         AugmentWithDumbAttr(),
     ])
-    transform = get_transform(args)
 
     data_path = args.data_path
     extra_path = get_additional_path(args)
@@ -570,7 +474,7 @@ def get_CSL(args):
 
     dataset = GNNBenchmarkDataset(data_path,
                                   name='CSL',
-                                  transform=transform,
+                                  transform=None,
                                   pre_transform=pre_transform)
 
     def get_all_split_idx(dataset):
@@ -643,16 +547,14 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
     assert 2 <= depth <= 8
 
     pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
-    # pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce(), GraphRedirect(depth)])
-    transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
     if extra_path is not None:
         data_path = os.path.join(data_path, extra_path)
 
-    train_set = MyTreeDataset(data_path, True, 11, depth, transform=transform, pre_transform=pre_transform)
-    val_set = MyTreeDataset(data_path, False, 11, depth, transform=transform, pre_transform=pre_transform)
+    train_set = MyTreeDataset(data_path, True, 11, depth, transform=None, pre_transform=pre_transform)
+    val_set = MyTreeDataset(data_path, False, 11, depth, transform=None, pre_transform=pre_transform)
     # min is 1
     train_set.data.y -= 1
     val_set.data.y -= 1
@@ -670,15 +572,14 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     assert 2 <= depth <= 8
 
     pre_transform = get_pretransform(args, extra_pretransforms=[GraphCoalesce()])
-    transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
     if extra_path is not None:
         data_path = os.path.join(data_path, extra_path)
 
-    train_set = MyLeafColorDataset(data_path, True, 11, depth, transform=transform, pre_transform=pre_transform)
-    val_set = MyLeafColorDataset(data_path, False, 11, depth, transform=transform, pre_transform=pre_transform)
+    train_set = MyLeafColorDataset(data_path, True, 11, depth, transform=None, pre_transform=pre_transform)
+    val_set = MyLeafColorDataset(data_path, False, 11, depth, transform=None, pre_transform=pre_transform)
     test_set = val_set
 
     if args.debug:
@@ -695,16 +596,15 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
 def get_sym_dataset(args: Union[Namespace, ConfigDict]):
 
     pre_transform = get_pretransform(args, extra_pretransforms=[])
-    transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, args.dataset)
     extra_path = get_additional_path(args)
     if extra_path is not None:
         data_path = os.path.join(data_path, extra_path)
 
-    train_set = MySymDataset(data_path, 'train', 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
-    val_set = MySymDataset(data_path, 'val', 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
-    test_set = MySymDataset(data_path, 'test', 11, args.dataset.lower(), transform=transform, pre_transform=pre_transform)
+    train_set = MySymDataset(data_path, 'train', 11, args.dataset.lower(), transform=None, pre_transform=pre_transform)
+    val_set = MySymDataset(data_path, 'val', 11, args.dataset.lower(), transform=None, pre_transform=pre_transform)
+    test_set = MySymDataset(data_path, 'test', 11, args.dataset.lower(), transform=None, pre_transform=pre_transform)
     
     return train_set, val_set, test_set, None
 
@@ -717,7 +617,6 @@ def get_heterophily(args):
         datapath = os.path.join(datapath, extra_path)
 
     pre_transforms = get_pretransform(args, extra_pretransforms=[GraphToUndirected()])
-    transform = get_transform(args)
 
     splits = {'train': [], 'val': [], 'test': []}
 
@@ -729,7 +628,7 @@ def get_heterophily(args):
         for fold in folds:
             dataset = WebKB(root=datapath,
                             name=dataset_name,
-                            transform=transform,
+                            transform=None,
                             pre_transform=pre_transforms)
             mask = getattr(dataset.data, f'{split}_mask')
             mask = mask[:, fold]
@@ -750,55 +649,34 @@ def get_heterophily(args):
 def get_qm9(args: Union[Namespace, ConfigDict]):
     pre_transform = get_pretransform(args, extra_pretransforms=[
         GraphCoalesce()])
-    transform = get_transform(args)
 
     data_path = os.path.join(args.data_path, 'QM9')
     extra_path = get_additional_path(args)
     if extra_path is not None:
         data_path = os.path.join(data_path, extra_path)
 
-    if hasattr(args, 'task_id'):
-        if isinstance(args.task_id, int):
-            assert 0 <= args.task_id <= 12
-            task_id = [args.task_id]
-        else:
-            raise TypeError
-    else:
-        task_id = list(range(13))
+    assert hasattr(args, 'task_id') and 0 <= args.task_id <= 12
 
-    dataset_lists = defaultdict(list)
+    dataset_lists = dict()
 
     for split in ['train', 'valid', 'test']:
 
         dataset = QM9(data_path,
                       split=split,
-                      transform=transform,
+                      transform=None,
                       pre_transform=pre_transform)
 
-        for i in task_id:
-            new_data = Data()
-            for k, v in dataset._data._store.items():
-                if k != 'y':
-                    setattr(new_data, k, v)
-                else:
-                    setattr(new_data, k, v[:, i:i + 1])
-
-            d = QM9(data_path,
-                    split=split,
-                    return_data=False,
-                    transform=transform,
-                    pre_transform=pre_transform)
-            d.data = new_data
-            dataset_lists[split].append(d)
+        dataset._data.y = dataset._data.y[:, args.task_id: args.task_id + 1]
+        dataset_lists[split] = dataset
 
     train_set = dataset_lists['train']
     val_set = dataset_lists['valid']
     test_set = dataset_lists['test']
 
     if args.debug:
-        train_set = [t[:16] for t in train_set]
-        val_set = [t[:16] for t in val_set]
-        test_set = [t[:16] for t in test_set]
+        train_set = train_set[:16]
+        val_set = val_set[:16]
+        test_set = test_set[:16]
 
     # https://github.com/radoslav11/SP-MPNN/blob/main/src/experiments/run_gr.py#L22
     norm_const = [
@@ -818,7 +696,7 @@ def get_qm9(args: Union[Namespace, ConfigDict]):
     ]
     std = 1. / torch.tensor(norm_const, dtype=torch.float)
 
-    return train_set, val_set, test_set, [std[i] for i in task_id], task_id
+    return train_set, val_set, test_set, std[args.task_id]
 
 
 def get_exp_dataset(args, num_fold=10):
@@ -829,11 +707,10 @@ def get_exp_dataset(args, num_fold=10):
                                                                 GraphAttrToOneHot(
                                                                     DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
                                                                     0)])
-    transform = get_transform(args)
 
     dataset = PlanarSATPairsDataset(os.path.join(args.data_path, args.dataset.upper()),
                                     extra_path,
-                                    transform=transform,
+                                    transform=None,
                                     pre_transform=pre_transform)
     dataset.data.y = dataset.data.y.float()
 

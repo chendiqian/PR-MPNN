@@ -1,8 +1,6 @@
 import torch.nn as nn
 from data.const import DATASET_FEATURE_STAT_DICT
 from models.downstream_models.gnn_duo import GNN_Duo
-from models.downstream_models.gnn_halftransformer import GNN_HalfTransformer
-from models.downstream_models.gnn_normal import GNN_Normal
 from models.my_encoder import FeatureEncoder, BondEncoder, QM9FeatureEncoder
 from models.upstream_models.edge_candidate_selector import EdgeSelector
 from models.downstream_models.qm9_gnn import QM9_Net
@@ -37,10 +35,6 @@ def get_encoder(args, for_downstream):
         lap = args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None
         rwse = args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None
     edge_hidden = hidden
-
-    if args.model.lower() in ['trans+gin', 'trans+gine']:
-        # need to overwrite
-        hidden = args.tf_hid_size
 
     if 'qm9' in args.dataset.lower():
         encoder = QM9FeatureEncoder(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
@@ -82,24 +76,7 @@ def get_encoder(args, for_downstream):
 def get_model(args, device, *_args):
     model, emb_model = None, None
     encoder, edge_encoder = get_encoder(args, for_downstream=True)
-    if args.model.lower() in ['gin_normal', 'gine_normal', 'pna_normal', 'gcn_normal']:
-        model = GNN_Normal(
-            encoder,
-            edge_encoder,
-            args.model.lower().split('_')[0],  # gin or gine
-            deg_hist=args.ds_deg if hasattr(args, 'ds_deg') else None,
-            in_features=args.hid_size,
-            num_layers=args.num_convlayers,
-            hidden=args.hid_size,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            use_bn=args.bn,
-            dropout=args.dropout,
-            residual=args.residual,
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            graph_pooling=args.graph_pooling)
-    elif 'duo' in args.model.lower():
-        share_weights = args.model.lower().endswith('shared')  # default False
-
+    if 'duo' in args.model.lower():
         gnn_type = args.model.lower().split('_')[0]
         if gnn_type.startswith('qm9'):
             assert not (hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse')
@@ -108,11 +85,8 @@ def get_model(args, device, *_args):
         model = GNN_Duo(encoder,
                         edge_encoder,
                         gnn_type,
-                        share_weights=share_weights,
                         include_org=args.sample_configs.include_original_graph,
                         num_candidates=2 if args.sample_configs.separate and args.sample_configs.sample_k2 > 0 else 1,
-                        deg_hist=args.ds_deg if hasattr(args, 'ds_deg') else None,
-                        in_features=DATASET_FEATURE_STAT_DICT[args.dataset]['node'],
                         num_layers=args.num_convlayers,
                         hidden=args.hid_size,
                         num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
@@ -123,26 +97,6 @@ def get_model(args, device, *_args):
                         mlp_layers_intergraph=args.mlp_layers_intergraph,
                         graph_pooling=args.graph_pooling,
                         inter_graph_pooling=args.inter_graph_pooling)
-    elif args.model.lower() in ['trans+gin', 'trans+gine']:
-        model = GNN_HalfTransformer(
-            encoder=encoder,
-            edge_encoder=edge_encoder,
-            base_gnn=args.model.lower().split('+')[-1],
-            head=args.tf_head,
-            gnn_in_features=args.tf_hid_size,
-            num_layers=args.num_convlayers,
-            tf_layers=args.tf_layers,
-            hidden=args.hid_size,
-            tf_hidden=args.tf_hid_size,
-            tf_dropout=args.tf_dropout,
-            attn_dropout=args.attn_dropout,
-            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
-            mlp_layers_intragraph=args.mlp_layers_intragraph,
-            layer_norm=False,
-            batch_norm=True,
-            use_spectral_norm=True,
-            graph_pooling=args.graph_pooling,
-        )
     elif args.model in ['qm9_gin', 'qm9_gine']:
         assert not (hasattr(args.imle_configs, 'rwse') or hasattr(args, 'rwse')
                     or hasattr(args.imle_configs, 'lap') or hasattr(args, 'lap')), "Need a new node encoder!"

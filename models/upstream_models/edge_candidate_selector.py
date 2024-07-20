@@ -2,9 +2,9 @@ from typing import Union
 
 import torch
 from torch_geometric.data import Data, Batch
+from torch_geometric.nn import MLP
 
-from models.nn_modules import MLP
-from models.my_convs import BaseGINE, BasePNA, GNN_Placeholder
+from models.my_convs import BaseGINE, GNN_Placeholder
 
 
 class EdgeSelector(torch.nn.Module):
@@ -19,9 +19,7 @@ class EdgeSelector(torch.nn.Module):
                  directed_sampling=False,
                  dropout=0.,
                  ensemble=1,
-                 use_bn=False,
-                 deg_hist=None,
-                 upstream_model=None):
+                 use_bn=False):
         super(EdgeSelector, self).__init__()
 
         if isinstance(mlp_layer, int):
@@ -34,12 +32,7 @@ class EdgeSelector(torch.nn.Module):
         if gnn_layer == 0:
             self.gnn = GNN_Placeholder()
         else:
-            if upstream_model == 'pna':
-                assert deg_hist is not None
-                self.gnn = BasePNA(in_dim, gnn_layer, hid_size, hid_size, True, dropout, True, deg_hist, edge_encoder)
-            else:
-                # default to GIN
-                self.gnn = BaseGINE(in_dim, gnn_layer, hid_size, hid_size, True, dropout, True, edge_encoder)
+            self.gnn = BaseGINE(in_dim, gnn_layer, hid_size, hid_size, True, dropout, True, edge_encoder)
             in_dim = hid_size
 
         self.atom_encoder = encoder
@@ -79,6 +72,3 @@ class EdgeSelector(torch.nn.Module):
             delete_edge_candidates = None
 
         return select_edge_candidates, delete_edge_candidates, edge_candidate_idx
-
-    def reset_parameters(self):
-        raise NotImplementedError

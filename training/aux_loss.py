@@ -1,4 +1,5 @@
 from typing import Tuple
+from ml_collections import ConfigDict
 
 import numpy as np
 import torch
@@ -166,3 +167,29 @@ def get_original_bias(adj: Tuple[torch.Tensor], logits: torch.Tensor, auxloss: f
     loss = torch.log((logits + SMALL_EPS)[adj])   # try to max this
     loss = loss.mean()
     return - loss * auxloss
+
+
+def get_auxloss(auxloss_dict: ConfigDict, logits: torch.FloatTensor, node_mask: torch.FloatTensor):
+    auxloss = 0.
+    if auxloss_dict is None:
+        return auxloss
+
+    if hasattr(auxloss_dict, 'min_l2'):
+        auxloss = auxloss + max_min_l2_distance_loss(logits, auxloss_dict.min_l2, )
+    if hasattr(auxloss_dict, 'l2'):
+        auxloss = auxloss + max_l2_distance_loss(logits, auxloss_dict.l2, )
+    if hasattr(auxloss_dict, 'mask_l2'):
+        auxloss = auxloss + max_l2_distance_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_l2, )
+    if hasattr(auxloss_dict, 'cos'):
+        auxloss = auxloss + cosine_similarity_loss(logits, auxloss_dict.cos, )
+    if hasattr(auxloss_dict, 'mask_cos'):
+        auxloss = auxloss + cosine_similarity_loss(node_mask.reshape(-1, *node_mask.shape[-2:]),
+                                                   auxloss_dict.mask_cos, )
+    if hasattr(auxloss_dict, 'kl'):
+        auxloss = auxloss + pairwise_KL_divergence(logits, auxloss_dict.kl, )
+    if hasattr(auxloss_dict, 'mask_kl'):
+        auxloss = auxloss + pairwise_KL_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_kl, )
+    if hasattr(auxloss_dict, 'batch_kl'):
+        # targeted at node mask
+        auxloss = auxloss + batch_kl_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.batch_kl, )
+    return auxloss

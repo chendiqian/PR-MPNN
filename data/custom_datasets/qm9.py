@@ -48,13 +48,12 @@ class QM9(InMemoryDataset):
     def __init__(self,
                  root,
                  split,
-                 return_data=True,
                  transform=None, pre_transform=None, pre_filter=None):
         assert split in ['train', 'valid', 'test']
         self.split = split
         super().__init__(root, transform, pre_transform, pre_filter)
         self.slices = torch.load(os.path.join(self.processed_dir, f'{split}_slice.pt'))
-        self.data = torch.load(os.path.join(self.processed_dir, f'{split}_data.pt')) if return_data else None
+        self.data = torch.load(os.path.join(self.processed_dir, f'{split}_data.pt'))
 
     @property
     def raw_file_names(self):

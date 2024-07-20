@@ -1,4 +1,6 @@
 import os
+import logging
+import yaml
 
 import numpy as np
 import torch
@@ -14,51 +16,32 @@ from models.get_model import get_model
 from training.trainer import Trainer
 
 torch.multiprocessing.set_sharing_strategy('file_system')
-from datetime import datetime
-import logging
-import yaml
 
 ex = Experiment()
 
 
-def naming(args) -> str:
-    name = f'{args.dataset}_{args.model}'
-
-    if hasattr(args, 'wandb_prefix'):
-        name = f'{args.wandb_prefix}_' + name
-
-    return name
-
-
-def prepare_exp(folder_name: str, num_run: int, num_fold: int) -> str:
-    run_folder = os.path.join(folder_name,
-                              f'run{num_run}_fold{num_fold}_{"".join(str(datetime.now()).split(":"))}')
-    os.mkdir(run_folder)
-    return run_folder
-
 @ex.automain
 def main(fixed):
     args = ConfigDict(dict(fixed))
-    hparams = naming(args)
+    run_name = args.wandb_name
     logging.basicConfig(level=logging.DEBUG)
 
-    wandb_name = args.wandb_name if hasattr(args, "wandb_name") else "imle_ablate"
-    wandb.init(project=wandb_name, mode="online" if args.use_wandb else "disabled",
+    wandb.init(project=args.wandb_project, mode="online" if args.use_wandb else "disabled",
                config=args.to_dict(),
-               name=hparams,
+               name=run_name,
                entity="mls-stuttgart")
 
     if not os.path.isdir(args.log_path):
         os.mkdir(args.log_path)
-    if not os.path.isdir(os.path.join(args.log_path, hparams)):
-        os.mkdir(os.path.join(args.log_path, hparams))
-    folder_name = os.path.join(args.log_path, hparams)
+    if not os.path.isdir(os.path.join(args.log_path, run_name)):
+        os.mkdir(os.path.join(args.log_path, run_name))
+    folder_name = os.path.join(args.log_path, run_name)
 
     with open(os.path.join(folder_name, 'config.yaml'), 'w') as outfile:
         yaml.dump(args.to_dict(), outfile, default_flow_style=False)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_loaders, val_loaders, test_loaders, task_id = get_data(args, device)
+    train_loaders, val_loaders, test_loaders = get_data(args, device)
 
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=TASK_TYPE_DICT[args.dataset.lower()],
@@ -66,18 +49,13 @@ def main(fixed):
                       patience_target=args.early_stop.target,
                       criterion=CRITERION_DICT[args.dataset.lower()],
                       device=device,
-                      num_layers=args.num_convlayers,
                       imle_configs=args.imle_configs,
                       sample_configs=args.sample_configs,
-                      auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else None,
-                      wandb=wandb,
-                      use_wandb=args.use_wandb,
-                      connectedness_metric_args=args.connectedness if hasattr(args, 'connectedness') else None)
+                      auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else None)
 
     best_train_metrics = [[] for _ in range(args.num_runs)]
     best_val_metrics = [[] for _ in range(args.num_runs)]
     test_metrics = [[] for _ in range(args.num_runs)]
-    test_metrics_ensemble = [[] for _ in range(args.num_runs)]
     time_per_epoch = []
 
     get_embed_opt = make_get_embed_opt(args)
@@ -90,23 +68,6 @@ def main(fixed):
             optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
             optimizer, scheduler = get_opt(model)
 
-            # count the number of parameters for model and emb_model
-            num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-            if emb_model is not None:
-                num_params_emb = sum(p.numel() for p in emb_model.parameters() if p.requires_grad)
-                total_params = num_params + num_params_emb
-            else:
-                num_params_emb = 0
-                total_params = num_params
-            # log to wandb
-            wandb.run.summary['n_params_downstream'] = num_params
-            wandb.run.summary['total_params'] = total_params
-            wandb.run.summary['n_params_upstream'] = num_params_emb
-
-            logging.info(f'Number of params: {total_params} (upstream: {num_params_emb}, downstream: {num_params})')
-
-            run_folder = prepare_exp(folder_name, _run, _fold)
-
             best_epoch = 0
             epoch_timer = SyncMeanTimer()
             for epoch in range(args.max_epochs):
@@ -117,15 +78,22 @@ def main(fixed):
                                                          optimizer_embd,
                                                          optimizer)
 
-                val_loss, val_metric, val_loss_ensemble, val_metric_ensemble, early_stop = trainer.inference(
+                val_loss, val_metric, early_stop = trainer.inference(
                     val_loader,
                     emb_model,
                     model,
                     scheduler_embd,
                     scheduler,
-                    train_loss,
-                    train_metric,
                     test=False)
+
+                if args.use_wandb:
+                    log_dict = {"train_loss": train_loss,
+                                "train_metric": train_metric,
+                                "val_loss": val_loss,
+                                "val_metric": val_metric,
+                                "down_lr": scheduler.get_last_lr()[-1] if scheduler is not None else 0.,
+                                "up_lr": scheduler_embd.get_last_lr()[-1] if scheduler_embd is not None else 0.}
+                    wandb.log(log_dict)
 
                 if epoch > args.min_epochs and early_stop:
                     logging.info('early stopping')
@@ -136,108 +104,46 @@ def main(fixed):
                             f'val loss: {round(val_loss, 5)}, '
                             f'patience: {trainer.patience}, '
                             f'training metric: {round(train_metric, 5)}, '
-                            f'val metric: {round(val_metric, 5)}, '
-                            f'val loss ensemble: {round(val_loss_ensemble, 5)}, '
-                            f'val metric ensemble: {round(val_metric_ensemble, 5)}')
+                            f'val metric: {round(val_metric, 5)}')
 
                 if trainer.patience == 0:
                     best_epoch = epoch
-                    torch.save(model.state_dict(), f'{run_folder}/model_best.pt')
+                    torch.save(model.state_dict(), f'{folder_name}/model_best_{_run}_{_fold}.pt')
                     if emb_model is not None:
                         torch.save(emb_model.state_dict(),
-                                   f'{run_folder}/embd_model_best.pt')
+                                   f'{folder_name}/embd_model_best_{_run}_{_fold}.pt')
 
-            # rm cached model
-            used_model = os.listdir(run_folder)
-            for modelname in used_model:
-                if modelname.endswith('.pt') and not modelname.endswith('best.pt'):
-                    os.remove(os.path.join(run_folder, modelname))
-            # save last model
-            torch.save(model.state_dict(), f'{run_folder}/model_final.pt')
-            if emb_model is not None:
-                torch.save(emb_model.state_dict(), f'{run_folder}/embd_model_final.pt')
             # test inference
-            model.load_state_dict(torch.load(f'{run_folder}/model_best.pt'))
+            model.load_state_dict(torch.load(f'{folder_name}/model_best_{_run}_{_fold}.pt'))
             logging.info(f'loaded best model at epoch {best_epoch}')
             if emb_model is not None:
-                emb_model.load_state_dict(torch.load(f'{run_folder}/embd_model_best.pt'))
+                emb_model.load_state_dict(torch.load(f'{folder_name}/embd_model_best_{_run}_{_fold}.pt'))
 
             start_time = epoch_timer.synctimer()
-            test_loss, test_metric, test_loss_ensemble, test_metric_ensemble, _ = trainer.inference(test_loader,
-                                                                                                    emb_model, model,
-                                                                                                    test=True)
+            test_loss, test_metric, _ = trainer.inference(test_loader, emb_model, model, test=True)
             end_time = epoch_timer.synctimer()
             logging.info(f'Best val loss: {trainer.best_val_loss}')
             logging.info(f'Best val metric: {trainer.best_val_metric}')
             logging.info(f'test loss: {test_loss}')
             logging.info(f'test metric: {test_metric}')
-            logging.info(f'test loss ensemble: {test_loss_ensemble}')
-            logging.info(f'test metric ensemble: {test_metric_ensemble}')
 
             best_train_metrics[_run].append(trainer.best_train_metric)
             best_val_metrics[_run].append(trainer.best_val_metric)
             test_metrics[_run].append(test_metric)
-            test_metrics_ensemble[_run].append(test_metric_ensemble)
             time_per_epoch.append(end_time - start_time)
 
             trainer.clear_stats()
 
-    if args.early_stop.target == 'train_metric':
-        best_metrics = np.array(best_train_metrics)
-    elif args.early_stop.target in ['val_metric', 'val_metric_ensemble']:
-        best_metrics = np.array(best_val_metrics)
-    else:
-        raise NotImplementedError
     test_metrics = np.array(test_metrics)
-    test_metrics_ensemble = np.array(test_metrics_ensemble)
 
-    if args.dataset.lower() != 'qm9':
-        results = {'best_metrics_type': args.early_stop.target,
-                   'best_metrics_stats': f'mean: {np.mean(best_metrics)}, std: {np.std(best_metrics)}',
-                   'test_metrics_stats': f'mean: {np.mean(test_metrics)}, std: {np.std(test_metrics)}',
-                   'test_metrics_ensemble_stats': f'mean: {np.mean(test_metrics_ensemble)}, std: {np.std(test_metrics_ensemble)}',
-                   'time_stats': f'mean: {np.mean(time_per_epoch)}, std: {np.std(time_per_epoch)}'}
+    results = {'test_metrics_stats': f'mean: {np.mean(test_metrics)}, std: {np.std(test_metrics)}',
+               'time_stats': f'mean: {np.mean(time_per_epoch)}, std: {np.std(time_per_epoch)}'}
 
-        wandb.run.summary['final_metric'] = np.mean(best_metrics)
-        wandb.run.summary['final_metric_std'] = np.std(best_metrics)
+    wandb.run.summary['test_metric'] = np.mean(test_metrics)
+    wandb.run.summary['test_metric_std'] = np.std(test_metrics)
 
-        wandb.run.summary['test_metric'] = np.mean(test_metrics)
-        wandb.run.summary['test_metric_std'] = np.std(test_metrics)
-
-        wandb.run.summary['test_metric_ensemble'] = np.mean(test_metrics_ensemble)
-        wandb.run.summary['test_metric_ensemble_std'] = np.std(test_metrics_ensemble)
-
-        wandb.run.summary['time_per_epoch'] = np.mean(time_per_epoch)
-        wandb.run.summary['time_per_epoch_std'] = np.std(time_per_epoch)
-    else:
-        results = {'best_metrics_type': args.early_stop.target,
-                   'time_stats': f'mean: {np.mean(time_per_epoch)}, std: {np.std(time_per_epoch)}'}
-        best_metrics_mean = np.mean(best_metrics, axis=0)
-        best_metrics_std = np.std(best_metrics, axis=0)
-        test_metrics_mean = np.mean(test_metrics, axis=0)
-        test_metrics_std = np.std(test_metrics, axis=0)
-        test_metrics_ensemble_mean = np.mean(test_metrics_ensemble, axis=0)
-        test_metrics_ensemble_std = np.std(test_metrics_ensemble, axis=0)
-        # https://github.com/radoslav11/SP-MPNN/blob/main/src/experiments/run_gr.py#L6C1-L20C2
-        tasks = ["mu", "alpha", "HOMO", "LUMO", "gap", "R2", "ZPVE", "U0", "U", "H", "G", "Cv", "Omega"]
-        for i, id in enumerate(task_id):
-            t = tasks[id]
-            results[f'{t}_best_metrics_stats'] = f'mean: {best_metrics_mean[i]}, std: {best_metrics_std[i]}'
-            results[f'{t}_test_metrics_stats'] = f'mean: {test_metrics_mean[i]}, std: {test_metrics_std[i]}'
-            results[
-                f'{t}_test_metrics_ensemble_stats'] = f'mean: {test_metrics_ensemble_mean[i]}, std: {test_metrics_ensemble_std[i]}'
-
-            wandb.run.summary[f'{t}_final_metric'] = best_metrics_mean[i]
-            wandb.run.summary[f'{t}_final_metric_std'] = best_metrics_std[i]
-
-            wandb.run.summary[f'{t}_test_metric'] = test_metrics_mean[i]
-            wandb.run.summary[f'{t}_test_metric_std'] = test_metrics_std[i]
-
-            wandb.run.summary[f'{t}_test_metric_ensemble'] = test_metrics_ensemble_mean[i]
-            wandb.run.summary[f'{t}_test_metric_ensemble_std'] = test_metrics_ensemble_std[i]
-
-        wandb.run.summary['time_per_epoch'] = np.mean(time_per_epoch)
-        wandb.run.summary['time_per_epoch_std'] = np.std(time_per_epoch)
+    wandb.run.summary['time_per_epoch'] = np.mean(time_per_epoch)
+    wandb.run.summary['time_per_epoch_std'] = np.std(time_per_epoch)
 
     with open(os.path.join(folder_name, 'result.yaml'), 'w') as outfile:
         yaml.dump(results, outfile, default_flow_style=False)

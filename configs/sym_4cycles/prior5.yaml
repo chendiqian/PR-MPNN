@@ -1,0 +1,74 @@
+fixed:
+  dataset: sym_4cycles
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_project: "experiment"
+  wandb_name: "name"
+
+
+  sample_configs:
+    separate: False
+    directed: True
+    sample_k: 2   # edge addition
+    sample_k2: 2   # edge deletion
+    candid_pool: 1024
+    ensemble: 5
+    merge_priors: False
+    heuristic: longest_path
+    include_original_graph: False
+
+  imle_configs:
+    num_train_ensemble: 50
+    num_val_ensemble: 50
+
+    model: "edge_selector"
+
+    emb_hid_size: 16
+    emb_optim: "adamw"
+    emb_scheduler: None
+    gnn_layer: 4
+    mlp_layer: 1
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+
+    # auxloss:
+    #   variance: 0.
+    #   l2: 0.
+    #   l2_min: 0.
+    #   kl: 0.
+    #   cos: 0.
+    #   mask_kl: 1.
+    #   mask_cos: 0.
+    #   mask_l2: 0.
+
+  optim: "adam"
+  model: gin_duo
+  hid_size: 16
+  lr: 1.e-3
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'max'
+    patience: 50
+    target: 'val_metric_ensemble'
+  early_stop:
+    patience: 150
+    target: val_metric_ensemble
+  reg: 0.
+  num_convlayers: 4
+  mlp_layers_intragraph: 1
+  mlp_layers_intergraph: 1
+  graph_pooling: mean
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 64
+  min_epochs: 700
+  max_epochs: 700
+  data_path: './datasets'
+  debug: False
+  num_runs: 5

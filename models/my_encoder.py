@@ -8,7 +8,8 @@ from ogb.graphproppred.mol_encoder import AtomEncoder
 
 from torch import nn as nn
 
-from models.nn_modules import BiEmbedding, MLP, BiEmbedding_cat
+from models.nn_modules import BiEmbedding, BiEmbedding_cat
+from torch_geometric.nn import MLP
 
 full_atom_feature_dims = get_atom_feature_dims()
 full_bond_feature_dims = get_bond_feature_dims()
@@ -22,9 +23,6 @@ class AtomEncoderPlaceholder(torch.nn.Module):
 
     def forward(self, x):
         return x
-
-    def reset_parameters(self):
-        pass
 
 
 class AtomEncoder(torch.nn.Module):
@@ -46,10 +44,6 @@ class AtomEncoder(torch.nn.Module):
 
         return x_embedding
 
-    def reset_parameters(self):
-        for emb in self.atom_embedding_list:
-            torch.nn.init.xavier_uniform_(emb.weight.data)
-
 
 class QM9AtomEncoder(torch.nn.Module):
 
@@ -69,10 +63,6 @@ class QM9AtomEncoder(torch.nn.Module):
             x_embedding += self.atom_embedding_list[i](x[:, i])
 
         return x_embedding
-
-    def reset_parameters(self):
-        for emb in self.atom_embedding_list:
-            torch.nn.init.xavier_uniform_(emb.weight.data)
 
 
 class QM9FeatureEncoder(torch.nn.Module):
@@ -148,10 +138,6 @@ class BondEncoder(torch.nn.Module):
 
         return bond_embedding
 
-    def reset_parameters(self):
-        for emb in self.bond_embedding_list:
-            torch.nn.init.xavier_uniform_(emb.weight.data)
-
 
 class FeatureEncoder(torch.nn.Module):
 
@@ -205,11 +191,6 @@ class FeatureEncoder(torch.nn.Module):
         if self.rw_encoder is not None:
             x = self.rw_encoder(x, batch)
         return x
-
-    def reset_parameters(self):
-        self.linear_embed.reset_parameters()
-        self.lap_encoder.reset_parameters()
-        self.rw_encoder.reset_parameters()
 
 
 class LapPENodeEncoder(torch.nn.Module):
@@ -277,13 +258,6 @@ class LapPENodeEncoder(torch.nn.Module):
         x = torch.cat((h, pos_enc), 1)
         # Keep PE also separate in a variable (e.g. for skip connections to input)
         return x
-
-    def reset_parameters(self):
-        if self.expand_x:
-            self.linear_x.reset_parameters()
-        if self.raw_norm:
-            self.raw_norm.reset_parameters()
-        self.pe_encoder.reset_parameters()
 
 
 class KernelPENodeEncoder(torch.nn.Module):
@@ -353,13 +327,6 @@ class KernelPENodeEncoder(torch.nn.Module):
         # Concatenate final PEs to input embedding
         x = torch.cat((h, pos_enc), 1)
         return x
-
-    def reset_parameters(self):
-        if self.expand_x:
-            self.linear_x.reset_parameters()
-        if self.raw_norm:
-            self.raw_norm.reset_parameters()
-        self.pe_encoder.reset_parameters()
 
 
 class RWSENodeEncoder(KernelPENodeEncoder):

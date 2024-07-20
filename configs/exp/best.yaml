@@ -1,0 +1,62 @@
+fixed:
+  dataset: exp
+  log_path: './logs'
+
+  use_wandb: True
+  wandb_project: "experiment"
+  wandb_name: "name"
+
+  sample_configs:
+    separate: False
+    directed: True
+    sample_k: 10   # edge addition
+    sample_k2: 10   # edge deletion
+    candid_pool: 1024
+    ensemble: 5
+    heuristic: longest_path
+    include_original_graph: False
+
+  imle_configs:
+    num_train_ensemble: 10
+    num_val_ensemble: 10
+
+    model: "edge_selector"
+
+    emb_hid_size: 64
+    emb_optim: "adamw"
+    emb_scheduler: None
+    gnn_layer: 8
+    mlp_layer: 2
+    dropout: 0.
+    embd_lr: 1.e-3
+    reg_embd: 0.
+    batchnorm: True
+
+  optim: "adam"
+  model: gin_duo
+  hid_size: 32
+  lr: 1.e-3
+  lr_decay:
+    scheduler: 'plateau'
+    decay_rate: 0.5
+    mode: 'max'
+    patience: 50
+    target: 'val_metric'
+  early_stop:
+    patience: 100
+    target: val_metric
+  reg: 0.
+  num_convlayers: 6
+  mlp_layers_intragraph: 3
+  mlp_layers_intergraph: 2
+  graph_pooling: mean
+  inter_graph_pooling: cat
+  dropout: 0.
+  bn: True
+  residual: True
+  batch_size: 32
+  min_epochs: 0
+  max_epochs: 300
+  data_path: './datasets'
+  debug: True
+  num_runs: 1

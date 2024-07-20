@@ -12,11 +12,7 @@ from torch_scatter import scatter
 from data.utils.datatype_utils import (DuoDataStructure)
 from data.utils.tensor_utils import (non_merge_coalesce,
                                      batch_repeat_edge_index)
-from training.aux_loss import (cosine_similarity_loss,
-                               max_min_l2_distance_loss,
-                               max_l2_distance_loss,
-                               pairwise_KL_divergence,
-                               batch_kl_divergence)
+from training.aux_loss import get_auxloss
 
 LARGE_NUMBER = 1.e10
 
@@ -90,29 +86,10 @@ def sample4deletion(dat_batch: Data,
     logits = deletion_logits - padding_bias
 
     # (#sampled, B, Nmax, E), (B, Nmax, E)
-    sampler_class.policy = 'edge_candid'  # because we are sampling from edge_index candidate
     sampler_class.k = samplek_dict['del_k']
     node_mask, _ = forward_func(logits)
 
-    if auxloss_dict is not None:
-        if hasattr(auxloss_dict, 'min_l2'):
-            auxloss = auxloss + max_min_l2_distance_loss(deletion_logits, auxloss_dict.min_l2, )
-        if hasattr(auxloss_dict, 'l2'):
-            auxloss = auxloss + max_l2_distance_loss(deletion_logits, auxloss_dict.l2, )
-        if hasattr(auxloss_dict, 'mask_l2'):
-            auxloss = auxloss + max_l2_distance_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_l2, )
-        if hasattr(auxloss_dict, 'cos'):
-            auxloss = auxloss + cosine_similarity_loss(deletion_logits, auxloss_dict.cos, )
-        if hasattr(auxloss_dict, 'mask_cos'):
-            auxloss = auxloss + cosine_similarity_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_cos, )
-        if hasattr(auxloss_dict, 'kl'):
-            auxloss = auxloss + pairwise_KL_divergence(deletion_logits, auxloss_dict.kl, )
-        if hasattr(auxloss_dict, 'mask_kl'):
-            auxloss = auxloss + pairwise_KL_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_kl, )
-        if hasattr(auxloss_dict, 'batch_kl'):
-            # targeted at node mask
-            auxloss = auxloss + batch_kl_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.batch_kl, )
-
+    auxloss = auxloss + get_auxloss(auxloss_dict, deletion_logits, node_mask)
     return_logits = (deletion_logits.detach().clone(), node_mask.detach().clone())
     VE, B, N, E = node_mask.shape
     sampled_edge_weights = 1. - node_mask
@@ -129,61 +106,6 @@ def sample4deletion(dat_batch: Data,
     return del_edge_weight, return_logits, auxloss
 
 
-def get_weighted_mask(weight_edges: str,
-                      node_mask: torch.Tensor,
-                      marginals: torch.Tensor,
-                      output_logits: torch.Tensor,
-                      mask_out: bool,
-                      repeats: int):
-    if weight_edges == 'None' or weight_edges is None:
-        sampled_edge_weights = node_mask
-    else:
-        if weight_edges == 'marginals':
-            # Maybe we should also try this with softmax?
-            sampled_edge_weights = torch.stack([marginals] * repeats, dim=0)
-        elif weight_edges == 'logits':
-            sampled_edge_weights = torch.stack([output_logits] * repeats, dim=0)
-        elif weight_edges == 'sigmoid_logits':
-            sampled_edge_weights = torch.stack([torch.sigmoid(output_logits)] * repeats, dim=0)
-        else:
-            raise ValueError(f"{weight_edges} not supported")
-        if mask_out:
-            sampled_edge_weights = sampled_edge_weights * node_mask
-
-    return sampled_edge_weights
-
-
-def assign_layer_wise_info(rewire_layers: List,
-                           num_layers: int,
-                           rewired_batch: Batch,
-                           dumb_repeat_edge_slice: torch.Tensor,
-                           dumb_repeat_edge_index: torch.Tensor,
-                           dumb_repeat_edge_attr: torch.Tensor,
-                           ):
-    per_layer_slice_dict = [rewired_batch._slice_dict['edge_index'] if idx_l in rewire_layers
-                            else dumb_repeat_edge_slice for idx_l in range(num_layers)]
-    per_layer_edge_index = [rewired_batch.edge_index if idx_l in rewire_layers
-                            else dumb_repeat_edge_index for idx_l in range(num_layers)]
-    per_layer_edge_attr = [rewired_batch.edge_attr if idx_l in rewire_layers
-                           else dumb_repeat_edge_attr for idx_l in range(num_layers)] \
-        if dumb_repeat_edge_attr is not None else [None] * num_layers
-    pad = torch.ones(dumb_repeat_edge_index.shape[1], dtype=torch.float,
-                     device=dumb_repeat_edge_index.device)
-    per_layer_edge_weight = [rewired_batch.edge_weight if idx_l in rewire_layers
-                             else pad for idx_l in range(num_layers)]
-
-    rewired_batch._slice_dict['edge_index'] = per_layer_slice_dict
-    rewired_batch.edge_index = per_layer_edge_index
-    rewired_batch.edge_attr = per_layer_edge_attr
-    rewired_batch.edge_weight = per_layer_edge_weight
-
-    rewired_batch._slice_dict['edge_weight'] = rewired_batch._slice_dict['edge_index']
-    if rewired_batch.edge_attr is not None:
-        rewired_batch._slice_dict['edge_attr'] = rewired_batch._slice_dict['edge_index']
-
-    return rewired_batch
-
-
 def construct_from_edge_candidate(dat_batch: Data,
                                   graphs: List[Data],
                                   train: bool,
@@ -195,23 +117,15 @@ def construct_from_edge_candidate(dat_batch: Data,
                                   sampler_class,
                                   train_forward: Callable,
                                   val_forward: Callable,
-                                  weight_edges: str,
-                                  marginals_mask: bool,
                                   include_original_graph: bool,
                                   separate: bool = False,
-                                  in_place: bool = True,
                                   directed_sampling: bool = False,
-                                  num_layers: int = None,
-                                  rewire_layers: List = None,
                                   auxloss_dict: ConfigDict = None,
                                   sample_ratio: float = 1.0):
     """
     A super lengthy, cpmplicated and coupled function
     should find time to clean and comment it
     """
-    assert in_place
-
-    auxloss = 0.
 
     VE = sampler_class.train_ensemble if train else sampler_class.val_ensemble
     E = addition_logits.shape[-1]
@@ -247,31 +161,11 @@ def construct_from_edge_candidate(dat_batch: Data,
         sampler_class.k = new_samplek_dict['add_k']
         node_mask, marginals = train_forward(logits) if train else val_forward(logits)
 
-        if train and auxloss_dict is not None:
-            if hasattr(auxloss_dict, 'min_l2'):
-                auxloss = auxloss + max_min_l2_distance_loss(output_logits, auxloss_dict.min_l2, )
-            if hasattr(auxloss_dict, 'l2'):
-                auxloss = auxloss + max_l2_distance_loss(output_logits, auxloss_dict.l2, )
-            if hasattr(auxloss_dict, 'mask_l2'):
-                auxloss = auxloss + max_l2_distance_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_l2, )
-            if hasattr(auxloss_dict, 'cos'):
-                auxloss = auxloss + cosine_similarity_loss(output_logits, auxloss_dict.cos, )
-            if hasattr(auxloss_dict, 'mask_cos'):
-                auxloss = auxloss + cosine_similarity_loss(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_cos, )
-            if hasattr(auxloss_dict, 'kl'):
-                auxloss = auxloss + pairwise_KL_divergence(output_logits, auxloss_dict.kl, )
-            if hasattr(auxloss_dict, 'mask_kl'):
-                auxloss = auxloss + pairwise_KL_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.mask_kl, )
-            if hasattr(auxloss_dict, 'batch_kl'):
-                # targeted at node mask
-                auxloss = auxloss + batch_kl_divergence(node_mask.reshape(-1, *node_mask.shape[-2:]), auxloss_dict.batch_kl, )
+        auxloss = get_auxloss(auxloss_dict, output_logits, node_mask) if train else 0.
 
-        sampled_edge_weights = get_weighted_mask(weight_edges,
-                                                 node_mask,
-                                                 marginals,
-                                                 output_logits,
-                                                 marginals_mask or not train,
-                                                 VE)
+        sampled_edge_weights = torch.stack([marginals] * VE, dim=0)
+        if not train:
+            sampled_edge_weights = sampled_edge_weights * node_mask
 
         # num_edges x E x VE
         add_edge_weight = sampled_edge_weights.permute((1, 2, 3, 0))[real_node_mask].reshape(-1, E * VE)
@@ -337,20 +231,12 @@ def construct_from_edge_candidate(dat_batch: Data,
 
         rewired_batch = sparsify_edge_weight(rewired_batch, merged_edge_weight, train)
 
-        if rewire_layers is not None:
-            rewired_batch = assign_layer_wise_info(rewire_layers,
-                                                   num_layers,
-                                                   rewired_batch,
-                                                   dumb_repeat_edge_slice,
-                                                   dumb_repeat_edge_index,
-                                                   dumb_repeat_edge_attr)
-
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
                                      candidates=[rewired_batch],
                                      y=rewired_batch.y,
                                      num_graphs=rewired_batch.num_graphs,
                                      num_unique_graphs=len(graphs))
-        return new_batch, None, auxloss
+        return new_batch, auxloss
     else:
         # for the graph adding with rewired edges in-place
         if add_edge_weight is not None:
@@ -382,14 +268,6 @@ def construct_from_edge_candidate(dat_batch: Data,
 
             add_rewired_batch = sparsify_edge_weight(add_rewired_batch, merged_edge_weight, train)
 
-            if rewire_layers is not None:
-                add_rewired_batch = assign_layer_wise_info(rewire_layers,
-                                                           num_layers,
-                                                           add_rewired_batch,
-                                                           dumb_repeat_edge_slice,
-                                                           dumb_repeat_edge_index,
-                                                           dumb_repeat_edge_attr)
-
             candidates = [add_rewired_batch]
         else:
             candidates = []
@@ -397,15 +275,6 @@ def construct_from_edge_candidate(dat_batch: Data,
         if del_edge_weight is not None:
             del_rewired_batch = Batch.from_data_list(new_graphs)
             del_rewired_batch = sparsify_edge_weight(del_rewired_batch, del_edge_weight, train)
-
-            if rewire_layers is not None:
-                del_rewired_batch = assign_layer_wise_info(rewire_layers,
-                                                           num_layers,
-                                                           del_rewired_batch,
-                                                           dumb_repeat_edge_slice,
-                                                           dumb_repeat_edge_index,
-                                                           dumb_repeat_edge_attr)
-
             candidates.append(del_rewired_batch)
 
         new_batch = DuoDataStructure(org=dat_batch if include_original_graph else None,
@@ -413,4 +282,4 @@ def construct_from_edge_candidate(dat_batch: Data,
                                      y=dumb_repeat_batch.y,
                                      num_graphs=dumb_repeat_batch.num_graphs,
                                      num_unique_graphs=len(graphs))
-        return new_batch, None, auxloss
+        return new_batch, auxloss

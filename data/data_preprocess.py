@@ -8,9 +8,7 @@ from torch_geometric.data import Data, Batch
 from torch_geometric.utils import (is_undirected,
                                    to_undirected,
                                    add_remaining_self_loops,
-                                   coalesce,
-                                   to_networkx,
-                                   dropout_edge)
+                                   coalesce)
 from data.utils.datatype_utils import BatchOriginalDataStructure
 
 
@@ -210,54 +208,11 @@ class AugmentWithEdgeCandidate(GraphModification):
         return graph
 
 
-class DropEdge:
-    def __init__(self, p, directed):
-        self.p = p
-        self.directed = directed
-
-    def __call__(self, graph):
-        edge_index, edge_id = dropout_edge(graph.edge_index, p=self.p, force_undirected=not self.directed)
-        if graph.edge_attr is not None:
-            graph.edge_attr = graph.edge_attr[edge_id]
-
-        if hasattr(graph, 'edge_candidate'):
-            mask = torch.ones(graph.edge_index.shape[1], dtype=torch.bool)
-            mask[edge_id] = False
-            removed_edges = graph.edge_index[:, mask]
-            if not self.directed:
-                removed_edges = removed_edges[:, removed_edges[0] < removed_edges[1]]
-            graph.edge_candidate = torch.cat([graph.edge_candidate, removed_edges.t()], dim=0)
-            graph.num_edge_candidate = graph.edge_candidate.shape[0]
-
-        graph.edge_index = edge_index
-        graph.nedges = edge_index.shape[1]
-        return graph
-
-
 class AugmentWithDumbAttr(GraphModification):
     def __call__(self, graph):
         graph.x = torch.ones(graph.num_nodes, 1, dtype=torch.float)
         graph.edge_attr = torch.ones(graph.edge_index.shape[1], 1, dtype=torch.float)
         return graph
-
-
-class MyData(Data):
-    def __inc__(self, key, value, *args, **kwargs):
-        if 'batch' in key:
-            return int(value.max()) + 1
-        elif key == 'edge_index':
-            return self.num_nodes
-        elif key in ['edge_index1', 'edge_index2']:
-            return self.x_2wl.shape[0]
-        else:
-            return 0
-
-class IncTransform(object):
-    def __call__(self, data):
-        new_data = MyData()
-        for key, item in data.items():
-            setattr(new_data, key, item)
-        return new_data
 
 
 def collate_fn_with_origin_list(graphs: List[Data]):
