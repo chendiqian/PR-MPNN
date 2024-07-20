@@ -22,29 +22,20 @@ fixed:
 
     model: "edge_selector"
     emb_hid_size: 64
-    emb_optim: "adamw"
-    emb_scheduler: None
     gnn_layer: 8
     mlp_layer: 4
-    dropout: 0.2
-    embd_lr: 1.e-3
-    reg_embd: 0.
     batchnorm: True
 
   task_id: 1
-  optim: "adam"
-  model: qm9gine_duo
+  model: qm9gine
   hid_size: 128
   lr: 1.e-3
   lr_decay:
-    scheduler: 'plateau'
     decay_rate: 0.5
     mode: 'min'
     patience: 50
-    target: 'val_metric'
   early_stop:
     patience: 150
-    target: val_metric
   reg: 0.
   num_convlayers: 4
   mlp_layers_intragraph: 0

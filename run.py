@@ -10,7 +10,6 @@ from sacred import Experiment
 
 from data.const import TASK_TYPE_DICT, CRITERION_DICT
 from data.get_data import get_data
-from data.get_optimizer import make_get_embed_opt, make_get_opt
 from data.utils.datatype_utils import SyncMeanTimer
 from models.get_model import get_model
 from training.trainer import Trainer
@@ -46,7 +45,6 @@ def main(fixed):
     trainer = Trainer(dataset=args.dataset.lower(),
                       task_type=TASK_TYPE_DICT[args.dataset.lower()],
                       max_patience=args.early_stop.patience,
-                      patience_target=args.early_stop.target,
                       criterion=CRITERION_DICT[args.dataset.lower()],
                       device=device,
                       imle_configs=args.imle_configs,
@@ -58,41 +56,32 @@ def main(fixed):
     test_metrics = [[] for _ in range(args.num_runs)]
     time_per_epoch = []
 
-    get_embed_opt = make_get_embed_opt(args)
-    get_opt = make_get_opt(args)
-
     for _run in range(args.num_runs):
         for _fold, (train_loader, val_loader, test_loader) in enumerate(
                 zip(train_loaders, val_loaders, test_loaders)):
-            model, emb_model = get_model(args, device)
-            optimizer_embd, scheduler_embd = get_embed_opt(emb_model)
-            optimizer, scheduler = get_opt(model)
+            model = get_model(args, device)
+            optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.reg)
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                                   mode=args.lr_decay.mode,
+                                                                   factor=args.lr_decay.decay_rate,
+                                                                   patience=args.lr_decay.patience,
+                                                                   threshold_mode='abs',
+                                                                   cooldown=0,
+                                                                   min_lr=1.e-5)
 
             best_epoch = 0
             epoch_timer = SyncMeanTimer()
             for epoch in range(args.max_epochs):
                 trainer.epoch = epoch
-                train_loss, train_metric = trainer.train(train_loader,
-                                                         emb_model,
-                                                         model,
-                                                         optimizer_embd,
-                                                         optimizer)
-
-                val_loss, val_metric, early_stop = trainer.inference(
-                    val_loader,
-                    emb_model,
-                    model,
-                    scheduler_embd,
-                    scheduler,
-                    test=False)
+                train_loss, train_metric = trainer.train(train_loader, model, optimizer)
+                val_loss, val_metric, early_stop = trainer.inference(val_loader, model, scheduler, test=False)
 
                 if args.use_wandb:
                     log_dict = {"train_loss": train_loss,
                                 "train_metric": train_metric,
                                 "val_loss": val_loss,
                                 "val_metric": val_metric,
-                                "down_lr": scheduler.get_last_lr()[-1] if scheduler is not None else 0.,
-                                "up_lr": scheduler_embd.get_last_lr()[-1] if scheduler_embd is not None else 0.}
+                                'lr': scheduler.optimizer.param_groups[0]["lr"]}
                     wandb.log(log_dict)
 
                 if epoch > args.min_epochs and early_stop:
@@ -100,11 +89,11 @@ def main(fixed):
                     break
 
                 logging.info(f'epoch: {epoch}, '
-                            f'training loss: {round(train_loss, 5)}, '
-                            f'val loss: {round(val_loss, 5)}, '
-                            f'patience: {trainer.patience}, '
-                            f'training metric: {round(train_metric, 5)}, '
-                            f'val metric: {round(val_metric, 5)}')
+                             f'training loss: {round(train_loss, 5)}, '
+                             f'val loss: {round(val_loss, 5)}, '
+                             f'patience: {trainer.patience}, '
+                             f'training metric: {round(train_metric, 5)}, '
+                             f'val metric: {round(val_metric, 5)}')
 
                 if trainer.patience == 0:
                     best_epoch = epoch

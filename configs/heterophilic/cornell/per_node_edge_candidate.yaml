@@ -23,28 +23,19 @@ fixed:
     model: "edge_selector"
 
     emb_hid_size: 178
-    emb_optim: "adamw"
-    emb_scheduler: null
     gnn_layer: 4
     mlp_layer: 3
-    dropout: 0.
-    embd_lr: 1.e-3
-    reg_embd: 0.
     batchnorm: True
 
-  optim: "adam"
-  model: gin_duo
+  model: gin
   hid_size: 192
   lr: 1.e-3
   lr_decay:
-    scheduler: plateau
     mode: max
     decay_rate: 0.5
     patience: 50
-    target: val_metric
   early_stop:
     patience: 100
-    target: val_metric
   reg: 0.
   num_convlayers: 3
   mlp_layers_intragraph: 3

@@ -21,26 +21,10 @@ fixed:
     num_val_ensemble: 1
 
     model: "edge_selector"
-    rwse:
-      kernel: 20
-      layers: 2
-      dim_pe: 32
-      raw_norm_type: 'BatchNorm'
-
-    lap:
-      max_freqs: 4
-      dim_pe: 32
-      layers: 2
-      raw_norm_type: null
 
     emb_hid_size: 256
-    emb_optim: "adamw"
-    emb_scheduler: None
     gnn_layer: 8
     mlp_layer: 4
-    dropout: 0.
-    embd_lr: 1.e-3
-    reg_embd: 0.
     batchnorm: True
 
     auxloss:
@@ -57,19 +41,15 @@ fixed:
     layers: 2
     raw_norm_type: null
 
-  optim: "adam"
-  model: gine_duo
+  model: gine
   hid_size: 128
   lr: 1.e-3
   lr_decay:
-    scheduler: 'plateau'
     decay_rate: 0.5
     mode: 'max'
     patience: 50
-    target: 'val_metric'
   early_stop:
     patience: 200
-    target: val_metric
   reg: 0.
   num_convlayers: 4
   mlp_layers_intragraph: 3

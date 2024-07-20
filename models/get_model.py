@@ -3,21 +3,17 @@ from data.const import DATASET_FEATURE_STAT_DICT, TYPE_ENCODER
 from models.downstream import GNN_Duo
 from models.my_encoder import FeatureEncoder, BondEncoder, QM9FeatureEncoder
 from models.upstream import EdgeSelector
+from models.hybrid_model import HybridModel
+
+from training.construct import construct_from_edge_candidate
+from simple.simple_scheme import EdgeSIMPLEBatched
+from functools import partial
 
 
-def get_encoder(args, for_downstream):
+def get_encoder(args, hidden):
     type_encoder = TYPE_ENCODER[args.dataset.lower()]
-
-    # some args vary from downstream and upstream
-    if for_downstream:
-        hidden = args.hid_size
-        lap = args.lap if hasattr(args, 'lap') else None
-        rwse = args.rwse if hasattr(args, 'rwse') else None
-    else:
-        hidden = args.imle_configs.emb_hid_size
-        lap = args.imle_configs.lap if hasattr(args.imle_configs, 'lap') else None
-        rwse = args.imle_configs.rwse if hasattr(args.imle_configs, 'rwse') else None
-    edge_hidden = hidden
+    lap = args.lap if hasattr(args, 'lap') else None
+    rwse = args.rwse if hasattr(args, 'rwse') else None
 
     if 'qm9' in args.dataset.lower():
         encoder = QM9FeatureEncoder(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
@@ -32,24 +28,25 @@ def get_encoder(args, for_downstream):
             type_encoder=type_encoder,
             lap_encoder=lap,
             rw_encoder=rwse)
+
     if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary', 'qm9',
                                 'ppgnqm9', 'exp', 'cexp', 'sym_skipcircles', 'ptc_mr', 'mutag', 'csl',
                                 'imdb-m', 'imdb-b']:
         edge_encoder = nn.Sequential(
-            nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], edge_hidden),
+            nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], hidden),
             nn.ReLU(),
-            nn.Linear(edge_hidden, edge_hidden))
+            nn.Linear(hidden, hidden))
     elif args.dataset.lower().startswith('hetero') or \
             args.dataset.lower().startswith('tree') or \
             (args.dataset.lower().startswith('sym') and args.dataset.lower != 'sym_skipcircles') or \
             args.dataset.lower().startswith('leafcolor') or \
             args.dataset.lower() == 'proteins' or \
-            args.dataset.lower() == 'nci1' or  \
+            args.dataset.lower() == 'nci1' or \
             args.dataset.lower() == 'nci109':
         edge_encoder = None
     elif args.dataset.lower().startswith('peptides') or \
             args.dataset.lower().startswith('ogbg'):
-        edge_encoder = BondEncoder(edge_hidden)
+        edge_encoder = BondEncoder(hidden)
     else:
         raise NotImplementedError("we need torch.nn.Embedding, to be implemented")
 
@@ -57,12 +54,11 @@ def get_encoder(args, for_downstream):
 
 
 def get_model(args, device, *_args):
-    encoder, edge_encoder = get_encoder(args, for_downstream=True)
-    gnn_type = args.model.lower().split('_')[0]
-
+    # downstream model
+    encoder, edge_encoder = get_encoder(args, args.hid_size)
     model = GNN_Duo(encoder,
                     edge_encoder,
-                    gnn_type,
+                    args.model.lower(),
                     include_org=args.sample_configs.include_original_graph,
                     num_candidates=2 if args.sample_configs.separate and args.sample_configs.sample_k2 > 0 else 1,
                     num_layers=args.num_convlayers,
@@ -76,8 +72,9 @@ def get_model(args, device, *_args):
                     graph_pooling=args.graph_pooling,
                     inter_graph_pooling=args.inter_graph_pooling)
 
+    # upstream model
     # not shared with the downstream
-    encoder, edge_encoder = get_encoder(args, for_downstream=False)
+    encoder, edge_encoder = get_encoder(args, args.imle_configs.emb_hid_size)
     emb_model = EdgeSelector(encoder,
                              edge_encoder,
                              in_dim=args.imle_configs.emb_hid_size,
@@ -90,4 +87,27 @@ def get_model(args, device, *_args):
                              ensemble=args.sample_configs.ensemble,
                              use_bn=args.imle_configs.batchnorm)
 
-    return model.to(device), emb_model.to(device)
+    # rewiring process
+    simple_sampler = EdgeSIMPLEBatched(args.sample_configs.sample_k,
+                                       device,
+                                       val_ensemble=args.imle_configs.num_val_ensemble,
+                                       train_ensemble=args.imle_configs.num_train_ensemble)
+    train_forward = simple_sampler
+    val_forward = simple_sampler.validation
+
+    rewiring = partial(construct_from_edge_candidate,
+                       samplek_dict={
+                           'add_k': args.sample_configs.sample_k,
+                           'del_k': args.sample_configs.sample_k2},
+                       sampler_class=simple_sampler,
+                       train_forward=train_forward,
+                       val_forward=val_forward,
+                       include_original_graph=args.sample_configs.include_original_graph,
+                       separate=args.sample_configs.separate,
+                       directed_sampling=args.sample_configs.directed,
+                       auxloss_dict=args.imle_configs.auxloss
+                       if hasattr(args.imle_configs, 'auxloss') else None)
+
+    hybrid_model = HybridModel(emb_model, model, rewiring)
+
+    return hybrid_model.to(device)

@@ -1,17 +1,9 @@
-from functools import partial
 from typing import Any, Union
 
 import torch
-from ml_collections import ConfigDict
 
-from data.get_optimizer import MyPlateau
 from data.metrics import get_eval
 from data.utils.datatype_utils import AttributedDataLoader, IsBetter
-from training.construct import construct_from_edge_candidate
-from simple.simple_scheme import EdgeSIMPLEBatched
-from torch_geometric.data import Batch
-
-LARGE_NUMBER = 1.e10
 
 
 class Trainer:
@@ -19,12 +11,8 @@ class Trainer:
                  dataset: str,
                  task_type: str,
                  max_patience: int,
-                 patience_target: str,
                  criterion: torch.nn.modules.loss,
-                 device: Union[str, torch.device],
-                 imle_configs: ConfigDict,
-                 sample_configs: ConfigDict,
-                 auxloss: ConfigDict):
+                 device: Union[str, torch.device]):
         super(Trainer, self).__init__()
 
         self.dataset = dataset
@@ -32,54 +20,15 @@ class Trainer:
         self.metric_comparator = IsBetter(self.task_type)
         self.criterion = criterion
         self.device = device
-
         self.max_patience = max_patience
-        self.patience_target = patience_target
 
         # clear best scores
         self.clear_stats()
 
-        simple_sampler = EdgeSIMPLEBatched(sample_configs.sample_k,
-                                           device,
-                                           val_ensemble=imle_configs.num_val_ensemble,
-                                           train_ensemble=imle_configs.num_train_ensemble)
-        train_forward = simple_sampler
-        val_forward = simple_sampler.validation
-        construct_duplicate_data = partial(construct_from_edge_candidate,
-                                           samplek_dict={
-                                               'add_k': sample_configs.sample_k,
-                                               'del_k': sample_configs.sample_k2 if
-                                               hasattr(sample_configs,
-                                                       'sample_k2') else 0},
-                                           sampler_class=simple_sampler,
-                                           train_forward=train_forward,
-                                           val_forward=val_forward,
-                                           include_original_graph=sample_configs.include_original_graph,
-                                           separate=sample_configs.separate,
-                                           directed_sampling=sample_configs.directed,
-                                           auxloss_dict=auxloss)
-
-        def func(data, emb_model):
-            graphs = Batch.to_data_list(data)
-            data, auxloss = construct_duplicate_data(data,
-                                                             graphs,
-                                                             emb_model.training,
-                                                             *emb_model(data))
-            return data, auxloss
-
-        self.construct_duplicate_data = func
-
     def train(self,
               dataloader: AttributedDataLoader,
-              emb_model,
               model,
-              optimizer_embd,
               optimizer):
-
-        if emb_model is not None:
-            emb_model.train()
-            optimizer_embd.zero_grad()
-
         model.train()
         train_losses = torch.tensor(0., device=self.device)
         preds = []
@@ -88,28 +37,22 @@ class Trainer:
 
         for data in dataloader.loader:
             optimizer.zero_grad()
-            if optimizer_embd is not None:
-                optimizer_embd.zero_grad()
             data = data.to(self.device)
-            data, auxloss = self.construct_duplicate_data(data, emb_model)
+            pred, new_data, auxloss = model(data)
 
-            pred = model(data)
-            is_labeled = data.y == data.y
-            loss = self.criterion(pred[is_labeled], data.y[is_labeled])
-            train_losses += loss.detach() * data.num_graphs
+            is_labeled = new_data.y == new_data.y
+            loss = self.criterion(pred[is_labeled], new_data.y[is_labeled])
+            train_losses += loss.detach() * new_data.num_graphs
 
             loss = loss + auxloss
 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0, error_if_nonfinite=True)
             optimizer.step()
-            if optimizer_embd is not None:
-                torch.nn.utils.clip_grad_norm_(emb_model.parameters(), max_norm=1.0, error_if_nonfinite=True)
-                optimizer_embd.step()
 
-            num_graphs += data.num_graphs
+            num_graphs += new_data.num_graphs
             preds.append(pred)
-            labels.append(data.y)
+            labels.append(new_data.y)
         train_loss = train_losses.item() / num_graphs
         self.best_train_loss = min(self.best_train_loss, train_loss)
 
@@ -122,23 +65,17 @@ class Trainer:
     @torch.no_grad()
     def inference(self,
                   dataloader: AttributedDataLoader,
-                  emb_model,
                   model,
-                  scheduler_embd: Any = None,
                   scheduler: Any = None,
                   test: bool = False):
-        if emb_model is not None:
-            emb_model.eval()
-
         model.eval()
         preds = []
         labels = []
 
         for data in dataloader.loader:
             data = data.to(self.device)
-            data, _ = self.construct_duplicate_data(data, emb_model)
-            pred = model(data)
-            label = data.y
+            pred, new_data, _ = model(data)
+            label = new_data.y
             dataset_std = 1 if dataloader.std is None else dataloader.std.to(self.device)
             preds.append(pred * dataset_std)
             labels.append(label * dataset_std)
@@ -153,15 +90,7 @@ class Trainer:
 
         early_stop = False
         if scheduler is not None:
-            if isinstance(scheduler, MyPlateau):
-                scheduler.step(val_metric)
-            else:
-                scheduler.step()
-        if scheduler_embd is not None:
-            if isinstance(scheduler_embd, MyPlateau):
-                raise NotImplementedError("Need to specify max or min plateau")
-            else:
-                scheduler_embd.step()
+            scheduler.step(val_metric)
 
         if not test:
             is_better, self.best_val_metric = self.metric_comparator(val_metric, self.best_val_metric)

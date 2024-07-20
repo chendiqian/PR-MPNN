@@ -3,24 +3,6 @@ from torch.nn import functional as F
 from torch_geometric.utils import index_sort
 
 
-def self_defined_softmax(scores, mask):
-    """
-    A specific function
-
-    Args:
-        scores: B, N, N, E
-        mask: same shape as scores
-
-    Returns:
-
-    """
-    scores = scores - scores.detach().max()  # for numerical stability
-    exp_scores = torch.exp(scores)
-    exp_scores = exp_scores * mask
-    softmax_scores = exp_scores / exp_scores.sum()
-    return softmax_scores
-
-
 def weighted_cross_entropy(pred, true):
     """Weighted cross-entropy for unbalanced classes.
     https://github.com/rampasek/GraphGPS/blob/main/graphgps/loss/weighted_cross_entropy.py

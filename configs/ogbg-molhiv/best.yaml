@@ -21,21 +21,10 @@ fixed:
     num_val_ensemble: 5
 
     model: "edge_selector"
-    rwse:
-      kernel: 20
-      layers: 2
-      dim_pe: 32
-      raw_norm_type: 'BatchNorm'
-    # lap does not work for molesol
 
     emb_hid_size: 128
-    emb_optim: "adamw"
-    emb_scheduler: None
     gnn_layer: 4
     mlp_layer: 4
-    dropout: 0.
-    embd_lr: 1.e-3
-    reg_embd: 0.
     batchnorm: True
 
   rwse:
@@ -43,21 +32,16 @@ fixed:
     layers: 2
     dim_pe: 16
     raw_norm_type: 'BatchNorm'
-  # lap does not work for molesol
 
-  optim: "adam"
-  model: gine_duo
+  model: gine
   hid_size: 128
   lr: 1.e-3
   lr_decay:
-    scheduler: 'plateau'
     decay_rate: 0.5
     mode: 'max'
     patience: 20
-    target: 'val_metric'
   early_stop:
     patience: 50
-    target: val_metric
   reg: 0.
   num_convlayers: 5
   mlp_layers_intragraph: 2

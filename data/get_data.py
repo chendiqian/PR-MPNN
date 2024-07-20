@@ -10,15 +10,12 @@ from ml_collections import ConfigDict
 from ogb.graphproppred import PygGraphPropPredDataset
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from torch.utils.data import Subset
-from torch_geometric.datasets import ZINC, TUDataset, WebKB, GNNBenchmarkDataset
+from torch_geometric.datasets import ZINC, WebKB, GNNBenchmarkDataset, LRGBDataset
 from torch_geometric.transforms import Compose, AddRandomWalkPE, AddLaplacianEigenvectorPE
 from torch_geometric.loader import DataLoader
 
-from data.custom_datasets.peptides_func import PeptidesFunctionalDataset
-from data.custom_datasets.peptides_struct import PeptidesStructuralDataset
 from data.custom_datasets.qm9 import QM9
 from data.custom_datasets.tree_dataset import MyTreeDataset, MyLeafColorDataset
-from data.custom_datasets.tudataset import MyTUDataset
 from data.custom_datasets.planarsatpairsdataset import PlanarSATPairsDataset
 from data.custom_datasets.symmetries import MySymDataset
 from data.utils.datatype_utils import AttributedDataLoader
@@ -38,10 +35,7 @@ DATASET = (PygGraphPropPredDataset,
            MyTreeDataset,
            MyLeafColorDataset,
            MySymDataset,
-           MyTUDataset,
-           TUDataset,
-           PeptidesStructuralDataset,
-           PeptidesFunctionalDataset,
+           LRGBDataset,
            WebKB,
            PlanarSATPairsDataset,
            QM9,
@@ -79,14 +73,10 @@ def get_pretransform(args: Union[Namespace, ConfigDict], extra_pretransforms: Op
     if extra_pretransforms is not None:
         pretransform = pretransform + extra_pretransforms
 
-    if hasattr(args.imle_configs, 'rwse'):
-        pretransform.append(AddRandomWalkPE(args.imle_configs.rwse.kernel, 'pestat_RWSE'))
-    elif hasattr(args, 'rwse'):
+    if hasattr(args, 'rwse'):
         pretransform.append(AddRandomWalkPE(args.rwse.kernel, 'pestat_RWSE'))
 
-    if hasattr(args.imle_configs, 'lap'):
-        pretransform.append(AddLaplacianEigenvectorPE(args.imle_configs.lap.max_freqs, 'EigVecs', is_undirected=True))
-    elif hasattr(args, 'lap'):
+    if hasattr(args, 'lap'):
         pretransform.append(AddLaplacianEigenvectorPE(args.lap.max_freqs, 'EigVecs', is_undirected=True))
 
     # add edge candidates
@@ -112,32 +102,14 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
         train_set, val_set, test_set, std = get_ogbg_data(args)
     elif args.dataset.lower() == 'zinc':
         train_set, val_set, test_set, std = get_zinc(args)
-    elif args.dataset.lower() == 'alchemy':
-        train_set, val_set, test_set, std = get_alchemy(args)
-    elif args.dataset.lower() == 'proteins':
-        train_set, val_set, test_set, std = get_TU(args, name='PROTEINS_full')
-    elif args.dataset.lower() == 'mutag':
-        train_set, val_set, test_set, std = get_TU(args, name='MUTAG')
-    elif args.dataset.lower() == 'ptc_mr':
-        train_set, val_set, test_set, std = get_TU(args, name='PTC_MR')
-    elif args.dataset.lower() == 'nci1':
-        train_set, val_set, test_set, std = get_TU(args, name='NCI1')
-    elif args.dataset.lower() == 'nci109':
-        train_set, val_set, test_set, std = get_TU(args, name='NCI109')
-    elif args.dataset.lower() == 'imdb-m':
-        train_set, val_set, test_set, std = get_imdbm(args)
-    elif args.dataset.lower() == 'imdb-b':
-        train_set, val_set, test_set, std = get_imdbb(args)
     elif args.dataset.lower().startswith('tree'):
         train_set, val_set, test_set, std = get_treedataset(args)
     elif args.dataset.lower().startswith('leafcolor'):
         train_set, val_set, test_set, std = get_leafcolordataset(args)
-    elif args.dataset.lower().startswith('peptides-struct'):
-        train_set, val_set, test_set, std = get_peptides(args, set='struct')
+    elif args.dataset.lower().startswith('peptides'):
+        train_set, val_set, test_set, std = get_peptides(args)
     elif args.dataset.lower().startswith('hetero'):
         train_set, val_set, test_set, std = get_heterophily(args)
-    elif args.dataset.lower().startswith('peptides-func'):
-        train_set, val_set, test_set, std = get_peptides(args, set='func')
     elif args.dataset.lower() == 'qm9':
         train_set, val_set, test_set, std = get_qm9(args)
     elif args.dataset.lower() in ['exp', 'cexp']:
@@ -257,200 +229,24 @@ def get_zinc(args: Union[Namespace, ConfigDict]):
 
     return train_set, val_set, test_set, None
 
-def get_peptides(args: Union[Namespace, ConfigDict], set='struct'):
+
+def get_peptides(args: Union[Namespace, ConfigDict]):
     datapath = args.data_path
     extra_path = get_additional_path(args)
     if extra_path is not None:
         datapath = os.path.join(datapath, extra_path)
     pre_transform = get_pretransform(args, extra_pretransforms=None)
 
-    if set == 'struct':
-        dataset = PeptidesStructuralDataset(root=datapath, transform=None, pre_transform=pre_transform)
-    elif set == 'func':
-        dataset = PeptidesFunctionalDataset(root=datapath, transform=None, pre_transform=pre_transform)
-    else:
-        raise ValueError(f"Unknown peptides set: {set}")
-
-    split_idx = dataset.get_idx_split()
-    
-    train_set, val_set, test_set = dataset[split_idx['train']], dataset[split_idx['val']], dataset[split_idx['test']]
+    train_set = LRGBDataset(root=datapath, name=args.dataset.lower(), split='train', pre_transform=pre_transform)
+    val_set = LRGBDataset(root=datapath, name=args.dataset.lower(), split='val', pre_transform=pre_transform)
+    test_set = LRGBDataset(root=datapath, name=args.dataset.lower(), split='test', pre_transform=pre_transform)
 
     if args.debug:
-        if hasattr(args, 'debug_samples'):
-            debug_samples = args.debug_samples
-        else:
-            debug_samples = 16
-        train_set = train_set[:debug_samples]
-        val_set = val_set[:debug_samples]
-        test_set = test_set[:debug_samples]
+        train_set = train_set[:4]
+        val_set = val_set[:4]
+        test_set = test_set[:4]
 
     return train_set, val_set, test_set, None
-
-
-def get_alchemy(args: Union[Namespace, ConfigDict]):
-    pre_transform = get_pretransform(args)
-
-    data_path = args.data_path
-    extra_path = get_additional_path(args)
-    if extra_path is not None:
-        data_path = os.path.join(data_path, extra_path)
-
-    infile = open("datasets/indices/train_al_10.index", "r")
-    for line in infile:
-        indices_train = line.split(",")
-        indices_train = [int(i) for i in indices_train]
-
-    infile = open("datasets/indices/val_al_10.index", "r")
-    for line in infile:
-        indices_val = line.split(",")
-        indices_val = [int(i) for i in indices_val]
-
-    infile = open("datasets/indices/test_al_10.index", "r")
-    for line in infile:
-        indices_test = line.split(",")
-        indices_test = [int(i) for i in indices_test]
-
-    dataset = MyTUDataset(data_path,
-                          name="alchemy_full",
-                          index=indices_train + indices_val + indices_test,
-                          transform=None,
-                          pre_transform=pre_transform)
-
-    mean = dataset.data.y.mean(dim=0, keepdim=True)
-    std = dataset.data.y.std(dim=0, keepdim=True)
-    dataset.data.y = (dataset.data.y - mean) / std
-
-    train_set = dataset[:len(indices_train)]
-    val_set = dataset[len(indices_train): len(indices_train) + len(indices_val)]
-    test_set = dataset[-len(indices_test):]
-
-    if args.debug:
-        train_set = train_set[:16]
-        val_set = val_set[:16]
-        test_set = test_set[:16]
-
-    return train_set, val_set, test_set, std
-
-
-def get_TU(args, name='PROTEINS_full'):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
-        GraphToUndirected(),
-        GraphExpandDim()])
-
-    data_path = args.data_path
-    extra_path = get_additional_path(args)
-    if extra_path is not None:
-        data_path = os.path.join(data_path, extra_path)
-
-    dataset = TUDataset(data_path,
-                        name=name,
-                        transform=None,
-                        pre_transform=pre_transform)
-
-    train_splits = []
-    val_splits = []
-
-    labels = dataset.data.y.tolist()
-    dataset.data.y = dataset.data.y.float()
-    
-    for fold_idx in range(0, 10):
-        skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=fold_idx)
-
-
-        idx_list = []
-        for idx in skf.split(np.zeros(len(labels)), labels):
-            idx_list.append(idx)
-        train_idx, test_idx = idx_list[fold_idx]
-
-        train_splits.append(Subset(dataset, train_idx))
-        val_splits.append(Subset(dataset, test_idx))
-
-    if args.debug:
-        train_splits = train_splits[0]
-        val_splits = val_splits[0]
-
-    test_splits = val_splits
-
-    return train_splits, val_splits, test_splits, None
-
-
-def get_imdbm(args):
-    pre_transform = get_pretransform(args, extra_pretransforms=[AugmentWithDumbAttr()])
-
-    data_path = args.data_path
-    extra_path = get_additional_path(args)
-    if extra_path is not None:
-        data_path = os.path.join(data_path, extra_path)
-
-    dataset = TUDataset(data_path,
-                        name='IMDB-MULTI',
-                        transform=None,
-                        pre_transform=pre_transform)
-
-    train_splits = []
-    val_splits = []
-
-    labels = dataset.data.y.tolist()
-
-    for fold_idx in range(0, 10):
-        skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=fold_idx)
-
-        idx_list = []
-        for idx in skf.split(np.zeros(len(labels)), labels):
-            idx_list.append(idx)
-        train_idx, test_idx = idx_list[fold_idx]
-
-        train_splits.append(Subset(dataset, train_idx))
-        val_splits.append(Subset(dataset, test_idx))
-
-    if args.debug:
-        train_splits = train_splits[0]
-        val_splits = val_splits[0]
-
-    test_splits = val_splits
-
-    return train_splits, val_splits, test_splits, None
-
-
-def get_imdbb(args):
-    pre_transform = get_pretransform(args, extra_pretransforms=[
-        AugmentWithDumbAttr(),
-        GraphExpandDim()])
-
-    data_path = args.data_path
-    extra_path = get_additional_path(args)
-    if extra_path is not None:
-        data_path = os.path.join(data_path, extra_path)
-
-    dataset = TUDataset(data_path,
-                        name='IMDB-BINARY',
-                        transform=None,
-                        pre_transform=pre_transform)
-
-    train_splits = []
-    val_splits = []
-
-    labels = dataset.data.y.tolist()
-    dataset.data.y = dataset.data.y.float()
-
-    for fold_idx in range(0, 10):
-        skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=fold_idx)
-
-        idx_list = []
-        for idx in skf.split(np.zeros(len(labels)), labels):
-            idx_list.append(idx)
-        train_idx, test_idx = idx_list[fold_idx]
-
-        train_splits.append(Subset(dataset, train_idx))
-        val_splits.append(Subset(dataset, test_idx))
-
-    if args.debug:
-        train_splits = train_splits[0]
-        val_splits = val_splits[0]
-
-    test_splits = val_splits
-
-    return train_splits, val_splits, test_splits, None
 
 
 def get_CSL(args):
@@ -558,6 +354,7 @@ def get_treedataset(args: Union[Namespace, ConfigDict]):
 
     return train_set, val_set, test_set, None
 
+
 def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     depth = int(args.dataset.lower().split('_')[1])
     assert 2 <= depth <= 8
@@ -581,7 +378,6 @@ def get_leafcolordataset(args: Union[Namespace, ConfigDict]):
     args['num_classes'] = max([s.y.item() for s in train_set]) + 1
 
     return train_set, val_set, test_set, None
-
 
 
 def get_sym_dataset(args: Union[Namespace, ConfigDict]):
