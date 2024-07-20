@@ -46,10 +46,7 @@ def main(fixed):
                       task_type=TASK_TYPE_DICT[args.dataset.lower()],
                       max_patience=args.early_stop.patience,
                       criterion=CRITERION_DICT[args.dataset.lower()],
-                      device=device,
-                      imle_configs=args.imle_configs,
-                      sample_configs=args.sample_configs,
-                      auxloss=args.imle_configs.auxloss if hasattr(args.imle_configs, 'auxloss') else None)
+                      device=device)
 
     best_train_metrics = [[] for _ in range(args.num_runs)]
     best_val_metrics = [[] for _ in range(args.num_runs)]
@@ -98,18 +95,13 @@ def main(fixed):
                 if trainer.patience == 0:
                     best_epoch = epoch
                     torch.save(model.state_dict(), f'{folder_name}/model_best_{_run}_{_fold}.pt')
-                    if emb_model is not None:
-                        torch.save(emb_model.state_dict(),
-                                   f'{folder_name}/embd_model_best_{_run}_{_fold}.pt')
 
             # test inference
             model.load_state_dict(torch.load(f'{folder_name}/model_best_{_run}_{_fold}.pt'))
             logging.info(f'loaded best model at epoch {best_epoch}')
-            if emb_model is not None:
-                emb_model.load_state_dict(torch.load(f'{folder_name}/embd_model_best_{_run}_{_fold}.pt'))
 
             start_time = epoch_timer.synctimer()
-            test_loss, test_metric, _ = trainer.inference(test_loader, emb_model, model, test=True)
+            test_loss, test_metric, _ = trainer.inference(test_loader, model, test=True)
             end_time = epoch_timer.synctimer()
             logging.info(f'Best val loss: {trainer.best_val_loss}')
             logging.info(f'Best val metric: {trainer.best_val_metric}')

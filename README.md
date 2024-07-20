@@ -84,8 +84,6 @@ We provide rewiring options as following:
 
 - Separated / merged: if separated, will sample 2 graphs, one with edges added and the other with edges removed. If merged, will merge the 2 graphs as one.
 
-- In-place / not in-place: if in-place, will add the edges based on the original edges, otherwise will return a graph with _only_ the added edges.
-
 ## Samplers that we use
 - SIMPLE, [code](https://github.com/UCLA-StarAI/SIMPLE), [paper](https://arxiv.org/abs/2210.01941)
 - I-MLE, [code](https://github.com/uclnlp/torch-imle), [paper](https://arxiv.org/abs/2106.01798)
@@ -93,4 +91,4 @@ We provide rewiring options as following:
 
 ## To replicate experiments
 We provide yaml files under `configs`, run e.g. 
-`python run.py with configs/zinc/edge_candidate/best.yaml`
+`python run.py with PATH_TO_CONFIG`

@@ -125,8 +125,6 @@ def construct_from_edge_candidate(dat_batch: Data,
 
     VE = sampler_class.train_ensemble if train else sampler_class.val_ensemble
     E = addition_logits.shape[-1]
-    B = len(dat_batch.nnodes)
-    N = dat_batch.num_edge_candidate.max().item()
 
     # # ==================update del and add k for dynamic gnn=====================
     # Needed for strange behaviour in which samplek_dict remains modified after calling

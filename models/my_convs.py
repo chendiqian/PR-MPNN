@@ -21,7 +21,7 @@ class GINConv(MessagePassing):
         if mlp is not None:
             self.mlp = mlp
         else:
-            self.mlp = MLP([emb_dim, emb_dim, emb_dim], batch_norm=True, dropout=0.)
+            self.mlp = MLP([emb_dim, emb_dim, emb_dim], norm='batch_norm', dropout=0.)
 
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
 
@@ -141,7 +141,7 @@ class GINEConv(MessagePassing):
         if mlp is not None:
             self.mlp = mlp
         else:
-            self.mlp = MLP([emb_dim, emb_dim, emb_dim], batch_norm=True, dropout=dropout)
+            self.mlp = MLP([emb_dim, emb_dim, emb_dim], norm='batch_norm', dropout=dropout)
 
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
 

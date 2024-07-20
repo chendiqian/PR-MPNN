@@ -83,7 +83,7 @@ def get_model(args, device, *_args):
                              mlp_layer=args.imle_configs.mlp_layer,
                              use_deletion_head=True,
                              directed_sampling=args.sample_configs.directed,
-                             dropout=args.imle_configs.dropout,
+                             dropout=args.dropout,
                              ensemble=args.sample_configs.ensemble,
                              use_bn=args.imle_configs.batchnorm)
 

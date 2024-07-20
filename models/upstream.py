@@ -30,13 +30,13 @@ class EdgeSelector(torch.nn.Module):
 
         self.atom_encoder = encoder
         self.projector1 = MLP([in_dim * 2] + [hid_size] * (mlp_layer - 1) + [ensemble],
-                              batch_norm=use_bn, dropout=dropout)
+                              norm='batch_norm' if use_bn else None, dropout=dropout)
 
         self.use_deletion_head = use_deletion_head
         self.directed_sampling = directed_sampling
         if use_deletion_head:
             self.projector2 = MLP([in_dim * 2] + [hid_size] * (mlp_layer - 1) + [ensemble],
-                                  batch_norm=use_bn, dropout=dropout)
+                                  norm='batch_norm' if use_bn else None, dropout=dropout)
 
     def forward(self, data: Union[Data, Batch]):
         assert hasattr(data, 'edge_candidate') and hasattr(data, 'num_edge_candidate')
