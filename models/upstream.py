@@ -25,7 +25,7 @@ class EdgeSelector(torch.nn.Module):
         if gnn_layer == 0:
             self.gnn = GNN_Placeholder()
         else:
-            self.gnn = BaseGINE(in_dim, gnn_layer, hid_size, hid_size, True, dropout, True, edge_encoder)
+            self.gnn = BaseGINE(gnn_layer, hid_size, hid_size, True, dropout, True, edge_encoder)
             in_dim = hid_size
 
         self.atom_encoder = encoder
