@@ -2,7 +2,7 @@ from typing import List
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, global_max_pool, MLP
 from torch_geometric.data import Data
-from models.my_convs import BaseGIN, BaseGINE, QM9_Net
+from models.my_convs import BaseGIN, BaseGINE
 
 
 class GNN_Duo(torch.nn.Module):
@@ -28,42 +28,22 @@ class GNN_Duo(torch.nn.Module):
         self.base_gnn = base_gnn
 
         if base_gnn == 'gin':
-            self.gnn = BaseGIN(hidden, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
+            self.gnn = BaseGIN(hidden, num_layers, hidden, hidden, use_bn, dropout, residual)
         elif base_gnn == 'gine':
             self.gnn = BaseGINE(hidden, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
-        elif base_gnn == 'qm9gine':
-            self.encoder = None  # no encoder, qm9 model has one
-            graph_pooling, qm9_graph_pooling = None, graph_pooling
-            self.gnn = QM9_Net(encoder, 'gine', edge_encoder, hidden, hidden, num_layers, dropout, qm9_graph_pooling)
-        elif base_gnn == 'qm9gin':
-            self.encoder = None  # no encoder, qm9 model has one
-            graph_pooling, qm9_graph_pooling = None, graph_pooling
-            self.gnn = QM9_Net(encoder, 'gin', edge_encoder, hidden, hidden, num_layers, dropout, qm9_graph_pooling)
         else:
             raise NotImplementedError
 
         if base_gnn == 'gin':
             self.candid_gnns = torch.nn.ModuleList(
                 [BaseGIN(hidden, num_layers, hidden, hidden,
-                         use_bn, dropout, residual, edge_encoder)
+                         use_bn, dropout, residual)
                  for _ in range(num_candidates)]
             )
         elif base_gnn == 'gine':
             self.candid_gnns = torch.nn.ModuleList(
                 [BaseGINE(hidden, num_layers, hidden, hidden,
                           use_bn, dropout, residual, edge_encoder)
-                 for _ in range(num_candidates)]
-            )
-        elif base_gnn == 'qm9gine':
-            self.candid_gnns = torch.nn.ModuleList(
-                [QM9_Net(encoder, 'gine', edge_encoder, hidden, hidden,
-                         num_layers, dropout, qm9_graph_pooling)
-                 for _ in range(num_candidates)]
-            )
-        elif base_gnn == 'qm9gin':
-            self.candid_gnns = torch.nn.ModuleList(
-                [QM9_Net(encoder, 'gin', edge_encoder, hidden, hidden,
-                         num_layers, dropout, qm9_graph_pooling)
                  for _ in range(num_candidates)]
             )
         else:
@@ -91,9 +71,6 @@ class GNN_Duo(torch.nn.Module):
             self.pool = lambda x, root_mask: x[root_mask]
             self.candid_pool = self.pool
             self.graph_pool_idx = 'root_mask'
-        elif graph_pooling == 'node_clf':
-            self.pool = lambda x, *args: x
-            self.candid_pool = self.pool
         else:
             raise NotImplementedError
 
@@ -113,7 +90,9 @@ class GNN_Duo(torch.nn.Module):
         if inter_graph_pooling == 'mean':
             self.final_mlp = MLP([hidden] * max(mlp_layers_intergraph, 1) + [num_classes], dropout=0.)
         elif inter_graph_pooling == 'cat':
-            self.final_mlp = MLP([hidden * (num_candidates + int(include_org))] + [hidden] * max(mlp_layers_intergraph - 1, 0) + [num_classes], dropout=0.)
+            self.final_mlp = MLP(
+                [hidden * (num_candidates + int(include_org))] + [hidden] * max(mlp_layers_intergraph - 1, 0) + [
+                    num_classes], dropout=0.)
         else:
             raise NotImplementedError
 
@@ -125,13 +104,10 @@ class GNN_Duo(torch.nn.Module):
                 c.x = self.encoder(c)
 
         if original_data is not None:
-            if self.base_gnn.startswith('qm9'):
-                h_node_org = self.gnn(original_data)
-            else:
-                h_node_org = self.gnn(original_data.x,
-                                      original_data.edge_index,
-                                      original_data.edge_attr,
-                                      original_data.edge_weight)
+            h_node_org = self.gnn(original_data.x,
+                                  original_data.edge_index,
+                                  original_data.edge_attr,
+                                  original_data.edge_weight)
             h_graph_org = self.pool(h_node_org, getattr(original_data, self.graph_pool_idx))
             h_graph_org = self.mlp(h_graph_org)
         else:
@@ -140,10 +116,7 @@ class GNN_Duo(torch.nn.Module):
         h_graphs = []
         for i, c in enumerate(rewired_data):
             gnn = self.candid_gnns[i] if isinstance(self.candid_gnns, torch.nn.ModuleList) else self.candid_gnns
-            if self.base_gnn.startswith('qm9'):
-                h_node = gnn(c)
-            else:
-                h_node = gnn(c.x, c.edge_index, c.edge_attr, c.edge_weight)
+            h_node = gnn(c.x, c.edge_index, c.edge_attr, c.edge_weight)
             pool = self.candid_pool[i] if isinstance(self.candid_pool, torch.nn.ModuleList) else self.candid_pool
             h_graph = pool(h_node, getattr(c, self.graph_pool_idx))
             mlp = self.candid_mlps[i] if isinstance(self.candid_mlps, torch.nn.ModuleList) else self.candid_mlps
