@@ -3,7 +3,7 @@ import torch.nn as nn
 from data.const import DATASET_FEATURE_STAT_DICT, TYPE_ENCODER
 from models.downstream import GNN_Duo
 from models.hybrid_model import HybridModel
-from models.my_encoder import FeatureEncoder, BondEncoder, QM9FeatureEncoder
+from models.my_encoder import FeatureEncoder, BondEncoder
 from models.rewirer import GraphRewirer
 from models.upstream import EdgeSelector
 from simple.simple_scheme import EdgeSIMPLEBatched
@@ -14,14 +14,7 @@ def get_encoder(args, hidden):
     lap = args.lap if hasattr(args, 'lap') else None
     rwse = args.rwse if hasattr(args, 'rwse') else None
 
-    if 'qm9' in args.dataset.lower():
-        encoder = QM9FeatureEncoder(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
-                                    hidden,
-                                    type_encoder,
-                                    lap,
-                                    rwse)
-    else:
-        encoder = FeatureEncoder(
+    encoder = FeatureEncoder(
             dim_in=DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['node'],
             hidden=hidden,
             type_encoder=type_encoder,
@@ -29,7 +22,7 @@ def get_encoder(args, hidden):
             rw_encoder=rwse)
 
     if args.dataset.lower() in ['zinc', 'alchemy', 'edge_wt_region_boundary', 'qm9',
-                                'ppgnqm9', 'exp', 'cexp', 'sym_skipcircles', 'ptc_mr', 'mutag', 'csl',
+                                'exp', 'cexp', 'sym_skipcircles', 'ptc_mr', 'mutag', 'csl',
                                 'imdb-m', 'imdb-b']:
         edge_encoder = nn.Sequential(
             nn.Linear(DATASET_FEATURE_STAT_DICT[args.dataset.lower()]['edge'], hidden),
