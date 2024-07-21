@@ -10,7 +10,6 @@ class GNN_Duo(torch.nn.Module):
                  encoder,
                  edge_encoder,
                  base_gnn,
-                 include_org,
                  num_candidates,
                  num_layers,
                  hidden,
@@ -28,22 +27,20 @@ class GNN_Duo(torch.nn.Module):
         self.base_gnn = base_gnn
 
         if base_gnn == 'gin':
-            self.gnn = BaseGIN(hidden, num_layers, hidden, hidden, use_bn, dropout, residual)
+            self.gnn = BaseGIN(num_layers, hidden, hidden, use_bn, dropout, residual)
         elif base_gnn == 'gine':
-            self.gnn = BaseGINE(hidden, num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
+            self.gnn = BaseGINE(num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
         else:
             raise NotImplementedError
 
         if base_gnn == 'gin':
             self.candid_gnns = torch.nn.ModuleList(
-                [BaseGIN(hidden, num_layers, hidden, hidden,
-                         use_bn, dropout, residual)
+                [BaseGIN(num_layers, hidden, hidden, use_bn, dropout, residual)
                  for _ in range(num_candidates)]
             )
         elif base_gnn == 'gine':
             self.candid_gnns = torch.nn.ModuleList(
-                [BaseGINE(hidden, num_layers, hidden, hidden,
-                          use_bn, dropout, residual, edge_encoder)
+                [BaseGINE(num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
                  for _ in range(num_candidates)]
             )
         else:
@@ -90,9 +87,7 @@ class GNN_Duo(torch.nn.Module):
         if inter_graph_pooling == 'mean':
             self.final_mlp = MLP([hidden] * max(mlp_layers_intergraph, 1) + [num_classes], dropout=0.)
         elif inter_graph_pooling == 'cat':
-            self.final_mlp = MLP(
-                [hidden * (num_candidates + int(include_org))] + [hidden] * max(mlp_layers_intergraph - 1, 0) + [
-                    num_classes], dropout=0.)
+            self.final_mlp = MLP([-1] + [hidden] * max(mlp_layers_intergraph - 1, 0) + [num_classes], dropout=0.)
         else:
             raise NotImplementedError
 

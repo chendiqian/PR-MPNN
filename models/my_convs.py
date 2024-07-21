@@ -1,10 +1,8 @@
-from typing import Optional, Union
+from typing import Union
 
 import torch
-from torch.nn import Linear, GELU, Sequential, BatchNorm1d as BN, BatchNorm1d, ReLU, ModuleList, functional as F
-from torch_geometric.nn import MessagePassing, MLP, global_add_pool, global_max_pool, global_mean_pool
-
-from .my_encoder import BondEncoder
+from torch.nn import GELU, Sequential, BatchNorm1d as BN, functional as F
+from torch_geometric.nn import MessagePassing, MLP, Linear
 
 
 def residual(y_old: torch.Tensor, y_new: torch.Tensor) -> torch.Tensor:
@@ -15,14 +13,9 @@ def residual(y_old: torch.Tensor, y_new: torch.Tensor) -> torch.Tensor:
 
 
 class GINConv(MessagePassing):
-    def __init__(self, emb_dim: int = 64, mlp: Optional[Union[MLP, torch.nn.Sequential]] = None,):
+    def __init__(self, mlp: Union[MLP, torch.nn.Sequential]):
         super(GINConv, self).__init__(aggr="add")
-
-        if mlp is not None:
-            self.mlp = mlp
-        else:
-            self.mlp = MLP([emb_dim, emb_dim, emb_dim], norm='batch_norm', dropout=0.)
-
+        self.mlp = mlp
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
 
     def forward(self, x, edge_index, edge_attr, edge_weight):
@@ -43,72 +36,25 @@ class GINConv(MessagePassing):
 
 
 class BaseGIN(torch.nn.Module):
-    def __init__(self, in_features, num_layers, hidden, out_feature, use_bn, dropout, use_residual):
+    def __init__(self, num_layers, hidden, out_feature, use_bn, dropout, use_residual):
         super(BaseGIN, self).__init__()
 
         self.use_bn = use_bn
         self.dropout = dropout
         self.use_residual = use_residual
 
-        if num_layers == 0:
-            self.convs = torch.nn.ModuleList()
-            self.bns = torch.nn.ModuleList()
-        elif num_layers == 1:
+        self.convs = torch.nn.ModuleList()
+        self.bns = torch.nn.ModuleList()
+        for i in range(num_layers):
             self.convs = torch.nn.ModuleList([GINConv(
-                in_features,
                 Sequential(
-                    Linear(in_features, hidden),
+                    Linear(-1, hidden),
                     GELU(),
-                    Linear(hidden, out_feature),
+                    Linear(-1, out_feature if i == num_layers - 1 else hidden),
                 ),
             )])
             if use_bn:
-                self.bns = torch.nn.ModuleList([BN(out_feature)])
-        else:
-            self.convs = torch.nn.ModuleList()
-            self.bns = torch.nn.ModuleList()
-
-            # first layer
-            self.convs.append(
-                GINConv(
-                    in_features,
-                    Sequential(
-                        Linear(in_features, hidden),
-                        GELU(),
-                        Linear(hidden, hidden),
-                    ),
-                )
-            )
-            if use_bn:
-                self.bns.append(BN(hidden))
-
-            # middle layer
-            for i in range(num_layers - 2):
-                self.convs.append(
-                    GINConv(
-                        hidden,
-                        Sequential(
-                            Linear(hidden, hidden),
-                            GELU(),
-                            Linear(hidden, hidden),
-                        ))
-                )
-                if use_bn:
-                    self.bns.append(BN(hidden))
-
-            # last layer
-            self.convs.append(
-                GINConv(
-                    hidden,
-                    Sequential(
-                        Linear(hidden, hidden),
-                        GELU(),
-                        Linear(hidden, out_feature),
-                    ),
-                )
-            )
-            if use_bn:
-                self.bns.append(BN(out_feature))
+                self.bns = torch.nn.ModuleList([BN(out_feature if i == num_layers - 1 else hidden)])
 
     def forward(self, x, edge_index, edge_attr, edge_weight=None):
 
@@ -130,24 +76,14 @@ class BaseGIN(torch.nn.Module):
 
 
 class GINEConv(MessagePassing):
-    def __init__(self, emb_dim: int = 64,
-                 mlp: Optional[Union[MLP, torch.nn.Sequential]] = None,
-                 bond_encoder: Optional[Union[MLP, torch.nn.Sequential]] = None,
-                 dropout: float = 0.):
-
+    def __init__(self,
+                 mlp: Union[MLP, torch.nn.Sequential],
+                 bond_encoder: Union[MLP, torch.nn.Sequential]):
         super(GINEConv, self).__init__(aggr="add")
 
-        if mlp is not None:
-            self.mlp = mlp
-        else:
-            self.mlp = MLP([emb_dim, emb_dim, emb_dim], norm='batch_norm', dropout=dropout)
-
+        self.mlp = mlp
+        self.bond_encoder = bond_encoder
         self.eps = torch.nn.Parameter(torch.Tensor([0.]))
-
-        if bond_encoder is None:
-            self.bond_encoder = BondEncoder(emb_dim=emb_dim)
-        else:
-            self.bond_encoder = bond_encoder
 
     def forward(self, x, edge_index, edge_attr, edge_weight):
         if edge_weight is not None and edge_weight.ndim < 2:
@@ -169,81 +105,27 @@ class GINEConv(MessagePassing):
 
 
 class BaseGINE(torch.nn.Module):
-    def __init__(self, in_features, num_layers, hidden, out_feature, use_bn, dropout, use_residual, edge_encoder=None):
+    def __init__(self, num_layers, hidden, out_feature, use_bn, dropout, use_residual, edge_encoder=None):
         super(BaseGINE, self).__init__()
 
         self.use_bn = use_bn
         self.dropout = dropout
         self.use_residual = use_residual
 
-        if num_layers == 0:
-            self.convs = torch.nn.ModuleList()
-            self.bns = torch.nn.ModuleList()
-        elif num_layers == 1:
+        self.convs = torch.nn.ModuleList()
+        self.bns = torch.nn.ModuleList()
+
+        for i in range(num_layers):
             self.convs = torch.nn.ModuleList([GINEConv(
-                in_features,
                 Sequential(
-                    Linear(in_features, hidden),
+                    Linear(-1, hidden),
                     GELU(),
-                    Linear(hidden, out_feature),
+                    Linear(-1, out_feature if i == num_layers - 1 else hidden),
                 ),
                 edge_encoder,
-                dropout
             )])
             if use_bn:
-                self.bns = torch.nn.ModuleList([BN(out_feature)])
-        else:
-            self.convs = torch.nn.ModuleList()
-            self.bns = torch.nn.ModuleList()
-
-            # first layer
-            self.convs.append(
-                GINEConv(
-                    in_features,
-                    Sequential(
-                        Linear(in_features, hidden),
-                        GELU(),
-                        Linear(hidden, hidden),
-                    ),
-                    edge_encoder,
-                    dropout
-                )
-            )
-            if use_bn:
-                self.bns.append(BN(hidden))
-
-            # middle layer
-            for i in range(num_layers - 2):
-                self.convs.append(
-                    GINEConv(
-                        hidden,
-                        Sequential(
-                            Linear(hidden, hidden),
-                            GELU(),
-                            Linear(hidden, hidden),
-                        ),
-                        edge_encoder,
-                        dropout
-                    )
-                )
-                if use_bn:
-                    self.bns.append(BN(hidden))
-
-            # last layer
-            self.convs.append(
-                GINEConv(
-                    hidden,
-                    Sequential(
-                        Linear(hidden, hidden),
-                        GELU(),
-                        Linear(hidden, out_feature),
-                    ),
-                    edge_encoder,
-                    dropout
-                )
-            )
-            if use_bn:
-                self.bns.append(BN(out_feature))
+                self.bns.append(BN(out_feature if i == num_layers - 1 else hidden))
 
     def forward(self, x, edge_index, edge_attr, edge_weight=None):
         for i, conv in enumerate(self.convs):

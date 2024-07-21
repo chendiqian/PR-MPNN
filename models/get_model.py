@@ -58,7 +58,6 @@ def get_model(args, *_args):
     model = GNN_Duo(encoder,
                     edge_encoder,
                     args.model.lower(),
-                    include_org=args.sample_configs.include_original_graph,
                     num_candidates=2 if args.sample_configs.separate and
                                         args.sample_configs.sample_k > 0 and
                                         args.sample_configs.sample_k2 > 0 else 1,
