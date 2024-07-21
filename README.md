@@ -84,7 +84,7 @@ We provide rewiring options as following:
 
 - Separated / merged: if separated, will sample 2 graphs, one with edges added and the other with edges removed. If merged, will merge the 2 graphs as one.
 
-## Samplers that we use
+## Sampler candidates
 - SIMPLE, [code](https://github.com/UCLA-StarAI/SIMPLE), [paper](https://arxiv.org/abs/2210.01941)
 - I-MLE, [code](https://github.com/uclnlp/torch-imle), [paper](https://arxiv.org/abs/2106.01798)
 - Gumbel softmax for [subset sampling](https://uvadlc-notebooks.readthedocs.io/en/latest/tutorial_notebooks/DL2/sampling/subsets.html)
@@ -92,3 +92,5 @@ We provide rewiring options as following:
 ## To replicate experiments
 We provide yaml files under `configs`, run e.g. 
 `python run.py with PATH_TO_CONFIG`
+
+Note that this repo provides a taste of how PR-MPNN works, with examples given by GIN network. For replicating the results in our paper, please see to the `backup` branch, or contact [chendi.qian@log.rwth-aachen.de](mailto:chendi.qian@log.rwth-aachen.de)
