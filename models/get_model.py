@@ -90,9 +90,6 @@ def get_model(args, *_args):
     # rewiring process
     simple_sampler = EdgeSIMPLEBatched()
 
-    # we recommend using `SimplifiedGraphRewirer` for its efficiency
-    # if there is customized required, e.g., need to un-collate the rewired batch
-    # into graphs for plots, you need to use GraphRewirer
     rewiring = GraphRewirer(args.sample_configs.sample_k,
                             args.sample_configs.sample_k2,
                             args.imle_configs.num_train_ensemble,
