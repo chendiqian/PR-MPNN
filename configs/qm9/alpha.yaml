@@ -19,8 +19,6 @@ fixed:
   imle_configs:
     num_train_ensemble: 3
     num_val_ensemble: 3
-
-    model: "edge_selector"
     emb_hid_size: 64
     gnn_layer: 8
     mlp_layer: 4

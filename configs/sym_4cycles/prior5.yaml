@@ -22,8 +22,6 @@ fixed:
     num_train_ensemble: 50
     num_val_ensemble: 50
 
-    model: "edge_selector"
-
     emb_hid_size: 16
     gnn_layer: 4
     mlp_layer: 1
