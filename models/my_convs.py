@@ -12,69 +12,6 @@ def residual(y_old: torch.Tensor, y_new: torch.Tensor) -> torch.Tensor:
         return y_new
 
 
-class GINConv(MessagePassing):
-    def __init__(self, mlp: Union[MLP, torch.nn.Sequential]):
-        super(GINConv, self).__init__(aggr="add")
-        self.mlp = mlp
-        self.eps = torch.nn.Parameter(torch.Tensor([0.]))
-
-    def forward(self, x, edge_index, edge_attr, edge_weight):
-        if edge_weight is not None and edge_weight.ndim < 2:
-            edge_weight = edge_weight[:, None]
-
-        out = self.mlp((1 + self.eps) * x + self.propagate(edge_index,
-                                                           x=x,
-                                                           edge_weight=edge_weight))
-        return out
-
-    def message(self, x_j, edge_weight):
-        m = x_j
-        return m * edge_weight if edge_weight is not None else m
-
-    def update(self, aggr_out):
-        return aggr_out
-
-
-class BaseGIN(torch.nn.Module):
-    def __init__(self, num_layers, hidden, out_feature, use_bn, dropout, use_residual):
-        super(BaseGIN, self).__init__()
-
-        self.use_bn = use_bn
-        self.dropout = dropout
-        self.use_residual = use_residual
-
-        self.convs = torch.nn.ModuleList()
-        self.bns = torch.nn.ModuleList()
-        for i in range(num_layers):
-            self.convs = torch.nn.ModuleList([GINConv(
-                Sequential(
-                    Linear(-1, hidden),
-                    GELU(),
-                    Linear(-1, out_feature if i == num_layers - 1 else hidden),
-                ),
-            )])
-            if use_bn:
-                self.bns = torch.nn.ModuleList([BN(out_feature if i == num_layers - 1 else hidden)])
-
-    def forward(self, x, edge_index, edge_attr, edge_weight=None):
-
-        for i, conv in enumerate(self.convs):
-            x_new = conv(x,
-                         edge_index[i] if isinstance(edge_index, (list, tuple)) else edge_index,
-                         edge_attr,
-                         edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
-            if self.use_bn:
-                x_new = self.bns[i](x_new)
-            x_new = F.gelu(x_new)
-            x_new = F.dropout(x_new, p=self.dropout, training=self.training)
-            if self.use_residual:
-                x = residual(x, x_new)
-            else:
-                x = x_new
-
-        return x
-
-
 class GINEConv(MessagePassing):
     def __init__(self,
                  mlp: Union[MLP, torch.nn.Sequential],
@@ -129,10 +66,7 @@ class BaseGINE(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, edge_weight=None):
         for i, conv in enumerate(self.convs):
-            x_new = conv(x,
-                         edge_index[i] if isinstance(edge_index, (list, tuple)) else edge_index,
-                         edge_attr[i] if isinstance(edge_attr, (list, tuple)) else edge_attr,
-                         edge_weight[i] if isinstance(edge_weight, (list, tuple)) else edge_weight)
+            x_new = conv(x, edge_index, edge_attr, edge_weight)
             if self.use_bn:
                 x_new = self.bns[i](x_new)
             x_new = F.gelu(x_new)

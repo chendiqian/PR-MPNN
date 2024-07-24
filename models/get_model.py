@@ -50,7 +50,6 @@ def get_model(args, *_args):
     encoder, edge_encoder = get_encoder(args, args.hid_size)
     model = GNN_Duo(encoder,
                     edge_encoder,
-                    args.model.lower(),
                     num_candidates=2 if args.sample_configs.separate and
                                         args.sample_configs.sample_k > 0 and
                                         args.sample_configs.sample_k2 > 0 else 1,

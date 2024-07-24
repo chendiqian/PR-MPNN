@@ -2,14 +2,13 @@ from typing import List
 import torch
 from torch_geometric.nn import global_mean_pool, global_add_pool, global_max_pool, MLP
 from torch_geometric.data import Data
-from models.my_convs import BaseGIN, BaseGINE
+from models.my_convs import BaseGINE
 
 
 class GNN_Duo(torch.nn.Module):
     def __init__(self,
                  encoder,
                  edge_encoder,
-                 base_gnn,
                  num_candidates,
                  num_layers,
                  hidden,
@@ -24,27 +23,12 @@ class GNN_Duo(torch.nn.Module):
         super(GNN_Duo, self).__init__()
 
         self.encoder = encoder
-        self.base_gnn = base_gnn
 
-        if base_gnn == 'gin':
-            self.gnn = BaseGIN(num_layers, hidden, hidden, use_bn, dropout, residual)
-        elif base_gnn == 'gine':
-            self.gnn = BaseGINE(num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
-        else:
-            raise NotImplementedError
-
-        if base_gnn == 'gin':
-            self.candid_gnns = torch.nn.ModuleList(
-                [BaseGIN(num_layers, hidden, hidden, use_bn, dropout, residual)
-                 for _ in range(num_candidates)]
-            )
-        elif base_gnn == 'gine':
-            self.candid_gnns = torch.nn.ModuleList(
-                [BaseGINE(num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
-                 for _ in range(num_candidates)]
-            )
-        else:
-            raise NotImplementedError
+        self.gnn = BaseGINE(num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
+        self.candid_gnns = torch.nn.ModuleList(
+            [BaseGINE(num_layers, hidden, hidden, use_bn, dropout, residual, edge_encoder)
+             for _ in range(num_candidates)]
+        )
 
         # intra-graph pooling
         self.graph_pool_idx = 'batch'
