@@ -33,7 +33,6 @@ fixed:
     dim_pe: 16
     raw_norm_type: 'BatchNorm'
 
-  model: gine
   hid_size: 128
   lr: 1.e-3
   lr_decay:

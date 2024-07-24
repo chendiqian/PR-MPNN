@@ -41,7 +41,6 @@ fixed:
     layers: 2
     raw_norm_type: null
 
-  model: gine
   hid_size: 128
   lr: 1.e-3
   lr_decay:

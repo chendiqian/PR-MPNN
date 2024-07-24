@@ -27,7 +27,6 @@ fixed:
     mlp_layer: 2
     batchnorm: True
 
-  model: gin
   hid_size: 32
   lr: 1.e-3
   lr_decay:
