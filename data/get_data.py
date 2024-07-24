@@ -146,7 +146,7 @@ def get_data(args: Union[Namespace, ConfigDict], *_args):
     else:
         raise TypeError
 
-    return train_loaders, val_loaders, test_loaders, std if std is not None else 1.
+    return train_loaders, val_loaders, test_loaders, std if std is not None else 1
 
 
 def get_ogbg_data(args: Union[Namespace, ConfigDict]):
@@ -375,7 +375,7 @@ def get_sym_dataset(args: Union[Namespace, ConfigDict]):
     train_set = MySymDataset(data_path, 'train', 11, args.dataset.lower(), transform=None, pre_transform=pre_transform)
     val_set = MySymDataset(data_path, 'val', 11, args.dataset.lower(), transform=None, pre_transform=pre_transform)
     test_set = MySymDataset(data_path, 'test', 11, args.dataset.lower(), transform=None, pre_transform=pre_transform)
-    
+
     return train_set, val_set, test_set, None
 
 
