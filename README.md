@@ -19,20 +19,15 @@ conda activate prmpnn
 
 conda install pytorch  pytorch-cuda=11.7 -c pytorch-nightly -c nvidia
 conda install openbabel fsspec rdkit -c conda-forge
-pip install cmake
-pip install --verbose git+https://github.com/pyg-team/pyg-lib.git
-pip install --verbose torch_scatter
-pip install --verbose torch_sparse
-pip install --verbose torch_geometric
+pip install torch_geometric==2.5.3  # maybe latest also works
+pip install https://data.pyg.org/whl/torch-2.3.0%2Bcu121/torch_scatter-2.1.2%2Bpt23cu121-cp310-cp310-linux_x86_64.whl
+pip install https://data.pyg.org/whl/torch-2.3.0%2Bcu121/torch_sparse-0.6.18%2Bpt23cu121-cp310-cp310-linux_x86_64.whl
 
 pip install ogb
 pip install ml-collections
-pip install numba
 pip install sacred
 pip install PyYAML
 pip install wandb
-pip install seaborn
-pip install GraphRicciCurvature
 pip install gdown
 ```
 
