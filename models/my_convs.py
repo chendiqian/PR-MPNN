@@ -25,6 +25,8 @@ class GINEConv(MessagePassing):
     def forward(self, x, edge_index, edge_attr, edge_weight):
         if edge_weight is not None and edge_weight.ndim < 2:
             edge_weight = edge_weight[:, None]
+        elif edge_weight is None:
+            edge_weight = x.new_ones(edge_index.shape[1], 1)
 
         edge_embedding = self.bond_encoder(edge_attr) if edge_attr is not None else None
         out = self.mlp((1 + self.eps) * x + self.propagate(edge_index,
@@ -35,7 +37,7 @@ class GINEConv(MessagePassing):
 
     def message(self, x_j, edge_attr, edge_weight):
         m = F.gelu(x_j + edge_attr) if edge_attr is not None else x_j
-        return m * edge_weight if edge_weight is not None else m
+        return m * edge_weight
 
     def update(self, aggr_out):
         return aggr_out
