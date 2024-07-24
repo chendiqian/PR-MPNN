@@ -17,18 +17,19 @@ Chendi Qian*, Andrei Manolache*, Kareem Ahmed, Zhe Zeng, Guy Van den Broeck, Mat
 conda create -y -n prmpnn python=3.10
 conda activate prmpnn
 
-conda install pytorch  pytorch-cuda=11.7 -c pytorch-nightly -c nvidia
-conda install openbabel fsspec rdkit -c conda-forge
-pip install torch_geometric==2.5.3  # maybe latest also works
-pip install https://data.pyg.org/whl/torch-2.3.0%2Bcu121/torch_scatter-2.1.2%2Bpt23cu121-cp310-cp310-linux_x86_64.whl
-pip install https://data.pyg.org/whl/torch-2.3.0%2Bcu121/torch_sparse-0.6.18%2Bpt23cu121-cp310-cp310-linux_x86_64.whl
+conda install pytorch==2.1.2 pytorch-cuda=11.8 -c pytorch -c nvidia
+pip install torch_geometric==2.4.0  # maybe latest also works
+pip install https://data.pyg.org/whl/torch-2.1.0%2Bcu118/torch_scatter-2.1.2%2Bpt21cu118-cp310-cp310-linux_x86_64.whl
+pip install https://data.pyg.org/whl/torch-2.1.0%2Bcu118/torch_sparse-0.6.18%2Bpt21cu118-cp310-cp310-linux_x86_64.whl
 
 pip install ogb
 pip install ml-collections
 pip install sacred
-pip install PyYAML
 pip install wandb
 pip install gdown
+
+# maybe need to downgrade numpy
+pip install numpy=1.26.4
 ```
 
 ## Datasets
