@@ -55,14 +55,14 @@ class BaseGINE(torch.nn.Module):
         self.bns = torch.nn.ModuleList()
 
         for i in range(num_layers):
-            self.convs = torch.nn.ModuleList([GINEConv(
+            self.convs.append(GINEConv(
                 Sequential(
                     Linear(-1, hidden),
                     GELU(),
                     Linear(-1, out_feature if i == num_layers - 1 else hidden),
                 ),
                 edge_encoder,
-            )])
+            ))
             if use_bn:
                 self.bns.append(BN(out_feature if i == num_layers - 1 else hidden))
 
