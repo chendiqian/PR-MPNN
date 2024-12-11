@@ -48,7 +48,7 @@ class GNN_Normal(torch.nn.Module):
             raise NotImplementedError
 
         if mlp_layers_intragraph > 0:
-            self.mlp = MLP([hidden] * mlp_layers_intragraph + [num_classes], dropout=0.)
+            self.mlp = MLP([hidden] * mlp_layers_intragraph + [num_classes], dropout=0., norm=None)
         else:
             self.mlp = lambda x: x
 
