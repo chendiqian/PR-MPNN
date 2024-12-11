@@ -78,7 +78,9 @@ def get_pretransform(args: Union[Namespace, ConfigDict], pretransforms: Optional
     # add edge candidates
     heu = args.sample_configs.heuristic if hasattr(args.sample_configs, 'heuristic') else 'longest_path'
     directed = args.sample_configs.directed if hasattr(args.sample_configs, 'directed') else False
-    pretransforms.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
+    if hasattr(args.sample_configs, 'candid_pool') and args.sample_configs.candid_pool > 0:
+        pretransforms.append(AugmentWithEdgeCandidate(heu, args.sample_configs.candid_pool, directed))
+    # else normal gnn
 
     if pretransforms:
         pretransforms = sorted(pretransforms, key=lambda p: PRETRANSFORM_PRIORITY[type(p)], reverse=True)

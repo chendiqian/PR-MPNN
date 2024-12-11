@@ -6,6 +6,7 @@ from models.hybrid_model import HybridModel
 from models.my_encoder import FeatureEncoder, BondEncoder
 from models.rewirer import GraphRewirer
 from models.upstream import EdgeSelector
+from models.gnn_normal import GNN_Normal
 from simple.simple_scheme import EdgeSIMPLEBatched
 
 
@@ -48,6 +49,24 @@ def get_encoder(args, hidden):
 def get_model(args, *_args):
     # downstream model
     encoder, edge_encoder = get_encoder(args, args.hid_size)
+
+    # base model
+    if args.model.endswith('normal'):
+        model = GNN_Normal(
+            encoder,
+            edge_encoder,
+            args.model.lower().split('_')[0],  # e.g. gine
+            num_layers=args.num_convlayers,
+            hidden=args.hid_size,
+            num_classes=DATASET_FEATURE_STAT_DICT[args.dataset]['num_class'],
+            use_bn=args.bn,
+            dropout=args.dropout,
+            residual=args.residual,
+            mlp_layers_intragraph=args.mlp_layers_intragraph,
+            graph_pooling=args.graph_pooling)
+        return model
+
+    # else do edge rewiring
     model = GNN_Duo(encoder,
                     edge_encoder,
                     num_candidates=2 if args.sample_configs.separate and
