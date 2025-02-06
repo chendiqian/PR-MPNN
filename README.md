@@ -90,3 +90,6 @@ We provide yaml files under `configs`, run e.g.
 `python run.py with PATH_TO_CONFIG`
 
 Note that this repo provides a taste of how PR-MPNN works, with examples given by GIN network. For replicating the results in our paper, please see to the `backup` branch, or contact [chendi.qian@log.rwth-aachen.de](mailto:chendi.qian@log.rwth-aachen.de)
+
+## Known issue
+If you are using a different version of PyTorch, you might have some error in the gradients produced by SIMPLE gradient estimator. You might want to check if SIMPLE gives nonzero gradients.
